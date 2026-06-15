@@ -662,6 +662,8 @@ body{-webkit-overflow-scrolling:touch}
               </table>
             </div>
 
+            <div id="cobertura-aviso" style="display:none"></div>
+
             <div id="totais-section" style="display:none">
               <div class="total-grid" id="total-grid" style="grid-template-columns:1fr 1fr 1fr"></div>
               <div class="winner" id="winner">
@@ -1595,14 +1597,17 @@ function render() {
   const tv = qtds.reduce((a,b)=>a+b,0);
   const OPS_ORDER = Object.keys(OP_META);
 
-  // Colunas: uma por plano selecionado por operadora ativa
+  // Colunas: uma por plano selecionado por operadora ativa.
+  // Planos de cobertura parcial (não cobrem alguma faixa preenchida) entram com flag
+  // `partial` em vez de serem removidos silenciosamente (operadoras sênior cobrem só 49+).
   const cols = [];
   OPS_ORDER.forEach(op => {
     if (!activeOps[op] || planosFiltered(op).length === 0) return;
     (selPlanos[op] || []).forEach(pid => {
       const p = PLANOS.find(x => x.id === pid);
-      if (!p || !planAvailable(p)) return;
-      cols.push({op, plan: p});
+      if (!p) return;
+      const semCobertura = qtds.map((q,i) => (q>0 && p.precos[i]===0) ? i : -1).filter(i => i>=0);
+      cols.push({op, plan: p, partial: semCobertura.length>0, semCobertura});
     });
   });
 
@@ -1635,13 +1640,20 @@ function render() {
   FAIXAS.forEach((faixa, i) => {
     const q = qtds[i]||0;
     if (q === 0) return;
-    const subs = cols.map(({plan}) => plan.precos[i] * q);
-    const mn = Math.min(...subs);
+    // ✓ (mais barato) só entre planos de cobertura completa — parciais não são comparáveis
+    const compSubs = cols.map(({plan, partial}) => partial ? Infinity : plan.precos[i] * q);
+    const mn = Math.min(...compSubs);
+    const nComp = compSubs.filter(s => s !== Infinity).length;
     const tr = document.createElement('tr');
     let h = `<td><div class="faixa-cell">${faixa} anos</div><div class="qty-cell">${q} vida(s)</div></td>`;
-    cols.forEach(({op, plan}, ci) => {
-      const s = subs[ci];
-      const mk = f(s) + (s===mn && subs.length>1 ? '<span class="best">✓</span>' : '');
+    cols.forEach(({op, plan, partial}, ci) => {
+      if (plan.precos[i] === 0) {   // plano não cobre esta faixa
+        h += `<td class="price-cell" style="color:var(--ink3)">—</td><td ${subAttr(op)} style="color:var(--ink3)">—</td>`;
+        return;
+      }
+      const s = plan.precos[i] * q;
+      const isBest = !partial && s === mn && nComp > 1;
+      const mk = f(s) + (isBest ? '<span class="best">✓</span>' : '');
       h += `<td class="price-cell">${f(plan.precos[i])}</td><td ${subAttr(op)}>${mk}</td>`;
     });
     tr.innerHTML = h;
@@ -1653,8 +1665,9 @@ function render() {
   const trTot = document.createElement('tr');
   trTot.className = 'row-total';
   let ht = `<td style="font-size:11px;font-weight:600;color:var(--ink2)">Total · ${tv} vida(s)</td>`;
-  cols.forEach(({op}, ci) => {
-    ht += `<td></td><td ${subAttr(op)}>${f(totals[ci])}</td>`;
+  cols.forEach(({op, partial}, ci) => {
+    const star = partial ? '<span style="color:var(--ink3);font-weight:400"> *</span>' : '';
+    ht += `<td></td><td ${subAttr(op)}>${f(totals[ci])}${star}</td>`;
   });
   trTot.innerHTML = ht;
   rb.appendChild(trTot);
@@ -1663,7 +1676,7 @@ function render() {
   const tg = document.getElementById('total-grid');
   tg.style.gridTemplateColumns = `repeat(${cols.length||1},1fr)`;
   tg.innerHTML = '';
-  cols.forEach(({op, plan}, ci) => {
+  cols.forEach(({op, plan, partial}, ci) => {
     const d = document.createElement('div');
     const _tc = tbCls(op);
     const _cor = ((OP_META[op]||{}).cor || '').trim();
@@ -1673,23 +1686,48 @@ function render() {
     const opCls  = hasColor ? 'tb-op'  : 'tb-op-off';
     const valCls = hasColor ? 'tb-val' : 'tb-val-off';
     const subStyle = hasColor ? '' : ' style="color:var(--ink3)"';
-    d.innerHTML = `<div><div class="${opCls}">${(OP_META[op]||{}).nome||op}</div><div class="${valCls}">${f(totals[ci])}</div><div class="tb-sub"${subStyle}>${tv} vida(s) · ${plan.nome}</div></div>`;
+    const star = partial ? ' *' : '';
+    const subTxt = `${tv} vida(s) · ${plan.nome}` + (partial ? ' · parcial' : '');
+    d.innerHTML = `<div><div class="${opCls}">${(OP_META[op]||{}).nome||op}</div><div class="${valCls}">${f(totals[ci])}${star}</div><div class="tb-sub"${subStyle}>${subTxt}</div></div>`;
     tg.appendChild(d);
   });
 
-  // Vencedora
+  // Vencedora — só entre planos de cobertura completa (total parcial não é comparável)
   const w = document.getElementById('winner');
-  if (cols.length > 1) {
-    const sorted = cols.map((c, i) => ({op:c.op, nome:c.plan.nome, total:totals[i]})).sort((a,b)=>a.total-b.total);
+  const fullCols = cols.map((c, i) => ({op:c.op, nome:c.plan.nome, total:totals[i]}))
+                       .filter((_, i) => !cols[i].partial);
+  if (fullCols.length > 1) {
+    const sorted = fullCols.sort((a,b)=>a.total-b.total);
     const diff = sorted[sorted.length-1].total - sorted[0].total;
     w.classList.add('on');
     const _wop = (OP_META[sorted[0].op]||{}).nome||sorted[0].op;
     const winLabel = sorted[0].nome.includes('—') ? `${_wop} · ${sorted[0].nome.split('—').pop().trim()}` : `${_wop} · ${sorted[0].nome}`;
     document.getElementById('winner-txt').innerHTML =
       `<strong>${winLabel}</strong> é a opção mais econômica — <strong>${f(diff)}</strong> de diferença no total mensal.`;
-  } else w.classList.remove('on');
+  } else { w.classList.remove('on'); document.getElementById('winner-txt').innerHTML = ''; }
 
+  renderCoberturaAviso(cols);
   renderNotes(cols);
+}
+
+// Aviso de cobertura parcial: lista os planos que não cobrem alguma faixa preenchida.
+function renderCoberturaAviso(cols) {
+  const el = document.getElementById('cobertura-aviso');
+  if (!el) return;
+  const parciais = cols.filter(c => c.partial);
+  if (!parciais.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const _esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const linhas = parciais.map(({op, plan, semCobertura}) => {
+    const nome = (OP_META[op]||{}).nome || op;
+    const faixas = semCobertura.map(i => FAIXAS[i]).join(', ');
+    const txtFaixas = faixas ? `a(s) faixa(s) ${faixas}` : 'as faixas preenchidas';
+    return `<div style="margin:2px 0">${_esc(nome)} · ${_esc(plan.nome)} — não cobre ${txtFaixas}. Total <strong>parcial</strong>, fora da comparação.</div>`;
+  }).join('');
+  el.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-start;background:var(--cream);border:1px solid var(--amber);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12px;color:var(--ink2);line-height:1.45">
+    <span style="font-size:14px;line-height:1.2">⚠️</span>
+    <div><div style="font-weight:700;color:var(--amber);margin-bottom:2px">Cobertura parcial</div>${linhas}<div style="margin-top:4px;color:var(--ink3)">O <strong>*</strong> marca o total parcial — soma apenas as faixas cobertas. Cote as demais vidas separadamente.</div></div>
+  </div>`;
+  el.style.display = 'block';
 }
 
 function renderNotes(cols) {
