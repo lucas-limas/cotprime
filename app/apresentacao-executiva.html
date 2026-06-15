@@ -657,24 +657,38 @@ const PLANOS_DB = window.PLANOS_DB || {
   ]
 };
 
-const OP_META = window.OP_META || {
+// Mapa estático de cores HEX por operadora — os HEX devem bater com o
+// OP_COR_MAP do cotador (app/cotador-planos-saude.html) para consistência visual.
+const OP_COR_BASE = {
   unity:{nome:'Unity Saúde',cor:'#0f2340'},
   evo:{nome:'Evo Saúde',cor:'#5c1a40'},
   plenum:{nome:'Plenum Saúde',cor:'#0a4028'},
   amil:{nome:'Amil',cor:'#461BFF'},
   bradesco:{nome:'Bradesco Saúde',cor:'#CC0000'},
-  medsenior:{nome:'MedSênior',cor:'#1B6B3A'},
+  medsenior:{nome:'MedSênior',cor:'#95C13D'},
   bestsenior:{nome:'Best Sênior',cor:'#1B3A8A'},
   segurosunimed:{nome:'Seguros Unimed',cor:'#0074BE'},
   portosaude:{nome:'Porto Saúde',cor:'#005CB9'},
   sulamerica:{nome:'SulAmérica Saúde',cor:'#D5531C'},
   hapvida:{nome:'Hapvida',cor:'#007B40'},
 };
-// Carrega operadoras do catálogo para suporte automático a novas operadoras
+// Resolve a cor SEMPRE para um HEX válido — nunca aceita 'var(...)'.
+const _corHex = c => { c = (c||'').trim(); return (c && !c.startsWith('var(')) ? c : ''; };
+// Base = mapa estático (todas as 11 ops com HEX garantido).
+const OP_META = {};
+Object.entries(OP_COR_BASE).forEach(([k,v]) => { OP_META[k] = {nome:v.nome, cor:v.cor}; });
+// Mescla operadoras de window.OP_META (dados.js): ops conhecidas preservam o HEX
+// estático (só atualiza o nome); ops novas entram com HEX sanitizado (nunca var()).
+Object.entries(window.OP_META || {}).forEach(([k,v]) => {
+  if (OP_META[k]) { if (v && v.nome) OP_META[k].nome = v.nome; }
+  else OP_META[k] = {nome:(v&&v.nome)||k, cor:_corHex(v&&v.cor)||'#555555'};
+});
+// Carrega operadoras do catálogo para suporte automático a novas operadoras.
 fetch('/api/catalogo').then(r=>r.ok?r.json():null).then(data=>{
   if(!data) return;
   Object.entries(data.operadoras||{}).forEach(([k,v])=>{
-    if(!OP_META[k]) OP_META[k]={nome:v.nome, cor:(v.cor||'').trim()||'#555555'};
+    if (OP_META[k]) { if (v && v.nome) OP_META[k].nome = v.nome; }
+    else OP_META[k] = {nome:v.nome||k, cor:_corHex(v.cor)||'#555555'};
   });
 }).catch(()=>{});
 
@@ -827,16 +841,16 @@ function buildPlanosSel() {
 }
 
 // ─── OPERATOR CARDS (multi mode) ───────────────────────────────────────
-function buildOpsCards(opsInfo, winner) {
+function buildOpsCards(opsInfo, winnerPid) {
   const c = document.getElementById('ops-cards');
   if (!opsInfo || !opsInfo.length) { c.innerHTML = ''; return; }
-  _recomendado = winner;
+  _recomendado = winnerPid;
   c.innerHTML = opsInfo.map(({op, pid, total}) => {
     const meta = OP_META[op] || {nome: op, cor: '#555555'};
     const pi = (PLANOS_DB[op] || []).find(p => p.id === pid) || {};
-    const isW = op === winner;
+    const isW = pid === winnerPid;
     const tot = total > 0 ? 'R$ ' + total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
-    return `<div class="op-comp-card${isW?' is-winner':''}" data-op="${op}" style="border-top:3px solid ${meta.cor};cursor:pointer" onclick="setRecomendado('${op}')" title="Clique para definir como recomendado">
+    return `<div class="op-comp-card${isW?' is-winner':''}" data-pid="${pid}" style="border-top:3px solid ${meta.cor};cursor:pointer" onclick="setRecomendado('${pid}')" title="Clique para definir como recomendado">
       ${isW ? '<div class="occ-badge">★ RECOMENDADO</div>' : ''}
       <div class="occ-op" style="color:${meta.cor}">${meta.nome}</div>
       <div class="occ-plan">${pi.nome || pid}</div>
@@ -847,10 +861,10 @@ function buildOpsCards(opsInfo, winner) {
   }).join('');
 }
 
-function setRecomendado(op) {
-  _recomendado = op;
+function setRecomendado(pid) {
+  _recomendado = pid;
   document.querySelectorAll('#ops-cards .op-comp-card').forEach(card => {
-    const isW = card.dataset.op === op;
+    const isW = card.dataset.pid === pid;
     card.classList.toggle('is-winner', isW);
     let badge = card.querySelector('.occ-badge');
     if (isW && !badge) {
@@ -902,21 +916,21 @@ function calcTotal() {
   document.getElementById('total-badge').textContent = 'Total: R$ ' + fm(total);
 }
 
-function calcTotalOp(op) {
+function calcTotalOp(key) {
   let total = 0;
-  document.querySelectorAll(`#vidas-body input[data-op="${op}"]`).forEach(inp => {
+  document.querySelectorAll(`#vidas-body input[data-key="${key}"]`).forEach(inp => {
     const idx = parseInt(inp.dataset.idx);
     const q = (_opsData && _opsData.qtds) ? (_opsData.qtds[idx] || 0) : 0;
     const unit = parseFloat(inp.value) || 0;
     const sub = q * unit;
-    const subEl = document.getElementById(`op-sub-${op}-${idx}`);
+    const subEl = document.getElementById(`op-sub-${key}-${idx}`);
     if (subEl) subEl.textContent = sub > 0 ? 'R$ ' + fm(sub) : '—';
     total += sub;
   });
-  const badge = document.getElementById(`op-total-${op}`);
+  const badge = document.getElementById(`op-total-${key}`);
   if (badge) badge.textContent = 'Total: R$ ' + fm(total);
-  const effectiveWinner = _recomendado || (_opsData && _opsData.winner);
-  if (op === effectiveWinner) {
+  const effectiveWinner = _recomendado || (_opsData && _opsData.winnerPid);
+  if (key === effectiveWinner) {
     document.getElementById('total-badge').textContent = 'Total: R$ ' + fm(total);
   }
 }
@@ -936,16 +950,17 @@ function buildMultiVidasUI(opsInfo, qtds) {
     const meta = OP_META[oi.op] || {nome: oi.op, cor: '#555555'};
     const planInfo = (PLANOS_DB[oi.op]||[]).find(p=>p.id===oi.pid);
     const planNome = planInfo ? planInfo.nome : (oi.pid||oi.op);
+    const key = oi.pid;   // chave ÚNICA por plano (evita colisão de ids/seletores entre planos da mesma op)
     const sec = document.createElement('div');
     sec.className = 'op-vida-sec';
-    sec.dataset.opSec = oi.op;
+    sec.dataset.opSec = key;
 
     sec.innerHTML = `
       <div class="op-vida-hdr">
         <span class="op-badge" style="background:${meta.cor}">${meta.nome}</span>
         <span style="font-size:11px;color:var(--ink3);font-weight:400">${planNome}</span>
         <span style="flex:1"></span>
-        <span id="op-total-${oi.op}" style="background:${meta.cor};color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px">Total: R$ 0,00</span>
+        <span id="op-total-${key}" style="background:${meta.cor};color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px">Total: R$ 0,00</span>
       </div>
       <div class="op-vida-col-hdr">
         <span>Faixa etária</span><span style="text-align:center">Qtd.</span><span>Preço por vida (R$)</span><span>Subtotal</span>
@@ -960,15 +975,15 @@ function buildMultiVidasUI(opsInfo, qtds) {
         <span style="font-size:12px;color:var(--ink)">${FL[i]}</span>
         <span style="font-size:12px;text-align:center;color:var(--ink3)">${q}</span>
         <input type="number" min="0" step="0.01" value="${precoAtual}" placeholder="R$ por vida"
-          data-op="${oi.op}" data-idx="${i}"
+          data-key="${key}" data-idx="${i}"
           style="font-size:12px;padding:6px 8px;background:var(--cream);border:1.5px solid var(--line);border-radius:var(--r-sm);font-family:'DM Sans',sans-serif;width:100%;outline:none;color:var(--ink)"
-          oninput="calcTotalOp('${oi.op}')">
-        <div id="op-sub-${oi.op}-${i}" style="font-size:12px;font-weight:600;color:var(--navy);text-align:center;padding:6px 0">—</div>`;
+          oninput="calcTotalOp('${key}')">
+        <div id="op-sub-${key}-${i}" style="font-size:12px;font-weight:600;color:var(--navy);text-align:center;padding:6px 0">—</div>`;
       sec.appendChild(row);
     });
 
     body.appendChild(sec);
-    calcTotalOp(oi.op);
+    calcTotalOp(key);
   });
 }
 
@@ -1349,16 +1364,22 @@ async function gerar() {
   const mostrarImpacto = document.getElementById('g-mostrar-impacto').checked;
   const planoInfo = (PLANOS_DB[opKey]||[]).find(p=>p.id===planoId) || (PLANOS_DB[opKey]||[])[0] || {};
   const opMeta = OP_META[opKey] || {nome: opKey, cor: '#555555'};
-  const effectiveWinner = isMulti ? (_recomendado || _opsData.winner) : opKey;
+  // Vencedor/recomendado é por PLANO (pid) no modo multi. effectiveWinnerOp deriva
+  // a operadora da entrada vencedora (para campos que ainda precisam da op).
+  const effectiveWinnerPid = isMulti ? (_recomendado || _opsData.winnerPid) : null;
+  const effectiveWinnerOp = isMulti
+    ? ((_opsData.opsInfo.find(o => o.pid === effectiveWinnerPid) || _opsData.opsInfo[0] || {}).op || opKey)
+    : opKey;
 
-  // Coletar vidas — em modo multi, sincroniza preços editados de volta ao _opsData
+  // Coletar vidas — em modo multi, sincroniza preços editados de volta ao _opsData.
+  // Cada plano lê SÓ os seus inputs (data-key === pid), evitando que planos da mesma op se sobrescrevam.
   if (isMulti && _opsData && _opsData.opsInfo) {
     const FL = ['0 a 18 anos','19 a 23 anos','24 a 28 anos','29 a 33 anos',
                 '34 a 38 anos','39 a 43 anos','44 a 48 anos','49 a 53 anos',
                 '54 a 58 anos','59 ou mais'];
     _opsData.opsInfo.forEach(oi => {
       if (!oi.precos) oi.precos = new Array(FL.length).fill(0);
-      document.querySelectorAll(`#vidas-body input[data-op="${oi.op}"]`).forEach(inp => {
+      document.querySelectorAll(`#vidas-body input[data-key="${oi.pid}"]`).forEach(inp => {
         const idx = parseInt(inp.dataset.idx);
         oi.precos[idx] = parseFloat(inp.value) || 0;
       });
@@ -1372,7 +1393,7 @@ async function gerar() {
     const FL = ['0 a 18 anos','19 a 23 anos','24 a 28 anos','29 a 33 anos',
                 '34 a 38 anos','39 a 43 anos','44 a 48 anos','49 a 53 anos',
                 '54 a 58 anos','59 ou mais'];
-    const wInfo = _opsData.opsInfo.find(o => o.op === effectiveWinner) || _opsData.opsInfo[0];
+    const wInfo = _opsData.opsInfo.find(o => o.pid === effectiveWinnerPid) || _opsData.opsInfo[0];
     (_opsData.qtds || []).forEach((q, i) => {
       if (q <= 0) return;
       const unit = (wInfo && wInfo.precos) ? (wInfo.precos[i] || 0) : 0;
@@ -1462,7 +1483,7 @@ async function gerar() {
     compOpsHTML = _opsData.opsInfo.map(({op, pid, total, precos}) => {
       const meta = OP_META[op] || {nome: op, cor: '#555555'};
       const pi = (PLANOS_DB[op] || []).find(p => p.id === pid) || {};
-      const isW = op === effectiveWinner;
+      const isW = pid === effectiveWinnerPid;
       const opTotal = total > 0 ? total : (precos ? qtdsArr.reduce((a,q,i) => a + q*(precos[i]||0), 0) : 0);
       if (isW) { winnerTotalMulti = opTotal; winnerReajuste = pi.reajuste || reajuste; }
       const vidasRows = (precos && qtdsArr.some(q=>q>0)) ? qtdsArr.map((q,i) => {
@@ -1576,7 +1597,7 @@ async function gerar() {
       <div class="imp-card imp-rec">
         <span class="imp-tag it-gold">⭐ Melhor opção</span>
         <div class="imp-val iv-gold">R$ ${fm(winnerTotalMulti)}</div>
-        <div class="imp-desc"><strong>por mês</strong> — ${abrang} · ${aco} · ${(OP_META[effectiveWinner]||{nome:effectiveWinner}).nome}</div>
+        <div class="imp-desc"><strong>por mês</strong> — ${abrang} · ${aco} · ${(OP_META[effectiveWinnerOp]||{nome:effectiveWinnerOp}).nome}</div>
         ${mesesAteReajuste(winnerReajuste) > 0 ? `<div style="margin-top:.75rem;font-size:12px;color:var(--amber);background:#fffbeb;border-radius:var(--r-sm);padding:8px 10px">🔒 Valor <strong>congelado</strong> por aprox. <strong>${mesesAteReajuste(winnerReajuste)} ${mesesAteReajuste(winnerReajuste)===1?'mês':'meses'}</strong> — reajuste em ${winnerReajuste}.</div>` : ''}
       </div>
       <div class="imp-card imp-econ">
@@ -1750,9 +1771,13 @@ function compartilhar() {
 // ─── INTEGRAÇÃO COTADOR ────────────────────────────────────────────────
 function receiveFromCotador(data) {
   const { nome, obs, qtds, selPlanos, activeOps, winner, opsInfo, filtroTipo, filtroCopart, filtroMod } = data;
+  const _ops = opsInfo || [];
+  // Vencedor real é por PLANO (pid). Usa winnerPid do cotador; fallback = entrada de menor total.
+  const winnerPid = data.winnerPid ||
+    (_ops.length ? _ops.slice().sort((a,b)=>(a.total||0)-(b.total||0))[0].pid : null);
 
   // Armazena dados completos para gerar()
-  _opsData = { qtds, selPlanos, activeOps, winner, opsInfo: opsInfo || [], filtroTipo, filtroCopart, filtroMod };
+  _opsData = { qtds, selPlanos, activeOps, winner, winnerPid, opsInfo: _ops, filtroTipo, filtroCopart, filtroMod };
 
   // Reconstrói PLANOS_DB a partir de window.PLANOS (populado pelo sincronizarCatalogo)
   if (selPlanos && window.PLANOS) {
@@ -1773,13 +1798,13 @@ function receiveFromCotador(data) {
   document.getElementById('ops-multi-section').style.display = 'block';
   document.getElementById('ops-card-head').textContent = '🏥 Comparativo de operadoras e planos';
 
-  // Popula cards das operadoras
-  buildOpsCards(opsInfo || [], winner);
+  // Popula cards das operadoras (recomendado marcado por pid)
+  buildOpsCards(_ops, winnerPid);
 
   // Configura campos ocultos do winner (compatibilidade com gerar())
   document.getElementById('g-op').value = winner;
   buildPlanosSel();
-  const pid = selPlanos[winner];
+  const pid = winnerPid || selPlanos[winner];
   if (pid) document.getElementById('g-plano').value = pid;
   const planoInfo = (PLANOS_DB[winner] || []).find(p => p.id === pid) || {};
   if (planoInfo.reajuste) document.getElementById('g-reajuste').value = planoInfo.reajuste;

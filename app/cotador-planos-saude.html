@@ -1729,7 +1729,10 @@ function criarApresentacao() {
     showToast('Selecione ao menos uma operadora e um plano antes de gerar a apresentação.');
     return;
   }
-  const winner = withTotal.slice().sort((a,b) => a.total - b.total)[0].op;
+  // Vencedor é por PLANO (pid único), não por operadora — uma op pode ter vários planos.
+  const w = withTotal.slice().sort((a,b) => a.total - b.total)[0];
+  const winner = w.op;          // mantido para os campos legados single-op
+  const winnerPid = w.pid;      // vencedor real (plano recomendado)
   const data = {
     nome:        document.getElementById('nome').value,
     obs:         document.getElementById('obs').value,
@@ -1737,6 +1740,7 @@ function criarApresentacao() {
     selPlanos:   Object.fromEntries(Object.entries(selPlanos).map(([k,v])=>[k,(v||[])[0]||null])),
     activeOps:   {...activeOps},
     winner,
+    winnerPid,
     opsInfo:     withTotal,
     tipoOp:      {...tipoOp},
     filtroTipo:  tipoOp[winner] || 'adesao',
