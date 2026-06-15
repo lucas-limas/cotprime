@@ -2328,7 +2328,7 @@ function restaurarCotacaoFromObj(e){
   qtds=[...e.qtds];
   selPlanos=Object.fromEntries(Object.entries(e.selPlanos||{}).map(([k,v])=>[k,Array.isArray(v)?v:[v].filter(Boolean)]));
   activeOps={...e.activeOps}; tipoOp={...e.tipoOp};
-  filtroCopart=e.filtroCopart||'todos'; filtroMod=e.filtroMod||'comp'; filtroVig=e.filtroVig||'vigentes';
+  filtroCopart=e.filtroCopart||'todos'; filtroMod=e.filtroMod||'comp'; filtroVig=e.filtroVig||'12';
   document.getElementById('nome').value = e.nome||'';
   if (e.obs) document.getElementById('obs').value = e.obs;
   FAIXAS.forEach((_,i)=>{
@@ -2348,7 +2348,7 @@ function restaurarCotacao(id) {
   qtds=[...e.qtds];
   selPlanos=Object.fromEntries(Object.entries(e.selPlanos||{}).map(([k,v])=>[k,Array.isArray(v)?v:[v].filter(Boolean)]));
   activeOps={...e.activeOps}; tipoOp={...e.tipoOp};
-  filtroCopart=e.filtroCopart||'todos'; filtroMod=e.filtroMod||'comp'; filtroVig=e.filtroVig||'vigentes';
+  filtroCopart=e.filtroCopart||'todos'; filtroMod=e.filtroMod||'comp'; filtroVig=e.filtroVig||'12';
   document.getElementById('nome').value = e.nome||'';
   if (e.obs) document.getElementById('obs').value = e.obs;
   FAIXAS.forEach((_,i)=>{

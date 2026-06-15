@@ -1646,7 +1646,11 @@ def atualizar_cliente(cliente_id: int, body: UpdateClienteRequest, user=Depends(
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user, write=True)
+    try:
+        _check_cliente_acesso(dict(row), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
     updates, params = [], []
     for field in ("nome", "empresa", "cnpj", "telefone", "email", "n_vidas_estimado", "segmento", "origem", "ativo", "compartilhado", "plano_atual", "operadora_atual"):
         val = getattr(body, field)
@@ -1670,7 +1674,11 @@ def desativar_cliente(cliente_id: int, user=Depends(require_corretor)):
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user, write=True)
+    try:
+        _check_cliente_acesso(dict(row), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
     conn.execute(
         "UPDATE clientes SET ativo = 0, atualizado_em = ? WHERE id = ?",
         (datetime.utcnow().isoformat() + 'Z', cliente_id),
@@ -1690,7 +1698,11 @@ def listar_oportunidades(cliente_id: int, user=Depends(require_corretor)):
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user)
+    try:
+        _check_cliente_acesso(dict(row), user)
+    except HTTPException:
+        conn.close()
+        raise
     rows = conn.execute(
         "SELECT * FROM oportunidades WHERE cliente_id = ? ORDER BY criado_em DESC",
         (cliente_id,),
@@ -1706,7 +1718,11 @@ def criar_oportunidade(cliente_id: int, body: OportunidadeRequest, user=Depends(
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user, write=True)
+    try:
+        _check_cliente_acesso(dict(row), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
     novo = insert_returning(
         conn,
         """INSERT INTO oportunidades
@@ -1730,7 +1746,11 @@ def atualizar_oportunidade(op_id: int, body: UpdateOportunidadeRequest, user=Dep
     if not cliente:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(cliente), user, write=True)
+    try:
+        _check_cliente_acesso(dict(cliente), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
     updates, params = [], []
     for field in ("estagio", "valor_estimado", "data_prevista_fechamento", "motivo_perda", "obs"):
         val = getattr(body, field)
@@ -1756,7 +1776,11 @@ def listar_interacoes(cliente_id: int, user=Depends(require_corretor)):
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user)
+    try:
+        _check_cliente_acesso(dict(row), user)
+    except HTTPException:
+        conn.close()
+        raise
     rows = conn.execute(
         "SELECT * FROM interacoes WHERE cliente_id = ? ORDER BY criado_em DESC",
         (cliente_id,),
@@ -1772,7 +1796,11 @@ def criar_interacao(cliente_id: int, body: InteracaoRequest, user=Depends(requir
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user, write=True)
+    try:
+        _check_cliente_acesso(dict(row), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
     nova = insert_returning(
         conn,
         "INSERT INTO interacoes (cliente_id, tipo, descricao, usuario) VALUES (?, ?, ?, ?)",
@@ -1794,7 +1822,11 @@ def deletar_interacao(interacao_id: int, user=Depends(require_corretor)):
     if not cliente:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(cliente), user, write=True)
+    try:
+        _check_cliente_acesso(dict(cliente), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
     conn.execute("DELETE FROM interacoes WHERE id = ?", (interacao_id,))
     conn.commit()
     conn.close()
@@ -1810,7 +1842,11 @@ def listar_cotacoes_cliente(cliente_id: int, user=Depends(require_corretor)):
     if not row:
         conn.close()
         raise HTTPException(404, "Cliente não encontrado")
-    _check_cliente_acesso(dict(row), user)
+    try:
+        _check_cliente_acesso(dict(row), user)
+    except HTTPException:
+        conn.close()
+        raise
     rows = conn.execute(
         "SELECT id, usuario, cliente, dados, criado_em FROM cotacoes WHERE cliente_id = ? ORDER BY criado_em DESC",
         (cliente_id,),

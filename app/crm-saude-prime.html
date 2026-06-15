@@ -744,8 +744,10 @@ async function advanceStage(clienteId, opId, currentStage){
   const idx = STAGES.indexOf(currentStage);
   if (idx < 0 || idx >= STAGES.length - 2) return; // -2 to skip perdido
   const newStage = STAGES[idx + 1];
-  await patchStage(clienteId, opId, newStage, null);
-  await loadKanban(currentView);
+  try {
+    await patchStage(clienteId, opId, newStage, null);
+    await loadKanban(currentView);
+  } catch { showToast('Erro ao atualizar estágio'); }
 }
 
 async function patchStage(clienteId, opId, newStage, motivo){
@@ -1057,8 +1059,13 @@ function renderCotacoes(cotacoes){
     let ops = '—';
     try {
       const dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados;
-      const opKeys = Object.keys(dados?.resultados || {});
-      if (opKeys.length) ops = opKeys.join(', ');
+      const NOMES = {unity:'Unity',evo:'Evo',plenum:'Plenum',amil:'Amil',medsenior:'MedSênior',
+        segurosunimed:'Seguros Unimed',portosaude:'Porto',bradesco:'Bradesco',
+        bestsenior:'Best Sênior',sulamerica:'SulAmérica',hapvida:'Hapvida'};
+      let keys = Object.keys(dados?.activeOps || {}).filter(k => dados.activeOps[k]);
+      if (!keys.length) keys = Object.keys(dados?.selPlanos || {});
+      if (!keys.length && dados?.winner) keys = [dados.winner];
+      if (keys.length) ops = keys.map(k => NOMES[k] || k).join(', ');
     } catch {}
     return `<div class="cot-item" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" onclick="abrirCotacaoDoCRM(${c.id})">
       <span style="display:flex;align-items:center;gap:6px">
@@ -1074,8 +1081,10 @@ function renderCotacoes(cotacoes){
 async function abrirCotacaoDoCRM(cotacaoId){
   const c = _crmCotacoes.find(x => x.id === cotacaoId);
   if (!c) return;
-  const dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados;
-  if (!dados) return;
+  let dados;
+  try { dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados; }
+  catch { showToast('Não foi possível abrir a cotação'); return; }
+  if (!dados) { showToast('Não foi possível abrir a cotação'); return; }
   sessionStorage.setItem('crm_cotacao_restore', JSON.stringify(dados));
   window.location.href = 'sistema-saude-prime.html';
 }
