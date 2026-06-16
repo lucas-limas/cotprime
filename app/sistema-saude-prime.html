@@ -408,7 +408,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
           <div class="form-grid">
             <div class="form-field"><label>Chave (ex: amil)</label><input type="text" id="cat-op-chave" placeholder="sem espaços, minúsculo"></div>
             <div class="form-field"><label>Nome</label><input type="text" id="cat-op-nome" placeholder="Ex: Amil Saúde"></div>
-            <div class="form-field"><label>Variável CSS de cor</label><input type="text" id="cat-op-cor" placeholder="var(--amil) ou #3b82f6"></div>
+            <div class="form-field"><label>Cor (HEX)</label><input type="text" id="cat-op-cor" placeholder="#3b82f6"></div>
             <div class="form-field"><label>Classe CSS</label><input type="text" id="cat-op-cls" placeholder="on-a"></div>
             <div class="form-field" style="grid-column:1/-1"><label>Info (aparece no cotador)</label><input type="text" id="cat-op-info" placeholder="Vigência · Rede · Diferenciais"></div>
             <div class="form-field"><label>Ordem de exibição</label><input type="number" id="cat-op-ordem" value="0" min="0"></div>
@@ -448,6 +448,9 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
                 <option value="pme">PME</option>
                 <option value="pf">Pessoa Física</option>
               </select>
+            </div>
+            <div class="form-field"><label>Chave de rede (apresentação)</label>
+              <select id="cat-pl-rede-chave"><option value="">— Automático (pelo nome) —</option></select>
             </div>
           </div>
           <div class="section-bar" style="margin:12px 0 8px"><h3>Preços por faixa etária (R$)</h3></div>
@@ -1429,6 +1432,35 @@ function limparFiltrosPlanos() {
   _renderPlanosFiltrados();
 }
 
+// Rótulos das chaves de rede (espelha REDE_COL_LABELS da apresentação).
+// Definir a chave no plano dispensa o match por nome (substring) na apresentação.
+const REDE_COL_LABELS = {
+  LIFE_VITAL:'Life Vital', UNITY_VIDA:'Vida', VIDA:'Star',
+  ONE:'ONE', NOW:'NOW',
+  DELTA:'Delta', OMEGA:'Ômega', BETA:'Beta', SIGMA:'Sigma',
+  BRONZE:'Bronze', PRATA:'Prata', OURO:'Ouro', OURO_II:'Ouro II',
+  PLATINUM:'Platinum', PLATINUM_MAIS:'Platinum+',
+  S380:'S380', S450:'S450', S750:'S750',
+  BLACK_I:'Black I', S2500:'S2500', BLACK_II:'Black II', BLACK_S6500:'Black',
+  BRONZE_BSB_PRO:'Bronze Pro', PRATA_BSB_PRO:'Prata Pro', OURO_BSB_PRO:'Ouro Pro',
+  P220:'P220', P320:'P320', P420:'P420', P520:'P520',
+  BRONZE_BR:'Bronze BR', PRATA_MAIS:'Prata+', OURO_MAIS:'Ouro+', DIAMANTE_MAIS:'Diamante+',
+  EFETIVO:'Efetivo', EFETIVO_PLUS:'Efetivo+', FLEX:'Flex', IDEAL:'Ideal',
+  NACIONAL:'Nacional', NACIONAL_PLUS:'Nacional+', PREMIUM:'Premium',
+  DIRETO_NAC:'Direto Nac.', EXATO:'Exato', CLASSICO:'Clássico',
+  ESPECIAL_RC:'Esp. RC', ESPECIAL100:'Esp. 100', EXECUTIVO:'Executivo', PRESTIGE:'Prestige',
+  COMPACTO:'Compacto', COMPLETO:'Completo', SUPERIOR:'Superior',
+  SUPERIOR_PLUS:'Superior+', SENIOR:'Sênior',
+  MS_PRINCIPAL:'DF/PME', MS_BLACK:'Black/Infinite',
+  BS_CLASSIC:'Classic', BS_PRIME:'Prime/Plat',
+};
+(function _popRedeChave(){
+  const sel = document.getElementById('cat-pl-rede-chave');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Automático (pelo nome) —</option>' +
+    Object.entries(REDE_COL_LABELS).map(([k,v]) => `<option value="${k}">${v} (${k})</option>`).join('');
+})();
+
 async function salvarPlano() {
   const id     = document.getElementById('cat-pl-id').value;
   const op_id  = document.getElementById('cat-pl-op').value;
@@ -1436,6 +1468,8 @@ async function salvarPlano() {
   const nome   = document.getElementById('cat-pl-nome').value.trim();
   const aco    = document.getElementById('cat-pl-aco').value;
   const tipo   = document.getElementById('cat-pl-tipo').value || null;
+  // String vazia (não null) permite limpar a chave no PATCH; criar_plano converte '' → NULL.
+  const rede_chave = document.getElementById('cat-pl-rede-chave').value;
   const msg    = document.getElementById('cat-pl-msg');
   const precos = Array.from(document.querySelectorAll('.preco-input')).map(i => parseFloat(i.value) || 0);
   if (!nome || (!id && (!op_id || !codigo))) {
@@ -1446,8 +1480,8 @@ async function salvarPlano() {
   const url    = isEdit ? `${API}/api/superadmin/catalogo/planos/${id}` : `${API}/api/superadmin/catalogo/planos`;
   const method = isEdit ? 'PATCH' : 'POST';
   const body   = isEdit
-    ? {nome, aco, tipo, precos}
-    : {codigo, operadora_id: parseInt(op_id), nome, aco, tipo, precos};
+    ? {nome, aco, tipo, rede_chave, precos}
+    : {codigo, operadora_id: parseInt(op_id), nome, aco, tipo, rede_chave, precos};
   const res = await fetch(url, {method, headers: authH(), body: JSON.stringify(body)});
   const data = await res.json();
   if (!res.ok) { msg.className='form-msg error'; msg.textContent = data.detail||'Erro.'; return; }
@@ -1467,6 +1501,7 @@ function editPlano(id) {
   document.getElementById('cat-pl-nome').value   = p.nome;
   document.getElementById('cat-pl-aco').value    = p.aco;
   document.getElementById('cat-pl-tipo').value   = p.tipo || '';
+  document.getElementById('cat-pl-rede-chave').value = p.rede_chave || '';
   p.precos.forEach((v, i) => {
     const inp = document.querySelector(`.preco-input[data-idx="${i}"]`);
     if (inp) inp.value = v;
@@ -1484,6 +1519,7 @@ function cancelarPlanoEdit() {
   document.getElementById('cat-pl-codigo').disabled = false;
   document.getElementById('cat-pl-aco').value    = 'amb';
   document.getElementById('cat-pl-tipo').value   = '';
+  document.getElementById('cat-pl-rede-chave').value = '';
   document.querySelectorAll('.preco-input').forEach(i => i.value = '');
   document.getElementById('cat-pl-form-title').textContent = 'Novo Plano';
   document.getElementById('cat-pl-btn').textContent = 'Criar Plano';

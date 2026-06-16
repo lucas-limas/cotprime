@@ -133,8 +133,7 @@ def _migrations_pg(conn):
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, precos, ordem) SELECT 'hap_np_cc_amb', id, 'Copart Completa — Nosso Plano (Amb)', 'amb', 'pme', '02-29', '[120.72,135.21,151.44,174.16,200.28,238.33,297.91,372.39,633.06,709.03]', 8 FROM operadoras WHERE chave='hapvida' ON CONFLICT (codigo) DO NOTHING",
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, precos, ordem) SELECT 'hap_np_cc_enf', id, 'Copart Completa — Nosso Plano (Enf)', 'enf', 'pme', '02-29', '[143.68,160.92,180.23,207.26,232.35,282.64,354.55,443.19,753.48,843.83]', 9 FROM operadoras WHERE chave='hapvida' ON CONFLICT (codigo) DO NOTHING",
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, precos, ordem) SELECT 'hap_np_cc_apt', id, 'Copart Completa — Nosso Plano (Apt)', 'apt', 'pme', '02-29', '[215.54,241.40,270.37,310.93,357.57,425.51,531.89,664.86,1130.26,1265.89]', 10 FROM operadoras WHERE chave='hapvida' ON CONFLICT (codigo) DO NOTHING",
-        # Etapa 4: remover cor e cls da tabela operadoras
-        "ALTER TABLE operadoras DROP COLUMN IF EXISTS cor",
+        # Etapa 4: remover cls da tabela operadoras (cor voltou como fonte única — ver fim da lista)
         "ALTER TABLE operadoras DROP COLUMN IF EXISTS cls",
         # Etapa 4: 6 operadoras novas (MedSenior, Porto Saude, Best Senior, Bradesco, Seguros Unimed, SulAmerica)
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ms1', id, 'Sem copart — DF3 Enfermaria', 'enf', 'pf', NULL, NULL, NULL, '[0,0,0,0,0,0,0,803.5,964.2,1263.1]', 1 FROM operadoras WHERE chave='medsenior' ON CONFLICT (codigo) DO NOTHING",
@@ -370,6 +369,23 @@ def _migrations_pg(conn):
         "CREATE INDEX IF NOT EXISTS idx_oportunidades_cliente_id ON oportunidades(cliente_id)",
         "CREATE INDEX IF NOT EXISTS idx_interacoes_cliente_id ON interacoes(cliente_id)",
         "CREATE INDEX IF NOT EXISTS idx_cotacoes_cliente_id ON cotacoes(cliente_id)",
+        # Fonte única de cor (HEX no banco) + chave de rede explícita por plano.
+        # cor/rede_chave persistem (não há DROP); o seed só preenche quando NULL
+        # ou quando há placeholder legado 'var(...)', então HEX editado no admin
+        # nunca é sobrescrito por deploy.
+        "ALTER TABLE operadoras ADD COLUMN cor TEXT",
+        "ALTER TABLE planos ADD COLUMN rede_chave TEXT",
+        "UPDATE operadoras SET cor='#0f2340' WHERE chave='unity' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#5c1a40' WHERE chave='evo' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#0a4028' WHERE chave='plenum' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#461BFF' WHERE chave='amil' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#95C13D' WHERE chave='medsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#0074BE' WHERE chave='segurosunimed' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#005CB9' WHERE chave='portosaude' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#CC0000' WHERE chave='bradesco' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#1B3A8A' WHERE chave='bestsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#D5531C' WHERE chave='sulamerica' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#007B40' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
     ]
     for sql in safe:
         try:
@@ -692,6 +708,21 @@ def _migrations_sqlite(c):
         "CREATE INDEX IF NOT EXISTS idx_oportunidades_cliente_id ON oportunidades(cliente_id)",
         "CREATE INDEX IF NOT EXISTS idx_interacoes_cliente_id ON interacoes(cliente_id)",
         "CREATE INDEX IF NOT EXISTS idx_cotacoes_cliente_id ON cotacoes(cliente_id)",
+        # Fonte única de cor (HEX no banco) + chave de rede explícita por plano.
+        # Seed preenche quando NULL ou placeholder 'var(...)'; não toca HEX do admin.
+        "ALTER TABLE operadoras ADD COLUMN cor TEXT",
+        "ALTER TABLE planos ADD COLUMN rede_chave TEXT",
+        "UPDATE operadoras SET cor='#0f2340' WHERE chave='unity' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#5c1a40' WHERE chave='evo' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#0a4028' WHERE chave='plenum' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#461BFF' WHERE chave='amil' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#95C13D' WHERE chave='medsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#0074BE' WHERE chave='segurosunimed' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#005CB9' WHERE chave='portosaude' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#CC0000' WHERE chave='bradesco' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#1B3A8A' WHERE chave='bestsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#D5531C' WHERE chave='sulamerica' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#007B40' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
     ]
     for sql in safe:
         try:

@@ -267,10 +267,18 @@ def seed_catalogo():
         ("sulamerica",   "SulAmérica Saúde",   "PME Compulsório · Vigência 12m ou 24m · 3–99 vidas · Com e sem copart 30% · Rede credenciada DF · SulAmérica Seguro Saúde", 10),
         ("hapvida",      "Hapvida",            "PME 2–29 vidas · Tabela Brasília · Nosso Médico e Nosso Plano · Com coparticipação parcial ou completa · Rede credenciada DF", 11),
     ]
+    # Cor base (HEX) — fonte única no banco. Em DBs já existentes o seed vem das
+    # migrations (UPDATE ... WHERE cor IS NULL); aqui cobre o primeiro boot.
+    _CORES = {
+        "unity": "#0f2340", "evo": "#5c1a40", "plenum": "#0a4028", "amil": "#461BFF",
+        "medsenior": "#95C13D", "segurosunimed": "#0074BE", "portosaude": "#005CB9",
+        "bradesco": "#CC0000", "bestsenior": "#1B3A8A", "sulamerica": "#D5531C",
+        "hapvida": "#007B40",
+    }
     for chave, nome, info, ordem in _OPS:
         conn.execute(
-            "INSERT INTO operadoras (chave, nome, info, ordem) VALUES (?, ?, ?, ?)",
-            (chave, nome, info, ordem),
+            "INSERT INTO operadoras (chave, nome, info, ordem, cor) VALUES (?, ?, ?, ?, ?)",
+            (chave, nome, info, ordem, _CORES.get(chave)),
         )
     conn.commit()
 
@@ -624,12 +632,14 @@ class OperadoraRequest(BaseModel):
     chave: str
     nome: str
     info: Optional[str] = None
+    cor: Optional[str] = None
     ativo: Optional[int] = 1
     ordem: Optional[int] = 0
 
 class UpdateOperadoraRequest(BaseModel):
     nome: Optional[str] = None
     info: Optional[str] = None
+    cor: Optional[str] = None
     ativo: Optional[int] = None
     ordem: Optional[int] = None
 
@@ -642,6 +652,7 @@ class PlanoRequest(BaseModel):
     fvidas: Optional[str] = None
     mod: Optional[str] = None
     vig: Optional[int] = None
+    rede_chave: Optional[str] = None
     precos: list
     ativo: Optional[int] = 1
     ordem: Optional[int] = 0
@@ -653,6 +664,7 @@ class UpdatePlanoRequest(BaseModel):
     fvidas: Optional[str] = None
     mod: Optional[str] = None
     vig: Optional[int] = None
+    rede_chave: Optional[str] = None
     precos: Optional[list] = None
     ativo: Optional[int] = None
     ordem: Optional[int] = None
@@ -1156,11 +1168,11 @@ FAIXAS = ['0 a 18','19 a 23','24 a 28','29 a 33','34 a 38','39 a 43','44 a 48','
 def catalogo_publico():
     conn = get_connection()
     ops_rows = conn.execute(
-        "SELECT id, chave, nome, info, rede_adm, rede_rodape FROM operadoras WHERE ativo = 1 ORDER BY ordem, id"
+        "SELECT id, chave, nome, info, cor, rede_adm, rede_rodape FROM operadoras WHERE ativo = 1 ORDER BY ordem, id"
     ).fetchall()
     planos_rows = conn.execute(
         """SELECT p.codigo, o.chave as op, p.nome, p.acomodacao as aco, p.tipo,
-                  p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.precos
+                  p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.rede_chave, p.precos
            FROM planos p JOIN operadoras o ON p.operadora_id = o.id
            WHERE p.ativo = 1 AND o.ativo = 1
            ORDER BY o.ordem, p.ordem, p.id"""
@@ -1172,7 +1184,7 @@ def catalogo_publico():
            ORDER BY o.ordem, rc.grupo_ordem, rc.ordem, rc.id"""
     ).fetchall()
     conn.close()
-    operadoras = {r["chave"]: {"nome": r["nome"], "info": r["info"] or ""} for r in ops_rows}
+    operadoras = {r["chave"]: {"nome": r["nome"], "info": r["info"] or "", "cor": r["cor"] or ""} for r in ops_rows}
     planos = []
     for r in planos_rows:
         p = {
@@ -1183,9 +1195,10 @@ def catalogo_publico():
             "tipo":   r["tipo"] or "adesao",
             "precos": json.loads(r["precos"]),
         }
-        if r["fvidas"]: p["fvidas"] = r["fvidas"]
-        if r["mod"]:    p["mod"] = r["mod"]
-        if r["vig"]:    p["vig"] = r["vig"]
+        if r["fvidas"]:     p["fvidas"] = r["fvidas"]
+        if r["mod"]:        p["mod"] = r["mod"]
+        if r["vig"]:        p["vig"] = r["vig"]
+        if r["rede_chave"]: p["rede_chave"] = r["rede_chave"]
         planos.append(p)
     # Build rede dict only when there are rows in the DB
     rede = {}
@@ -1237,8 +1250,8 @@ def criar_operadora(body: OperadoraRequest, admin=Depends(require_superadmin)):
         conn.close()
         raise HTTPException(409, "Chave de operadora já existe.")
     conn.execute(
-        "INSERT INTO operadoras (chave, nome, info, ativo, ordem) VALUES (?, ?, ?, ?, ?)",
-        (body.chave.strip(), body.nome.strip(), body.info, body.ativo, body.ordem),
+        "INSERT INTO operadoras (chave, nome, info, cor, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?)",
+        (body.chave.strip(), body.nome.strip(), body.info, (body.cor or None), body.ativo, body.ordem),
     )
     conn.commit()
     row = conn.execute("SELECT * FROM operadoras WHERE chave = ?", (body.chave.strip(),)).fetchone()
@@ -1253,7 +1266,7 @@ def atualizar_operadora(op_id: int, body: UpdateOperadoraRequest, admin=Depends(
         conn.close()
         raise HTTPException(404, "Operadora não encontrada")
     updates, params = [], []
-    for field in ("nome", "info", "ativo", "ordem"):
+    for field in ("nome", "info", "cor", "ativo", "ordem"):
         val = getattr(body, field)
         if val is not None:
             updates.append(f"{field} = ?"); params.append(val.strip() if isinstance(val, str) else val)
@@ -1306,8 +1319,8 @@ def criar_plano(body: PlanoRequest, admin=Depends(require_superadmin)):
         conn.close()
         raise HTTPException(409, "Código de plano já existe.")
     conn.execute(
-        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (body.codigo.strip(), body.operadora_id, body.nome.strip(), body.aco, body.tipo, body.fvidas, body.mod, body.vig, json.dumps(body.precos), body.ativo, body.ordem),
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, rede_chave, precos, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (body.codigo.strip(), body.operadora_id, body.nome.strip(), body.aco, body.tipo, body.fvidas, body.mod, body.vig, (body.rede_chave or None), json.dumps(body.precos), body.ativo, body.ordem),
     )
     conn.commit()
     conn.close()
@@ -1325,7 +1338,7 @@ def atualizar_plano(plano_id: int, body: UpdatePlanoRequest, admin=Depends(requi
         raise HTTPException(400, "precos deve ter exatamente 10 valores")
     _COL = {"aco": "acomodacao", "fvidas": "faixa_vidas", "mod": "moderador", "vig": "mes_vigencia"}
     updates, params = [], []
-    for field in ("nome", "aco", "tipo", "fvidas", "mod", "vig", "ativo", "ordem"):
+    for field in ("nome", "aco", "tipo", "fvidas", "mod", "vig", "rede_chave", "ativo", "ordem"):
         val = getattr(body, field)
         if val is not None:
             db_col = _COL.get(field, field)

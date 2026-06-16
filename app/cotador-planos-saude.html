@@ -1910,12 +1910,15 @@ async function _initCotador() {
           if (data.rede[opKey]) window.REDE_DATA[opKey] = data.rede[opKey];
         });
       }
-      // Injeta variáveis CSS para operadoras novas (cor hex → var(--chave))
+      // Injeta variáveis CSS --op a partir do HEX do banco (OP_META.cor é a fonte
+      // única). OP_COR_MAP fica só como fallback mínimo p/ ops sem cor no banco.
       const _dynStyle = document.createElement('style');
       Object.entries(OP_META).forEach(([op, meta]) => {
-        if (OP_COR_MAP[op] && !OP_COR_MAP[op].startsWith('var(')) {
-          _dynStyle.textContent += `:root{--${op}:${OP_COR_MAP[op]}}`;
-        }
+        const _mc = ((meta && meta.cor) || '').trim();
+        const hex = (_mc && !_mc.startsWith('var('))
+          ? _mc
+          : ((OP_COR_MAP[op] && !OP_COR_MAP[op].startsWith('var(')) ? OP_COR_MAP[op] : '');
+        if (hex) _dynStyle.textContent += `:root{--${op}:${hex}}`;
       });
       if (_dynStyle.textContent) document.head.appendChild(_dynStyle);
 

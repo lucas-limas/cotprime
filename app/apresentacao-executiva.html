@@ -596,38 +596,21 @@ const FAIXAS_OPCOES = ['0 a 18 anos','19 a 23 anos','24 a 28 anos','29 a 33 anos
 
 const PLANOS_DB = window.PLANOS_DB || {};
 
-// Mapa estático de cores HEX por operadora — os HEX devem bater com o
-// OP_COR_MAP do cotador (app/cotador-planos-saude.html) para consistência visual.
-const OP_COR_BASE = {
-  unity:{nome:'Unity Saúde',cor:'#0f2340'},
-  evo:{nome:'Evo Saúde',cor:'#5c1a40'},
-  plenum:{nome:'Plenum Saúde',cor:'#0a4028'},
-  amil:{nome:'Amil',cor:'#461BFF'},
-  bradesco:{nome:'Bradesco Saúde',cor:'#CC0000'},
-  medsenior:{nome:'MedSênior',cor:'#95C13D'},
-  bestsenior:{nome:'Best Sênior',cor:'#1B3A8A'},
-  segurosunimed:{nome:'Seguros Unimed',cor:'#0074BE'},
-  portosaude:{nome:'Porto Saúde',cor:'#005CB9'},
-  sulamerica:{nome:'SulAmérica Saúde',cor:'#D5531C'},
-  hapvida:{nome:'Hapvida',cor:'#007B40'},
-};
+// A cor é fonte única no banco (operadoras.cor). OP_META é montado a partir de
+// window.OP_META (dados.js — fallback offline) e atualizado pelo /api/catalogo.
 // Resolve a cor SEMPRE para um HEX válido — nunca aceita 'var(...)'.
 const _corHex = c => { c = (c||'').trim(); return (c && !c.startsWith('var(')) ? c : ''; };
-// Base = mapa estático (todas as 11 ops com HEX garantido).
 const OP_META = {};
-Object.entries(OP_COR_BASE).forEach(([k,v]) => { OP_META[k] = {nome:v.nome, cor:v.cor}; });
-// Mescla operadoras de window.OP_META (dados.js): ops conhecidas preservam o HEX
-// estático (só atualiza o nome); ops novas entram com HEX sanitizado (nunca var()).
 Object.entries(window.OP_META || {}).forEach(([k,v]) => {
-  if (OP_META[k]) { if (v && v.nome) OP_META[k].nome = v.nome; }
-  else OP_META[k] = {nome:(v&&v.nome)||k, cor:_corHex(v&&v.cor)||'#555555'};
+  OP_META[k] = {nome:(v&&v.nome)||k, cor:_corHex(v&&v.cor)||'#555555'};
 });
-// Carrega operadoras do catálogo para suporte automático a novas operadoras.
+// Catálogo (banco) é a fonte única de cor: atualiza nome E cor de TODAS as ops.
 fetch('/api/catalogo').then(r=>r.ok?r.json():null).then(data=>{
   if(!data) return;
   Object.entries(data.operadoras||{}).forEach(([k,v])=>{
-    if (OP_META[k]) { if (v && v.nome) OP_META[k].nome = v.nome; }
-    else OP_META[k] = {nome:v.nome||k, cor:_corHex(v.cor)||'#555555'};
+    const cor = _corHex(v&&v.cor);
+    if (OP_META[k]) { if (v&&v.nome) OP_META[k].nome = v.nome; if (cor) OP_META[k].cor = cor; }
+    else OP_META[k] = {nome:(v&&v.nome)||k, cor:cor||'#555555'};
   });
 }).catch(()=>{});
 
@@ -1155,7 +1138,10 @@ const REDE_COL_LABELS = {
   BS_CLASSIC:'Classic', BS_PRIME:'Prime/Plat',
 };
 
-function getRedeCol(opKey, prodNome) {
+function getRedeCol(opKey, prodNome, redeChave) {
+  // Chave explícita do plano (rede_chave, banco) tem prioridade; sem ela, cai no
+  // match por nome (substring) — fallback para planos legados/sem chave.
+  if (redeChave && REDE_COL_LABELS[redeChave]) return redeChave;
   const n = (prodNome||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
   if (opKey==='unity') {
     if (n.includes('life vital')) return 'LIFE_VITAL';
@@ -1349,8 +1335,8 @@ async function gerar() {
   // Rede credenciada: colunas por produto, depois hospitais com cobertura automática
   const _redeCols = [];
   { const _seen = new Set();
-    const _addCol = (opK, prodNome) => {
-      const col = getRedeCol(opK, prodNome);
+    const _addCol = (opK, prodNome, redeChave) => {
+      const col = getRedeCol(opK, prodNome, redeChave);
       if (!col) return;
       const key = `${opK}|${col}`;
       if (!_seen.has(key)) { _seen.add(key); _redeCols.push({op:opK, col}); }
@@ -1358,11 +1344,11 @@ async function gerar() {
     if (isMulti) {
       for (const oi of (_opsData.opsInfo||[])) {
         const sp = (PLANOS_DB[oi.op]||[]).find(p=>p.id===oi.pid);
-        _addCol(oi.op, sp?.nome||oi.pid||'');
+        _addCol(oi.op, sp?.nome||oi.pid||'', sp?.rede_chave);
       }
     } else {
       const sp = (PLANOS_DB[opKey]||[]).find(p=>p.id===planoId);
-      _addCol(opKey, sp?.nome||planoId||'');
+      _addCol(opKey, sp?.nome||planoId||'', sp?.rede_chave);
     }
   }
   const hospSel = _redeCols.length > 0
@@ -1720,7 +1706,7 @@ function receiveFromCotador(data) {
     Object.keys(activeOps || {}).forEach(op => {
       window.PLANOS_DB[op] = (window.PLANOS || [])
         .filter(p => p.op === op)
-        .map(p => ({ id: p.id, nome: p.nome, aco: p.aco, tipo: p.tipo, reajuste: p.reajuste || '' }));
+        .map(p => ({ id: p.id, nome: p.nome, aco: p.aco, tipo: p.tipo, reajuste: p.reajuste || '', rede_chave: p.rede_chave || '' }));
     });
   }
 
