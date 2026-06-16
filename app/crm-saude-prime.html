@@ -874,12 +874,12 @@ function buildFieldHtml(campo, val, editable, id){
     <label>${campo.label}</label>
     <div class="m-field-val" id="fv-${campo.key}">
       <span id="fvt-${campo.key}">${esc(displayVal)}</span>
-      <button class="edit-pencil" onclick="startEdit('${campo.key}',${id})" title="Editar">✏</button>
+      <button class="edit-pencil" onclick="startEdit('${campo.key}')" title="Editar">✏</button>
     </div>
     <div style="display:none" id="fe-${campo.key}">
       ${buildEditInput(campo, val)}
       <div style="display:flex;gap:6px;margin-top:5px">
-        <button class="save-inline" onclick="saveField('${campo.key}',${id})">Salvar</button>
+        <button class="save-inline" onclick="saveField('${campo.key}')">Salvar</button>
         <button class="cancel-inline" onclick="cancelEdit('${campo.key}')">Cancelar</button>
       </div>
     </div>`;
@@ -892,10 +892,10 @@ function buildEditInput(campo, val){
     ).join('');
     return `<select id="fi-${campo.key}">${opts}</select>`;
   }
-  return `<input type="text" id="fi-${campo.key}" value="${esc(val)}" onkeydown="if(event.key==='Enter')saveField('${campo.key}',${val&&campo.key?currentCliente?.id:0})">`;
+  return `<input type="text" id="fi-${campo.key}" value="${esc(val)}" onkeydown="if(event.key==='Enter')saveField('${campo.key}')">`;
 }
 
-function startEdit(key, id){
+function startEdit(key){
   document.getElementById(`fv-${key}`).style.display = 'none';
   document.getElementById(`fe-${key}`).style.display = '';
   const inp = document.getElementById(`fi-${key}`);
@@ -907,7 +907,7 @@ function cancelEdit(key){
   document.getElementById(`fe-${key}`).style.display = 'none';
 }
 
-async function saveField(key, id){
+async function saveField(key){
   if (!currentCliente) return;
   const inp = document.getElementById(`fi-${key}`);
   if (!inp) return;

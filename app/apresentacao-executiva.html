@@ -513,7 +513,7 @@ body{-webkit-overflow-scrolling:touch}
     <div class="card-body">
       <div class="g3">
         <div class="fg"><label>Tipo de coparticipação</label>
-          <select id="g-cop-tipo" onchange="toggleCopOpts()">
+          <select id="g-cop-tipo">
             <option value="sem">Sem coparticipação</option>
             <option value="parcial">Coparticipação parcial</option>
             <option value="total">Coparticipação total</option>
@@ -594,68 +594,7 @@ body{-webkit-overflow-scrolling:touch}
 // ─── DADOS ────────────────────────────────────────────────────────────
 const FAIXAS_OPCOES = ['0 a 18 anos','19 a 23 anos','24 a 28 anos','29 a 33 anos','34 a 38 anos','39 a 43 anos','44 a 48 anos','49 a 53 anos','54 a 58 anos','59 ou mais'];
 
-const PLANOS_DB = window.PLANOS_DB || {
-  amil:[
-    {id:'a1', nome:'Bronze DF QC — Enf · Copart Total',   aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'a2', nome:'Bronze DF QP — Apt · Copart Total',   aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a3', nome:'Prata DF QC  — Enf · Copart Total',   aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'a4', nome:'Prata DF QP  — Apt · Copart Total',   aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a5', nome:'Ouro QC      — Enf · Copart Total',   aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'a6', nome:'Ouro QP      — Apt · Copart Total',   aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a7', nome:'Platinum R1  — Apt · Copart Total',   aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a8', nome:'Platinum R2  — Apt · Copart Total',   aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a11',nome:'Bronze DF QC — Enf · Copart Parcial', aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'a12',nome:'Bronze DF QP — Apt · Copart Parcial', aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a13',nome:'Prata DF QC  — Enf · Copart Parcial', aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'a14',nome:'Prata DF QP  — Apt · Copart Parcial', aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a15',nome:'Ouro QC      — Enf · Copart Parcial', aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'a16',nome:'Ouro QP      — Apt · Copart Parcial', aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a17',nome:'Platinum R1  — Apt · Copart Parcial', aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'a18',nome:'Platinum R2  — Apt · Copart Parcial', aco:'Apartamento',  reajuste:'Mai/2026'},
-  ],
-  unity:[
-    {id:'u3',nome:'Sem copart — Unity Vida (Enf)',aco:'Enfermaria',reajuste:'Mai/2026'},
-    {id:'u4',nome:'Com copart — Unity Vida (Enf)',aco:'Enfermaria',reajuste:'Mai/2026'},
-    {id:'u5',nome:'Sem copart — Unity Star (Apt)',aco:'Apartamento',reajuste:'Mai/2026'},
-    {id:'u6',nome:'Com copart — Unity Star (Apt)',aco:'Apartamento',reajuste:'Mai/2026'},
-  ],
-  evo:[
-    {id:'e1',nome:'Sem copart — NOW Enfermaria',aco:'Enfermaria',reajuste:'Set/2026'},
-    {id:'e2',nome:'Com copart — ONE Enfermaria',aco:'Enfermaria',reajuste:'Set/2026'},
-    {id:'e3',nome:'Com copart — NOW Apartamento',aco:'Apartamento',reajuste:'Set/2026'},
-    {id:'e4',nome:'Com copart — ONE Apartamento',aco:'Apartamento',reajuste:'Set/2026'},
-  ],
-  plenum:[
-    {id:'p1',nome:'Copart parcial — Delta (Enf)',aco:'Enfermaria',reajuste:'Mar/2027'},
-    {id:'p2',nome:'Copart parcial — Ômega (Enf)',aco:'Enfermaria',reajuste:'Mar/2027'},
-    {id:'p3',nome:'Copart total — Delta (Enf)',aco:'Enfermaria',reajuste:'Mar/2027'},
-    {id:'p4',nome:'Copart total — Ômega (Enf)',aco:'Enfermaria',reajuste:'Mar/2027'},
-    {id:'p5',nome:'Copart parcial — Beta (Apt)',aco:'Apartamento',reajuste:'Mar/2027'},
-    {id:'p6',nome:'Copart parcial — Sigma (Apt)',aco:'Apartamento',reajuste:'Mar/2027'},
-    {id:'p7',nome:'Copart total — Beta (Apt)',aco:'Apartamento',reajuste:'Mar/2027'},
-    {id:'p8',nome:'Copart total — Sigma (Apt)',aco:'Apartamento',reajuste:'Mar/2027'},
-  ],
-  medsenior:[
-    {id:'ms1', nome:'Sem copart — DF3 Enfermaria',       aco:'Enfermaria',   reajuste:'A definir'},
-    {id:'ms2', nome:'Sem copart — DF4 Apartamento',      aco:'Apartamento',  reajuste:'A definir'},
-    {id:'ms3', nome:'Sem copart — Black Apartamento',    aco:'Apartamento',  reajuste:'A definir'},
-    {id:'ms4', nome:'Sem copart — Infinite Apartamento', aco:'Apartamento',  reajuste:'A definir'},
-    {id:'ms5', nome:'PME — DF Enfermaria',               aco:'Enfermaria',   reajuste:'A definir'},
-    {id:'ms6', nome:'PME — DF Apartamento',              aco:'Apartamento',  reajuste:'A definir'},
-    {id:'ms7', nome:'PME — Black Apartamento',           aco:'Apartamento',  reajuste:'A definir'},
-    {id:'ms8', nome:'PME — Infinite Apartamento',        aco:'Apartamento',  reajuste:'A definir'},
-  ],
-  bestsenior:[
-    {id:'bse_pf1', nome:'Sem copart — Classic (Enf)',      aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'bse_pf2', nome:'Sem copart — Classic (Apt)',      aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'bse_pf3', nome:'Sem copart — Prime (Apt)',        aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'bse_pf4', nome:'Sem copart — Platinum (Apt)',     aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'bse_pme1',nome:'Sem copart — Classic PJ (Enf)',   aco:'Enfermaria',   reajuste:'Mai/2026'},
-    {id:'bse_pme2',nome:'Sem copart — Classic PJ (Apt)',   aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'bse_pme3',nome:'Sem copart — Prime PJ (Apt)',     aco:'Apartamento',  reajuste:'Mai/2026'},
-    {id:'bse_pme4',nome:'Sem copart — Platinum PJ (Apt)',  aco:'Apartamento',  reajuste:'Mai/2026'},
-  ]
-};
+const PLANOS_DB = window.PLANOS_DB || {};
 
 // Mapa estático de cores HEX por operadora — os HEX devem bater com o
 // OP_COR_MAP do cotador (app/cotador-planos-saude.html) para consistência visual.
@@ -986,9 +925,6 @@ function buildMultiVidasUI(opsInfo, qtds) {
     calcTotalOp(key);
   });
 }
-
-// ─── COPART ────────────────────────────────────────────────────────────
-function toggleCopOpts() {}
 
 // ─── VANTAGENS ─────────────────────────────────────────────────────────
 function buildVantagens() {
@@ -1520,7 +1456,7 @@ async function gerar() {
     </div>`).join('') : '';
 
   // Carências por operadora
-  const activeOpKeys = isMulti ? (_opsData.opsInfo || []).map(o => o.op) : [opKey];
+  const activeOpKeys = isMulti ? [...new Set((_opsData.opsInfo||[]).map(o => o.op))] : [opKey];
   const _p2 = n => n < 10 ? '0'+n : ''+n;
   const carNum    = '02';
   const redeNum   = '03';
@@ -1770,14 +1706,14 @@ function compartilhar() {
 
 // ─── INTEGRAÇÃO COTADOR ────────────────────────────────────────────────
 function receiveFromCotador(data) {
-  const { nome, obs, qtds, selPlanos, activeOps, winner, opsInfo, filtroTipo, filtroCopart, filtroMod } = data;
+  const { nome, obs, qtds, selPlanos, activeOps, winner, opsInfo, filtroTipo, filtroCopart, filtroMod, filtroVig } = data;
   const _ops = opsInfo || [];
   // Vencedor real é por PLANO (pid). Usa winnerPid do cotador; fallback = entrada de menor total.
   const winnerPid = data.winnerPid ||
     (_ops.length ? _ops.slice().sort((a,b)=>(a.total||0)-(b.total||0))[0].pid : null);
 
   // Armazena dados completos para gerar()
-  _opsData = { qtds, selPlanos, activeOps, winner, winnerPid, opsInfo: _ops, filtroTipo, filtroCopart, filtroMod };
+  _opsData = { qtds, selPlanos, activeOps, winner, winnerPid, opsInfo: _ops, filtroTipo, filtroCopart, filtroMod, filtroVig };
 
   // Reconstrói PLANOS_DB a partir de window.PLANOS (populado pelo sincronizarCatalogo)
   if (selPlanos && window.PLANOS) {
@@ -1842,7 +1778,6 @@ function receiveFromCotador(data) {
     else if (pNome.includes('copart parcial') || pNome.includes('com copart')) copTipo = 'parcial';
   }
   document.getElementById('g-cop-tipo').value = copTipo;
-  toggleCopOpts();
 
   // Vidas: preenche valores editáveis por operadora
   vidaCount = 0;
