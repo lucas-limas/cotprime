@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -38,6 +38,82 @@ security = HTTPBearer()
 
 MAX_TENTATIVAS = 5
 BLOQUEIO_MINUTOS = 15
+
+
+# ── Rate limiting (slowapi) ─────────────────────────────────────────────────────
+# slowapi é dependência fixa (requirements.txt), mas degradamos com aviso em log
+# caso o import falhe, para que o app sempre suba. Quando indisponível, os
+# decorators viram no-op (não limitam, mas não quebram as rotas).
+try:
+    from slowapi import Limiter
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    _SLOWAPI_OK = True
+except Exception as _slowapi_err:  # pragma: no cover - caminho de degradação
+    logger.warning("slowapi indisponível (%s); rate limiting DESATIVADO", _slowapi_err)
+    _SLOWAPI_OK = False
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "anon"
+
+
+def _user_key(request: Request) -> str:
+    """key_func de rate limit por usuário autenticado.
+
+    Lê sub/id do JWT no header Authorization; se ausente/ inválido, cai para o
+    IP de origem. Pronto para reutilização futura em POST /api/ai/chat e writes
+    sensíveis via o helper limit_por_usuario(). O endpoint decorado precisa ter
+    `request: Request` na assinatura.
+    """
+    try:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            payload = decode_token(auth[7:].strip())
+            if payload:
+                return f"user:{payload.get('sub') or payload.get('id')}"
+    except Exception:
+        pass
+    return _client_ip(request)
+
+
+if _SLOWAPI_OK:
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+
+    def _rate_limit_handler(request: Request, exc):
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Muitas requisições. Tente novamente em instantes."},
+        )
+
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+else:
+    class _NoopLimiter:
+        """Substituto no-op quando slowapi não está disponível."""
+        def limit(self, *args, **kwargs):
+            def _deco(fn):
+                return fn
+            return _deco
+
+    limiter = _NoopLimiter()
+    app.state.limiter = limiter
+
+
+def limit_por_usuario(limite: str):
+    """Helper reutilizável: rate limit por usuário autenticado (sub/id do JWT).
+
+    Uso futuro previsto: POST /api/ai/chat e writes sensíveis. Exemplo:
+
+        @app.post("/api/ai/chat")
+        @limit_por_usuario("20/minute")
+        def ai_chat(req: ..., request: Request, user=Depends(require_corretor)):
+            ...
+
+    O endpoint PRECISA declarar `request: Request`. Hoje apenas o login usa
+    rate limit (por IP, via @limiter.limit). Mantido aqui pronto para o futuro.
+    """
+    return limiter.limit(limite, key_func=_user_key)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -658,6 +734,7 @@ class InteracaoRequest(BaseModel):
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 @app.post("/api/login")
+@limiter.limit("10/minute")  # limite por IP; soma-se ao lockout por conta (abaixo)
 def login(req: LoginRequest, request: Request):
     ip = request.client.host if request.client else ""
     conn = get_connection()
