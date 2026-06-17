@@ -94,6 +94,64 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
   .user-nome{display:none}
 }
 
+/* ── HAMBURGER + DRAWER ── */
+.hamburger{
+  width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;color:var(--t2);cursor:pointer;
+  border-radius:8px;transition:background .15s,color .15s;
+}
+.hamburger:hover{background:var(--tab-active);color:var(--t1)}
+.hamburger svg{width:22px;height:22px}
+
+.drawer-scrim{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  opacity:0;visibility:hidden;transition:opacity .2s ease;z-index:400;
+}
+.drawer-scrim.open{opacity:1;visibility:visible}
+
+.drawer{
+  position:fixed;top:0;left:0;height:100%;width:min(300px,82vw);
+  background:var(--surface2);border-right:1px solid var(--bd2);
+  box-shadow:2px 0 24px rgba(0,0,0,.3);
+  transform:translateX(-100%);transition:transform .2s ease;
+  z-index:401;display:flex;flex-direction:column;overflow-y:auto;
+}
+.drawer.open{transform:translateX(0)}
+.drawer-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1rem 1.1rem;border-bottom:1px solid var(--bd1);
+}
+.drawer-title{font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--t1)}
+.drawer-close{
+  width:32px;height:32px;border:none;background:transparent;color:var(--t3);
+  font-size:15px;cursor:pointer;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.drawer-close:hover{background:var(--tab-active);color:var(--t1)}
+.drawer-body{flex:1;padding:.5rem .6rem 1rem;display:flex;flex-direction:column}
+.drawer-section{padding:.45rem 0;border-bottom:1px solid var(--bd1)}
+.drawer-section:last-child{border-bottom:none}
+.drawer-cap{
+  font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--t4);padding:6px 12px 5px;
+}
+.drawer-item{
+  display:flex;align-items:center;gap:11px;width:100%;min-height:44px;
+  padding:0 12px;border:none;background:transparent;color:var(--t2);
+  font-family:"Outfit",system-ui,sans-serif;font-size:14px;font-weight:500;
+  cursor:pointer;border-radius:8px;text-align:left;transition:background .15s,color .15s;
+}
+.drawer-item:hover{background:var(--tab-active);color:var(--t1)}
+.drawer-item svg{width:17px;height:17px;flex-shrink:0;opacity:.8}
+.drawer-item.active{background:var(--tab-active);color:var(--t1);font-weight:600}
+.drawer-item.active svg{opacity:1}
+.drawer-muted{font-size:11px;color:var(--t4);padding:3px 12px 5px}
+.drawer-user{font-size:13px;font-weight:600;color:var(--t1);padding:6px 12px 3px}
+.drawer-logout{color:var(--t3)}
+@media(prefers-reduced-motion:reduce){
+  .drawer,.drawer-scrim{transition:none}
+}
+
 /* ── IFRAMES ── */
 .frames{height:100vh;position:relative}
 body.nav-visible .frames{height:calc(100vh - 56px);margin-top:56px}
@@ -610,26 +668,57 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
 
 <!-- NAV BAR (visível após login de corretor) -->
 <div class="switcher main-nav" id="main-nav" style="display:none">
-  <button class="sw-btn" onclick="showCotador()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
-    Cotação
-  </button>
-  <button class="sw-btn" onclick="showHistorico()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
-    Histórico
-  </button>
-  <button class="sw-btn" onclick="window.location.href='crm-saude-prime.html'">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    CRM
+  <button class="hamburger" id="menu-btn" aria-label="Menu" aria-haspopup="true" aria-expanded="false" onclick="openDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
   <div class="user-info">
-    <span class="user-nome" id="nav-user-nome"></span>
     <button class="btn-theme" onclick="toggleTheme()" title="Alternar tema claro/escuro">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
     </button>
-    <button class="btn-sair" onclick="doLogout()">Sair</button>
   </div>
 </div>
+
+<!-- DRAWER DE NAVEGAÇÃO -->
+<div class="drawer-scrim" id="drawer-scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Menu de navegação" aria-hidden="true">
+  <div class="drawer-head">
+    <span class="drawer-title">Menu</span>
+    <button class="drawer-close" aria-label="Fechar menu" onclick="closeDrawer()">✕</button>
+  </div>
+  <nav class="drawer-body">
+    <div class="drawer-section">
+      <div class="drawer-cap">Navegar</div>
+      <button class="drawer-item" data-screen="cotador" onclick="drawerNav('cotador')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
+        Cotação
+      </button>
+      <button class="drawer-item" data-screen="historico" onclick="drawerNav('historico')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+        Histórico
+      </button>
+      <button class="drawer-item" onclick="drawerNav('crm')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        CRM
+      </button>
+    </div>
+    <div class="drawer-section" id="drawer-cotacao-section">
+      <div class="drawer-cap">Cotação</div>
+      <button class="drawer-item" onclick="drawerLimpar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Limpar
+      </button>
+      <div class="drawer-muted">Tabela de preços · Mai/2026</div>
+    </div>
+    <div class="drawer-section">
+      <div class="drawer-cap">Conta</div>
+      <div class="drawer-user" id="drawer-user-nome"></div>
+      <button class="drawer-item drawer-logout" onclick="doLogout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sair
+      </button>
+    </div>
+  </nav>
+</aside>
 
 <div class="frames">
   <iframe id="cotador"   src="cotador-planos-saude.html" class="visible"></iframe>
@@ -716,7 +805,9 @@ function routeByRole(role, nome) {
     loadColaboradores();
   } else {
     // corretor — mostra cotador + barra de nav
-    document.getElementById('nav-user-nome').textContent = nome || '';
+    const _du = document.getElementById('drawer-user-nome');
+    if (_du) _du.textContent = nome || '';
+    _activeScreen = 'cotador';
     document.getElementById('main-nav').style.display = 'flex';
     document.body.classList.add('nav-visible');
     document.querySelector('.frames').style.display = '';
@@ -725,6 +816,7 @@ function routeByRole(role, nome) {
 }
 
 function doLogout() {
+  if (typeof closeDrawer === 'function') closeDrawer();
   // Invalida a sessão no servidor antes de limpar localmente
   if (token()) {
     fetch(API + '/api/logout', { method: 'POST', headers: authH() }).catch(() => {});
@@ -1561,6 +1653,7 @@ function show(id, btn) {
 function showCotador() {
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
   document.getElementById('cotador').classList.add('visible');
+  _activeScreen = 'cotador';
 }
 
 function showHistorico() {
@@ -1568,10 +1661,10 @@ function showHistorico() {
   const f = document.getElementById('historico');
   f.classList.add('visible');
   if (f.contentWindow && f.contentWindow.refreshHistorico) f.contentWindow.refreshHistorico();
+  _activeScreen = 'historico';
 }
 
 function syncApres(data) {
-  document.querySelectorAll('.sw-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
   const apresFrame = document.getElementById('apres');
   apresFrame.classList.add('visible');
@@ -1580,6 +1673,72 @@ function syncApres(data) {
   } else {
     apresFrame.addEventListener('load', () => apresFrame.contentWindow.receiveFromCotador(data), {once:true});
   }
+  _activeScreen = 'apres';
+}
+
+/* ── DRAWER DE NAVEGAÇÃO ── */
+let _activeScreen = 'cotador';
+let _drawerOpen = false;
+let _drawerPrevFocus = null;
+
+function _updateDrawerActive() {
+  document.querySelectorAll('.drawer-item[data-screen]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-screen') === _activeScreen);
+  });
+  // Seção "Cotação" só aparece quando o iframe Cotação está ativo
+  const sec = document.getElementById('drawer-cotacao-section');
+  if (sec) sec.style.display = (_activeScreen === 'cotador') ? '' : 'none';
+}
+
+function openDrawer() {
+  const d = document.getElementById('drawer'), s = document.getElementById('drawer-scrim');
+  _drawerPrevFocus = document.activeElement;
+  _updateDrawerActive();
+  const du = document.getElementById('drawer-user-nome');
+  if (du) du.textContent = sessionStorage.getItem('sp_nome') || '';
+  d.classList.add('open'); s.classList.add('open');
+  d.setAttribute('aria-hidden', 'false');
+  document.getElementById('menu-btn').setAttribute('aria-expanded', 'true');
+  _drawerOpen = true;
+  document.addEventListener('keydown', _drawerKey, true);
+  const first = d.querySelector('.drawer-close');
+  if (first) first.focus();
+}
+
+function closeDrawer() {
+  if (!_drawerOpen) return;
+  const d = document.getElementById('drawer'), s = document.getElementById('drawer-scrim');
+  d.classList.remove('open'); s.classList.remove('open');
+  d.setAttribute('aria-hidden', 'true');
+  document.getElementById('menu-btn').setAttribute('aria-expanded', 'false');
+  _drawerOpen = false;
+  document.removeEventListener('keydown', _drawerKey, true);
+  if (_drawerPrevFocus && _drawerPrevFocus.focus) _drawerPrevFocus.focus();
+}
+
+function _drawerKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closeDrawer(); return; }
+  if (e.key !== 'Tab') return;
+  const d = document.getElementById('drawer');
+  const items = [...d.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')]
+    .filter(el => el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+function drawerNav(target) {
+  closeDrawer();
+  if (target === 'cotador') showCotador();
+  else if (target === 'historico') showHistorico();
+  else if (target === 'crm') window.location.href = 'crm-saude-prime.html';
+}
+
+function drawerLimpar() {
+  closeDrawer();
+  const cot = document.getElementById('cotador');
+  if (cot && cot.contentWindow && cot.contentWindow.limpar) cot.contentWindow.limpar();
 }
 
 /* ── Enter no login ── */

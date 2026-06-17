@@ -483,14 +483,10 @@ html[data-theme="dark"] .op-row-head:hover{background:rgba(255,255,255,.04)}
     </div>
   </div>
   <div class="bar-right">
-    <span class="pill">Mai / 2026</span>
-    <button class="btn btn-ghost" onclick="window.parent && window.parent.showHistorico && window.parent.showHistorico()" title="Ver cotações salvas">📋 Histórico</button>
-    <button class="btn btn-ghost" onclick="limpar()">Limpar</button>
     <button class="btn-theme-cot" id="cot-theme-btn" onclick="toggleCotTheme()" title="Alternar tema claro/escuro">
       <svg id="cot-theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
     </button>
     <button class="btn btn-navy" onclick="criarApresentacao()">✨ Apresentação</button>
-    <button class="btn btn-ghost" id="btn-sair-cot" style="display:none" onclick="window.parent.doLogout()">Sair</button>
   </div>
 </header>
 <nav class="tab-bar">
@@ -1966,10 +1962,6 @@ async function _initCotador() {
 }
 _initCotador().then(() => {
   _setCotIcon(localStorage.getItem('cot_theme') || 'light');
-  if (window !== window.top) {
-    const b = document.getElementById('btn-sair-cot');
-    if (b) b.style.display = 'inline-flex';
-  }
   // Restaurar cotação vinda do CRM
   const pendingCot = sessionStorage.getItem('crm_cotacao_restore');
   if (pendingCot) {
