@@ -1028,18 +1028,20 @@ const CARENCIAS_DB = {
     note:'ARC: plano anterior regulamentado, mín. 6 meses, cancelado há ≤ 30 dias, sem CPT ativa.'
   },
   medsenior: {
-    model:'Padrão ANS — PF Individual',
-    cols:['Procedimento','Padrão (PF)'],
+    model:'Aproveitamento de congênere (≤ 60 dias)',
+    cols:['Procedimento','Padrão','Com aproveitamento ≤60d'],
     rows:[
-      ['Urgência / Emergência','g|24h'],
-      ['Consultas Eletivas','r|30 dias'],
-      ['Exames Simples','r|30 dias'],
-      ['Exames Complementares','r|90 dias'],
-      ['Exames Especiais / Proc.','r|180 dias'],
-      ['Internações e Cirurgias','r|180 dias'],
-      ['Parto a Termo','r|300 dias'],
+      ['Urgência / Emergência','g|24h','g|24h'],
+      ['Consultas e Exames Simples','r|30 dias','g|24h'],
+      ['Exames Complexos I (US, mamografia, ergométrico)','y|90 dias','g|24h'],
+      ['Exames Complexos II (alérgico, densitometria)','r|120 dias','y|90 dias'],
+      ['Exames Especiais e Fisioterapia','r|180 dias','y|90 dias'],
+      ['Alta Complexidade (RNM, tomografia, radio/quimio)','r|180 dias','r|180 dias'],
+      ['Internações, UTI e Saúde Mental','r|180 dias','r|180 dias'],
+      ['Parto a Termo','r|300 dias','r|300 dias'],
+      ['Doenças Preexistentes (CPT)','r|24 meses','r|24 meses'],
     ],
-    note:'Plano PF exclusivo para beneficiários 49+. Não aceita ARC. Sem coparticipação em todos os produtos.'
+    note:'Aproveitamento de congênere: cliente com plano vigente ou cancelado há ≤ 60 dias (plano anterior regulamentado, Lei 9.656/98). Sujeito a análise. Plano PF exclusivo para 49+, sem coparticipação.'
   },
   segurosunimed: {
     model:'ARC (padrão ANS)',
