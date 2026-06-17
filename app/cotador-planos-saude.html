@@ -468,8 +468,26 @@ body{-webkit-overflow-scrolling:touch}
 .step-body{display:flex;flex-direction:column;gap:.875rem}
 #step-1 .step-body{max-width:640px;margin:0 auto;width:100%}
 .step-foot{display:flex;justify-content:space-between;align-items:center}
-.op-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:.875rem}
-.op-cards-grid .op-config-item{background:var(--white);border:1px solid var(--line)!important;border-bottom:1px solid var(--line)!important;border-radius:var(--r);box-shadow:var(--sh);padding:12px 14px}
+/* ═══ OP LIST (seletor vertical premium + accordion) ═══ */
+.op-list{display:flex;flex-direction:column;background:var(--white);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.op-row{border-bottom:1px solid var(--line);transition:background .15s}
+.op-row:last-child{border-bottom:none}
+.op-row.op-row-sel{background:var(--unity-bg)}
+.op-row-head{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;user-select:none}
+.op-row-head:hover{background:rgba(0,0,0,.025)}
+html[data-theme="dark"] .op-row-head:hover{background:rgba(255,255,255,.04)}
+.op-dot2{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.op-row-name{font-size:13px;font-weight:600;letter-spacing:.01em}
+.op-count{margin-left:1px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--navy);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.op-chev{margin-left:auto;color:var(--ink3);font-size:11px}
+.op-row-ctrls{display:flex;flex-direction:column;gap:6px;padding:0 14px 11px 33px}
+.op-mini-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.op-mini-lbl{font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-right:3px}
+.op-mini-btn{padding:3px 10px;font-size:10px;font-weight:600;letter-spacing:.02em;border:1.5px solid var(--line2);border-radius:11px;background:transparent;color:var(--ink2);cursor:pointer;transition:all .12s;font-family:"Outfit",sans-serif;white-space:nowrap}
+.op-mini-btn:hover{border-color:var(--navy);color:var(--navy)}
+.op-mini-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.op-row-body{padding:2px 14px 12px 33px;border-top:1px dashed var(--line);animation:opExpand .18s ease}
+@keyframes opExpand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 #sp-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;padding:10px 22px;border-radius:8px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:9999}
 #sp-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -552,18 +570,6 @@ body{-webkit-overflow-scrolling:touch}
       </div>
 
       <div class="card">
-        <div class="card-head">🎯 Fator moderador</div>
-        <div style="padding:10px 12px">
-          <div class="fb-row" id="fcopart">
-            <button class="fb-btn on" onclick="setFiltroCopart('todos',this)">Todos</button>
-            <button class="fb-btn" onclick="setFiltroCopart('sem',this)">Sem copart.</button>
-            <button class="fb-btn" onclick="setFiltroCopart('parcial',this)">Copart. Parcial</button>
-            <button class="fb-btn" onclick="setFiltroCopart('total',this)">Copart. Completa</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
         <div class="card-head">
           <span>👤 Adicione as vidas</span>
           <span id="total-badge" style="background:var(--navy);color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;letter-spacing:0">0 vida(s)</span>
@@ -588,27 +594,7 @@ body{-webkit-overflow-scrolling:touch}
   <div id="step-2" class="step-panel">
     <div class="step-body">
 
-      <div id="fmod-row" style="display:none" class="card">
-        <div class="card-head">⚙️ Modalidade PME — Seguros Unimed</div>
-        <div style="padding:8px 12px">
-          <div class="fb-row" id="fmod">
-            <button class="fb-btn on" onclick="setFiltroMod('comp',this)">Compulsório</button>
-            <button class="fb-btn" onclick="setFiltroMod('fac',this)">Facultativo</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="fvig-row" style="display:none" class="card">
-        <div class="card-head">⚙️ Vigência — SulAmérica</div>
-        <div style="padding:8px 12px">
-          <div class="fb-row" id="fvig">
-            <button class="fb-btn on" onclick="setFiltroVig('12',this)">12 meses</button>
-            <button class="fb-btn" onclick="setFiltroVig('24',this)">24 meses</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="op-config-body" class="op-cards-grid"></div>
+      <div id="op-config-body" class="op-list"></div>
 
       <div class="step-foot">
         <button class="btn btn-outline" onclick="goToStep(1)">← Voltar</button>
@@ -1017,12 +1003,17 @@ let OP_META = {};
 
 // Estado
 let qtds = Array(10).fill(0);
-let selPlanos = {};
-let activeOps = {};
-let tipoOp = {};
-let filtroCopart = 'todos';
-let filtroMod    = 'comp';
-let filtroVig    = '12';
+let selPlanos = {};            // {op: [ids...]} — fonte de verdade da seleção
+let activeOps = {};            // ESPELHO derivado: true sse (selPlanos[op]||[]).length > 0
+let tipoOp = {};               // contratação por operadora: 'adesao'|'pme'|'pf'
+let copartOp = {};             // copart por operadora: 'sem'|'parcial'|'total'|null (null = não filtra)
+let modOp = {};                // modalidade PME (só Seguros Unimed): 'comp'|'fac'
+let vigOp = {};                // vigência (só SulAmérica): 12|24
+let openOps = {};              // {op: true} — estado expandido/recolhido do accordion
+
+// Mantém o espelho activeOps coerente com a seleção (render/export/sync da apresentação leem activeOps)
+function _syncActive(op){ activeOps[op] = (selPlanos[op] || []).length > 0; }
+function _syncAllActive(){ Object.keys(OP_META).forEach(_syncActive); }
 
 const f = v => v != null ? 'R$ ' + v.toFixed(2).replace('.',',') : '—';
 
@@ -1038,11 +1029,10 @@ function _updateFVidasHint() {
   const hint = document.getElementById('fvidas-hint');
   if (!hint) return;
   const tv = qtds.reduce((a,b)=>a+b,0);
-  _checkFVigRow();
   if (tv > 0) {
     const parts = [];
     if (tipoOp.segurosunimed === 'pme' && activeOps.segurosunimed) {
-      const modLabel = filtroMod === 'comp' ? 'Compulsório' : 'Facultativo';
+      const modLabel = (modOp.segurosunimed || 'comp') === 'comp' ? 'Compulsório' : 'Facultativo';
       parts.push(`Seguros Unimed: ${modLabel} · ${getFVidas()} vidas`);
     }
     if (tipoOp.plenum === 'pme' && activeOps.plenum) {
@@ -1052,7 +1042,7 @@ function _updateFVidasHint() {
       parts.push(`Amil PME: ${getFVidasForOp('amil')} vidas`);
     }
     if (activeOps.sulamerica) {
-      const vigLabel = filtroVig === '12' ? '12 meses' : '24 meses';
+      const vigLabel = (vigOp.sulamerica || 12) === 12 ? '12 meses' : '24 meses';
       parts.push(`SulAmérica: ${vigLabel} · ${getFVidasForOp('sulamerica')} vidas`);
     }
     if (parts.length > 0) {
@@ -1086,87 +1076,90 @@ function tiposDisponiveis(op) {
   return [...s];
 }
 
-function planosFiltered(op) {
+// Planos da operadora no contexto atual (contratação/mod/vig/fvidas) — SEM filtro de copart
+function _planosOpBase(op) {
   const fv = getFVidasForOp(op);
   const opTipo = tipoOp[op] || 'adesao';
+  const mod = modOp[op] || 'comp';
+  const vig = vigOp[op] || 12;
   return PLANOS.filter(p => {
     if (p.op !== op) return false;
     if ((p.tipo || 'adesao') !== opTipo) return false;
-    if (p.mod    && p.mod    !== filtroMod)   return false;
+    if (p.mod    && p.mod    !== mod) return false;
     if (p.fvidas && p.fvidas !== fv) return false;
-    if (p.vig    && p.vig    !== parseInt(filtroVig)) return false;
-    if (filtroCopart !== 'todos' && getCopart(p.nome) !== filtroCopart) return false;
+    if (p.vig    && p.vig    !== vig) return false;
     return true;
   });
 }
 
+function planosFiltered(op) {
+  const cop = copartOp[op];   // null/undefined → não filtra por copart
+  return _planosOpBase(op).filter(p => !cop || getCopart(p.nome) === cop);
+}
+
+// Coparts existentes para a operadora no contexto atual (ordem: sem→parcial→total)
+function copartsDisponiveis(op) {
+  const order = ['sem','parcial','total'];
+  const s = new Set();
+  _planosOpBase(op).forEach(p => s.add(getCopart(p.nome)));
+  return order.filter(c => s.has(c));
+}
+
+
+// Remove da seleção os planos que não existem mais no contexto filtrado da op (NÃO auto-seleciona)
+function _pruneSel(op) {
+  if (!selPlanos[op] || !selPlanos[op].length) return;
+  const planos = planosFiltered(op);
+  selPlanos[op] = selPlanos[op].filter(id => planos.find(p => p.id === id));
+  _syncActive(op);
+}
 
 function setOpTipo(op, val) {
   tipoOp[op] = val;
-  // Auto-seleciona o primeiro plano disponível no novo tipo
-  const planos = planosFiltered(op);
-  if (planos.length > 0) selPlanos[op] = [planos[0].id];
-  const fmodRow = document.getElementById('fmod-row');
-  if (fmodRow) fmodRow.style.display = tipoOp.segurosunimed === 'pme' ? 'block' : 'none';
-  _syncFiltroSubtitle();
+  _pruneSel(op);
   _updateFVidasHint();
   buildOpConfig();
   render();
 }
 
-function setFiltroMod(val, btn) {
-  filtroMod = val;
-  document.querySelectorAll('#fmod .fb-btn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  _syncFiltroSubtitle();
+function setCopartOp(op, val) {
+  copartOp[op] = val;   // null = "Todas" (sem filtro)
+  _pruneSel(op);
+  buildOpConfig();
+  render();
+}
+
+function setModOp(op, val) {
+  modOp[op] = val;
+  _pruneSel(op);
   _updateFVidasHint();
   buildOpConfig();
   render();
 }
 
-function setFiltroVig(val, btn) {
-  filtroVig = val;
-  document.querySelectorAll('#fvig .fb-btn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
+function setVigOp(op, val) {
+  vigOp[op] = val;
+  _pruneSel(op);
   _updateFVidasHint();
   buildOpConfig();
   render();
 }
 
-function _checkFVigRow() {
-  const fvigRow = document.getElementById('fvig-row');
-  if (fvigRow) fvigRow.style.display = activeOps.sulamerica ? 'block' : 'none';
-}
-
-function setFiltroCopart(val, btn) {
-  filtroCopart = val;
-  document.querySelectorAll('#fcopart .fb-btn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  _syncFiltroSubtitle();
+function toggleOpen(op) {
+  openOps[op] = !openOps[op];
   buildOpConfig();
-  render();
 }
 
 function _syncFiltroSubtitle() {
-  const tipoMap   = {adesao:'Coletivo por Adesão', pme:'PME', pf:'Pessoa Física'};
-  const copartMap = {todos:'', sem:'· Sem copart.', parcial:'· Copart. Parcial', total:'· Copart. Completa'};
-  const modMap    = {comp:'Compulsório', fac:'Facultativo'};
-
-  const usedTipos = [...new Set(Object.values(tipoOp))];
-
+  const tipoMap = {adesao:'Coletivo por Adesão', pme:'PME', pf:'Pessoa Física'};
   const sub = document.getElementById('result-sub');
-  if (sub) {
-    let tipoLabel;
-    if (usedTipos.length === 1) {
-      tipoLabel = tipoMap[usedTipos[0]];
-      if (usedTipos[0] === 'pme') tipoLabel += ' · ' + modMap[filtroMod];
-    } else {
-      tipoLabel = 'Modalidade mista';
-    }
-    const parts = [tipoLabel, 'DF e entorno · Mai/2026'];
-    if (copartMap[filtroCopart]) parts.push(copartMap[filtroCopart]);
-    sub.textContent = parts.join(' · ');
-  }
+  if (!sub) return;
+  const usedTipos = [...new Set(Object.keys(OP_META).filter(op => activeOps[op]).map(op => tipoOp[op]))];
+  let tipoLabel;
+  if (usedTipos.length === 1) tipoLabel = tipoMap[usedTipos[0]] || 'Coletivo por Adesão';
+  else if (usedTipos.length === 0) tipoLabel = 'Coletivo por Adesão';
+  else tipoLabel = 'Modalidade mista';
+  sub.textContent = [tipoLabel, 'DF e entorno · Mai/2026'].join(' · ');
 }
 
 // ── FAIXAS ETÁRIAS (chips + stepper) ─────────────────────────────────
@@ -1200,92 +1193,109 @@ function step(i, delta) {
   document.getElementById('total-vidas').textContent = tv;
   document.getElementById('total-badge').textContent = tv + ' vida(s)';
   _updateFVidasHint();
-  _checkFVigRow();
-  // Reconstrói config se alguma operadora PME estiver ativa (fvidas altera os planos disponíveis)
-  if (Object.entries(tipoOp).some(([op,t]) => t === 'pme' && activeOps[op])) buildOpConfig();
+  // fvidas muda os planos disponíveis (faixas por nº de vidas) → reconstrói sempre a lista
+  buildOpConfig();
   render();
 }
 
-// ── OP CONFIG (seletor de plano por operadora) ────────────────────────
+// ── OP LIST (lista vertical + accordion por operadora) ────────────────
 function buildOpConfig() {
   const body = document.getElementById('op-config-body');
+  if (!body) return;
   body.innerHTML = '';
-  const sfxMap = {portosaude:'ps', bestsenior:'bs', segurosunimed:'s', sulamerica:'sa', hapvida:'hap'};
   const tipoLabel = {adesao:'Adesão', pme:'PME', pf:'PF'};
   const tipoOrder = ['adesao','pme','pf'];
+  const copLabel  = {sem:'Sem copart.', parcial:'Copart. Parcial', total:'Copart. Completa'};
 
   Object.keys(OP_META).forEach(op => {
     const meta = OP_META[op];
     if (!meta) return;
-    const isActive = activeOps[op] !== false;
-    const sfx = sfxMap[op] || op.slice(0,2);
     const availTipos = tiposDisponiveis(op);
 
     // Garante que tipoOp[op] seja válido para esta operadora
     if (!availTipos.includes(tipoOp[op])) tipoOp[op] = availTipos[0] || 'adesao';
 
     const planos = planosFiltered(op);
+    // Remove seleções que saíram da lista filtrada — NUNCA auto-seleciona
+    _pruneSel(op);
 
-    // Remove seleções que saíram da lista filtrada; garante ao menos 1
-    if (planos.length > 0) {
-      selPlanos[op] = (selPlanos[op] || []).filter(id => planos.find(p => p.id === id));
-      if (selPlanos[op].length === 0) selPlanos[op] = [planos[0].id];
-    }
+    const sel  = selPlanos[op] || [];
+    const open = !!openOps[op];
+    const cor  = (meta.cor || OP_COR_MAP[op] || 'var(--ink2)');
 
-    const div = document.createElement('div');
-    div.className = 'op-config-item' + (isActive ? '' : ' op-inactive');
+    const row = document.createElement('div');
+    row.className = 'op-row' + (sel.length ? ' op-row-sel' : '') + (open ? ' op-row-open' : '');
 
-    const _cor = OP_COR_MAP[op] || '';
-    const head = `<div class="op-config-head">
-      <span class="op-dot dot-${sfx}"${_cor?` style="background:${_cor}"`:''}></span>
-      <span class="op-config-name cn-${sfx}"${_cor?` style="color:${_cor}"`:''}>${meta.nome}</span>
-      <label class="op-toggle" title="${isActive?'Remover da cotação':'Adicionar à cotação'}">
-        <input type="checkbox" ${isActive?'checked':''} onchange="toggleOp('${op}')">
-        <span class="op-toggle-slider"></span>
-      </label>
-    </div>`;
+    // — Header (clicável → expande/recolhe) —
+    const countBadge = sel.length ? `<span class="op-count">${sel.length}</span>` : '';
+    const head = `<div class="op-row-head" onclick="toggleOpen('${op}')">
+        <span class="op-dot2" style="background:${cor}"></span>
+        <span class="op-row-name" style="color:${cor}">${meta.nome}</span>
+        ${countBadge}
+        <span class="op-chev">${open?'▾':'▸'}</span>
+      </div>`;
 
-    // Seletor de tipo por operadora — sempre visível
-    const btns = tipoOrder.filter(t => availTipos.includes(t))
-      .map(t => `<button class="op-tipo-btn${tipoOp[op]===t?' on':''}" onclick="setOpTipo('${op}','${t}')">${tipoLabel[t]}</button>`)
+    // — Controles (sempre visíveis): contratação + copart + mod/vig —
+    const tipoBtns = tipoOrder.filter(t => availTipos.includes(t))
+      .map(t => `<button class="op-mini-btn${tipoOp[op]===t?' on':''}" onclick="event.stopPropagation();setOpTipo('${op}','${t}')">${tipoLabel[t]}</button>`)
       .join('');
-    const tipoRow = `<div class="op-tipo-row">${btns}</div>`;
+    let ctrls = `<div class="op-mini-row"><span class="op-mini-lbl">Contratação</span>${tipoBtns}</div>`;
 
-    if (planos.length === 0) {
-      div.innerHTML = head + tipoRow + `<div class="op-na">Nenhum plano nesta modalidade</div>`;
-    } else if (!isActive) {
-      div.innerHTML = head + tipoRow;
-    } else {
-      const opts = planos.map(p => {
-        const checked = (selPlanos[op] || []).includes(p.id);
-        return `<label class="op-check-item"><input type="checkbox" ${checked?'checked':''} onclick="selPlan('${op}','${p.id}',this)"><span class="op-check-label">${p.nome}</span></label>`;
-      }).join('');
-      div.innerHTML = head + tipoRow + `<div class="op-check-list">${opts}</div>`;
+    const coparts = copartsDisponiveis(op);
+    if (coparts.length > 1) {
+      const cur = copartOp[op] || null;
+      const chips = [`<button class="op-mini-btn${!cur?' on':''}" onclick="event.stopPropagation();setCopartOp('${op}',null)">Todas</button>`]
+        .concat(coparts.map(c => `<button class="op-mini-btn${cur===c?' on':''}" onclick="event.stopPropagation();setCopartOp('${op}','${c}')">${copLabel[c]}</button>`))
+        .join('');
+      ctrls += `<div class="op-mini-row"><span class="op-mini-lbl">Copart.</span>${chips}</div>`;
     }
-    body.appendChild(div);
+
+    if (op === 'segurosunimed' && tipoOp[op] === 'pme') {
+      const cur = modOp[op] || 'comp';
+      ctrls += `<div class="op-mini-row"><span class="op-mini-lbl">Modalidade</span>
+        <button class="op-mini-btn${cur==='comp'?' on':''}" onclick="event.stopPropagation();setModOp('${op}','comp')">Compulsório</button>
+        <button class="op-mini-btn${cur==='fac'?' on':''}" onclick="event.stopPropagation();setModOp('${op}','fac')">Facultativo</button></div>`;
+    }
+
+    if (op === 'sulamerica') {
+      const cur = vigOp[op] || 12;
+      ctrls += `<div class="op-mini-row"><span class="op-mini-lbl">Vigência</span>
+        <button class="op-mini-btn${cur===12?' on':''}" onclick="event.stopPropagation();setVigOp('${op}',12)">12 meses</button>
+        <button class="op-mini-btn${cur===24?' on':''}" onclick="event.stopPropagation();setVigOp('${op}',24)">24 meses</button></div>`;
+    }
+    const ctrlsBlock = `<div class="op-row-ctrls">${ctrls}</div>`;
+
+    // — Painel expandido: produtos (checkboxes) —
+    let panel = '';
+    if (open) {
+      if (planos.length === 0) {
+        panel = `<div class="op-row-body"><div class="op-na">Nenhum plano nesta combinação de contratação/copart.</div></div>`;
+      } else {
+        const opts = planos.map(p => {
+          const checked = sel.includes(p.id);
+          return `<label class="op-check-item"><input type="checkbox" ${checked?'checked':''} onclick="selPlan('${op}','${p.id}',this)"><span class="op-check-label">${p.nome}</span></label>`;
+        }).join('');
+        panel = `<div class="op-row-body"><div class="op-check-list">${opts}</div></div>`;
+      }
+    }
+
+    row.innerHTML = head + ctrlsBlock + panel;
+    body.appendChild(row);
   });
 }
 
 function selPlan(op, id, el) {
   const checked = el ? el.checked : true;
+  const cur = selPlanos[op] || [];
   if (checked) {
-    if (!(selPlanos[op] || []).includes(id)) selPlanos[op] = [...(selPlanos[op] || []), id];
+    if (!cur.includes(id)) selPlanos[op] = [...cur, id];
   } else {
-    if ((selPlanos[op] || []).length > 1) {
-      selPlanos[op] = selPlanos[op].filter(x => x !== id);
-    } else {
-      el.checked = true;
-      return;
-    }
+    // Permite desmarcar tudo → operadora sai da cotação (sem trava no último)
+    selPlanos[op] = cur.filter(x => x !== id);
   }
-  render();
-}
-
-function toggleOp(op) {
-  activeOps[op] = !activeOps[op];
-  _checkFVigRow();
+  _syncActive(op);
   _updateFVidasHint();
-  buildOpConfig();
+  buildOpConfig();   // atualiza badge de contagem + destaque da linha
   render();
 }
 
@@ -1321,11 +1331,26 @@ function render() {
     });
   });
 
-  document.getElementById('placeholder').style.display = tv===0 ? 'block' : 'none';
-  document.getElementById('result-wrap').style.display = tv>0 ? 'block' : 'none';
-  document.getElementById('totais-section').style.display = tv>0 ? 'block' : 'none';
+  _syncFiltroSubtitle();
 
-  if (tv === 0) { renderNotes(cols); return; }
+  // Placeholder enquanto não houver vidas OU enquanto nenhum produto estiver marcado
+  const empty = (tv === 0) || (cols.length === 0);
+  const ph = document.getElementById('placeholder');
+  if (ph) {
+    ph.style.display = empty ? 'block' : 'none';
+    const t = ph.querySelector('.ph-title'), s = ph.querySelector('.ph-sub');
+    if (tv === 0) {
+      if (t) t.textContent = 'Adicione as vidas para calcular';
+      if (s) s.textContent = 'Volte à etapa 1 e informe as faixas etárias dos beneficiários.';
+    } else {
+      if (t) t.textContent = 'Selecione os produtos';
+      if (s) s.textContent = 'Na etapa 2, expanda as operadoras e marque os planos que entram na cotação.';
+    }
+  }
+  document.getElementById('result-wrap').style.display = empty ? 'none' : 'block';
+  document.getElementById('totais-section').style.display = empty ? 'none' : 'block';
+
+  if (empty) { renderNotes(cols); return; }
 
   const opColor = op => (OP_META[op]||{}).cor || `var(--${op==='segurosunimed'?'seguros-unimed':op})`;
 
@@ -1492,9 +1517,14 @@ function criarApresentacao() {
     opsInfo:     withTotal,
     tipoOp:      {...tipoOp},
     filtroTipo:  tipoOp[winner] || 'adesao',
-    filtroCopart,
-    filtroMod,
-    filtroVig
+    // Estado por operadora (novo modelo)
+    copartOp:    {...copartOp},
+    modOp:       {...modOp},
+    vigOp:       {...vigOp},
+    // Back-compat: a apresentação ainda lê filtroCopart/filtroMod/filtroVig (derivados do winner)
+    filtroCopart: copartOp[winner] || 'todos',
+    filtroMod:    modOp[winner] || 'comp',
+    filtroVig:    String(vigOp[winner] || 12)
   };
 
   _crmTipoCotado = data.filtroTipo;
@@ -1923,11 +1953,15 @@ async function _initCotador() {
       if (_dynStyle.textContent) document.head.appendChild(_dynStyle);
 
       Object.keys(OP_META).forEach(op => {
-        if (activeOps[op] === undefined) activeOps[op] = true;
-        if (tipoOp[op]   === undefined) {
+        if (tipoOp[op] === undefined) {
           const ts = tiposDisponiveis(op);
           tipoOp[op] = ts[0] || 'adesao';
         }
+        if (copartOp[op] === undefined) copartOp[op] = null;   // null = "Todas" (sem filtro)
+        if (modOp[op]    === undefined) modOp[op]    = 'comp';
+        if (vigOp[op]    === undefined) vigOp[op]    = 12;
+        openOps[op] = false;
+        _syncActive(op);   // nada selecionado por padrão → activeOps[op] = false
       });
     } else {
       // API respondeu erro HTTP (500/503 etc.) — sem fallback local, avisa o usuário
@@ -1945,7 +1979,6 @@ async function _initCotador() {
   buildFaixas();
   buildOpConfig();
   render();
-  _checkFVigRow();
   ['ph-data','ph-data2','ph-data3'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
@@ -1991,7 +2024,7 @@ function saveToHistory(clienteId = null) {
     winner, winnerTotal: winner?(withTotal.find(x=>x.op===winner)?.total||0):0,
     totalVidas: tv, qtds:[...qtds], selPlanos:{...selPlanos},
     activeOps:{...activeOps}, tipoOp:{...tipoOp},
-    filtroCopart, filtroMod, filtroVig,
+    copartOp:{...copartOp}, modOp:{...modOp}, vigOp:{...vigOp},
     cliente_id: clienteId
   };
   const hist = loadHistory();
@@ -2036,43 +2069,57 @@ function openHistorico() {
 
 function closeHistorico() { document.getElementById('hist-overlay').classList.remove('on'); }
 
-function restaurarCotacaoFromObj(e){
+// Restaura o estado de uma cotação salva. Aceita formato NOVO (copartOp/modOp/vigOp)
+// e ANTIGO (filtroCopart/filtroMod/filtroVig globais + activeOps), reconstruindo o
+// estado por operadora a partir da seleção salva.
+function _aplicarRestore(e){
   if (!e || !e.qtds) return;
   qtds=[...e.qtds];
-  selPlanos=Object.fromEntries(Object.entries(e.selPlanos||{}).map(([k,v])=>[k,Array.isArray(v)?v:[v].filter(Boolean)]));
-  activeOps={...e.activeOps}; tipoOp={...e.tipoOp};
-  filtroCopart=e.filtroCopart||'todos'; filtroMod=e.filtroMod||'comp'; filtroVig=e.filtroVig||'12';
-  document.getElementById('nome').value = e.nome||'';
-  if (e.obs) document.getElementById('obs').value = e.obs;
+  selPlanos=Object.fromEntries(Object.entries(e.selPlanos||{}).map(([k,v])=>[k,Array.isArray(v)?v.slice():[v].filter(Boolean)]));
+  tipoOp={...(e.tipoOp||{})};
+  openOps={};
+
+  const isNovo = !!(e.copartOp || e.modOp || e.vigOp);
+  if (isNovo) {
+    copartOp={...(e.copartOp||{})};
+    modOp={...(e.modOp||{})};
+    vigOp=Object.fromEntries(Object.entries(e.vigOp||{}).map(([k,v])=>[k,Number(v)]));
+  } else {
+    // ── Cotação ANTIGA ──
+    // Respeita operadoras explicitamente desligadas (activeOps[op]===false) zerando a seleção.
+    const oldActive = e.activeOps || {};
+    Object.keys(selPlanos).forEach(op=>{ if(oldActive[op]===false) selPlanos[op]=[]; });
+    // Mapeia as globais salvas para o estado por operadora.
+    const gc = (e.filtroCopart && e.filtroCopart!=='todos') ? e.filtroCopart : null;
+    const gm = e.filtroMod || 'comp';
+    const gv = Number(e.filtroVig) || 12;
+    copartOp={}; modOp={}; vigOp={};
+    Object.keys(OP_META).forEach(op=>{ copartOp[op]=gc; });
+    modOp.segurosunimed=gm;
+    vigOp.sulamerica=gv;
+  }
+  // activeOps é sempre derivado da seleção (ignora o activeOps salvo, que podia estar tudo true)
+  _syncAllActive();
+
+  const nomeEl=document.getElementById('nome'); if(nomeEl) nomeEl.value=e.nome||'';
+  const obsEl=document.getElementById('obs'); if(obsEl) obsEl.value=e.obs||'';
   FAIXAS.forEach((_,i)=>{
     const sp=document.getElementById('sn-'+i), chip=document.getElementById('chip-'+i);
     if(sp){sp.textContent=qtds[i]||0;sp.className=qtds[i]>0?'step-num':'step-num zero';}
     if(chip){if(qtds[i]>0)chip.classList.add('active');else chip.classList.remove('active');}
   });
   const tv=qtds.reduce((a,b)=>a+b,0);
-  document.getElementById('total-vidas').textContent=tv;
-  document.getElementById('total-badge').textContent=tv+' vida(s)';
-  updateTitle(); _updateFVidasHint(); _checkFVigRow(); buildOpConfig(); render();
+  const tvEl=document.getElementById('total-vidas'); if(tvEl) tvEl.textContent=tv;
+  const tbEl=document.getElementById('total-badge'); if(tbEl) tbEl.textContent=tv+' vida(s)';
+  updateTitle(); _updateFVidasHint(); buildOpConfig(); render();
 }
+
+function restaurarCotacaoFromObj(e){ _aplicarRestore(e); }
 
 function restaurarCotacao(id) {
   const e = loadHistory().find(x=>String(x.id)===String(id));
   if (!e) return;
-  qtds=[...e.qtds];
-  selPlanos=Object.fromEntries(Object.entries(e.selPlanos||{}).map(([k,v])=>[k,Array.isArray(v)?v:[v].filter(Boolean)]));
-  activeOps={...e.activeOps}; tipoOp={...e.tipoOp};
-  filtroCopart=e.filtroCopart||'todos'; filtroMod=e.filtroMod||'comp'; filtroVig=e.filtroVig||'12';
-  document.getElementById('nome').value = e.nome||'';
-  if (e.obs) document.getElementById('obs').value = e.obs;
-  FAIXAS.forEach((_,i)=>{
-    const sp=document.getElementById('sn-'+i), chip=document.getElementById('chip-'+i);
-    if(sp){sp.textContent=qtds[i]||0;sp.className=qtds[i]>0?'step-num':'step-num zero';}
-    if(chip){if(qtds[i]>0)chip.classList.add('active');else chip.classList.remove('active');}
-  });
-  const tv=qtds.reduce((a,b)=>a+b,0);
-  document.getElementById('total-vidas').textContent=tv;
-  document.getElementById('total-badge').textContent=tv+' vida(s)';
-  updateTitle(); _updateFVidasHint(); _checkFVigRow(); buildOpConfig(); render();
+  _aplicarRestore(e);
   closeHistorico();
 }
 
