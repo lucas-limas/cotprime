@@ -166,45 +166,12 @@ body{font-family:"Outfit",sans-serif;background:var(--cream);color:var(--ink);fo
 .vidas-bar-lbl{font-size:11px;color:var(--ink3)}
 .vidas-bar-val{font-size:14px;font-weight:700;color:var(--navy)}
 
-/* ═══ OP CONFIG ═══ */
-.op-config-item{padding:10px 14px;border-bottom:1px solid var(--line)}
-.op-config-item:last-child{border-bottom:none}
-.op-config-head{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-.op-dot{width:8px;height:8px;border-radius:50%}
-.dot-u{background:var(--unity)}.dot-e{background:var(--evo)}.dot-p{background:var(--plenum)}.dot-a{background:var(--amil)}.dot-m{background:var(--medsenior)}.dot-s{background:var(--seguros-unimed)}.dot-ps{background:var(--portosaude)}.dot-b{background:var(--bradesco)}.dot-bs{background:var(--bestsenior)}.dot-sa{background:var(--sulamerica)}
-.op-config-name{font-size:11px;font-weight:600;letter-spacing:.03em}
-.cn-u{color:var(--unity)}.cn-e{color:var(--evo)}.cn-p{color:var(--plenum)}.cn-a{color:var(--amil)}.cn-m{color:var(--medsenior)}.cn-s{color:var(--seguros-unimed)}.cn-ps{color:var(--portosaude)}.cn-b{color:var(--bradesco)}.cn-bs{color:var(--bestsenior)}.cn-sa{color:var(--sulamerica)}
-.op-config-sel{
-  width:100%;font-family:"Outfit",sans-serif;font-size:11px;
-  color:var(--ink);background:var(--cream);
-  border:1.5px solid var(--line);border-radius:var(--r-sm);
-  padding:6px 8px;outline:none;transition:border-color .15s;cursor:pointer;
-}
-.op-config-sel:focus{border-color:var(--navy)}
-.op-config-sel:disabled{opacity:.4;cursor:not-allowed}
+/* ═══ OP LIST — checkboxes de plano (usado por buildOpConfig) ═══ */
 .op-check-list{display:flex;flex-direction:column;gap:2px;max-height:150px;overflow-y:auto;margin-top:1px}
 .op-check-item{display:flex;align-items:flex-start;gap:6px;cursor:pointer;padding:3px 0}
 .op-check-item input[type=checkbox]{margin-top:2px;accent-color:var(--navy);cursor:pointer;flex-shrink:0}
 .op-check-label{font-size:11px;color:var(--ink);line-height:1.3}
 .op-na{font-size:11px;color:var(--ink3);font-style:italic;padding:4px 0}
-.op-toggle{position:relative;display:inline-block;width:28px;height:16px;margin-left:auto;flex-shrink:0}
-.op-toggle input{opacity:0;width:0;height:0;position:absolute}
-.op-toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--line2);border-radius:16px;transition:.2s}
-.op-toggle-slider:before{content:'';position:absolute;width:12px;height:12px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
-.op-toggle input:checked+.op-toggle-slider{background:var(--navy)}
-.op-toggle input:checked+.op-toggle-slider:before{transform:translateX(12px)}
-.op-config-item.op-inactive{opacity:.55}
-
-/* ── TIPO POR OPERADORA ── */
-.op-tipo-row{display:flex;gap:3px;margin-bottom:5px}
-.op-tipo-btn{
-  padding:2px 8px;font-size:9px;font-weight:600;letter-spacing:.03em;
-  border:1.5px solid var(--line2);border-radius:10px;
-  background:transparent;color:var(--ink3);cursor:pointer;
-  transition:all .12s;font-family:"Outfit",sans-serif;
-}
-.op-tipo-btn:hover{border-color:var(--navy);color:var(--navy)}
-.op-tipo-btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
 
 /* ═══ RESULTADO ═══ */
 .result-hero{

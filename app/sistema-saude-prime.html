@@ -49,33 +49,19 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
 .logo-img{display:none}
 .logo-fallback{display:none}
 .sep{width:1px;height:22px;background:var(--bd3);margin:0 10px}
-.sw-btn{
-  padding:0 15px;height:42px;
-  border:none;background:transparent;
-  color:var(--t3);
-  font-family:"Outfit",sans-serif;font-size:12px;font-weight:500;
-  cursor:pointer;letter-spacing:.03em;
-  border-bottom:2px solid transparent;margin-bottom:-1px;
-  transition:color .15s,border-color .15s;
-  display:flex;align-items:center;gap:6px;white-space:nowrap;
-}
-.sw-btn:hover{color:var(--t1)}
-.sw-btn.active{color:var(--t1);border-bottom-color:var(--t2)}
-.sw-btn svg{width:13px;height:13px;flex-shrink:0;opacity:.85}
 
 /* usuário logado na barra */
 .user-info{
   margin-left:auto;display:flex;align-items:center;gap:10px;
   font-family:"Outfit",sans-serif;font-size:12px;color:var(--t3);
 }
-.user-nome{color:var(--t2);font-weight:500}
-.btn-sair,.btn-admin{
+.btn-admin{
   background:var(--btn-bg);border:1px solid var(--bd3);
   color:var(--t3);border-radius:5px;
   padding:4px 12px;font-size:11px;font-family:"Outfit",sans-serif;
   cursor:pointer;transition:background .15s;white-space:nowrap;
 }
-.btn-sair:hover,.btn-admin:hover{background:var(--tab-active);color:var(--t1)}
+.btn-admin:hover{background:var(--tab-active);color:var(--t1)}
 .btn-admin{color:#7dd3fc;border-color:rgba(125,211,252,.25)}
 .btn-admin:hover{background:rgba(125,211,252,.1);color:#7dd3fc}
 /* theme toggle */
@@ -89,9 +75,7 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
 .btn-theme svg{width:15px;height:15px;flex-shrink:0}
 
 @media(max-width:640px){
-  .sw-btn{padding:0 10px;font-size:11px;gap:4px}
   .sep{margin:0 6px}.logo-img{height:32px}
-  .user-nome{display:none}
 }
 
 /* ── HAMBURGER + DRAWER ── */
@@ -1643,13 +1627,6 @@ async function deletarPlano(id, btn) {
 }
 
 /* ── Navegação cotador ── */
-function show(id, btn) {
-  document.querySelectorAll('.sw-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
-  btn.classList.add('active');
-  document.getElementById(id).classList.add('visible');
-}
-
 function showCotador() {
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
   document.getElementById('cotador').classList.add('visible');
