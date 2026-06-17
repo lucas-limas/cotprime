@@ -6,7 +6,7 @@ import secrets
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -1158,6 +1158,117 @@ def listar_cotacoes(user=Depends(require_corretor)):
         {"id": r["id"], "cliente": r["cliente"], "dados": json.loads(r["dados"]), "criado_em": r["criado_em"]}
         for r in rows
     ]
+
+
+# ── Métricas do histórico de cotações (dashboard) ─────────────────────────────
+# criado_em é texto UTC "YYYY-MM-DD HH:MM:SS". Calculamos os limites em horário de
+# Brasília (BR), convertemos para UTC e comparamos como string (ordenação lexicográfica
+# bate com a cronológica nesse formato). Escopo: sempre o próprio usuário (user["sub"]).
+_BR_TZ = timezone(timedelta(hours=-3))
+_DT_FMT = "%Y-%m-%d %H:%M:%S"
+_MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+
+def _br_dt(y, m, d, h=0):
+    return datetime(y, m, d, h, 0, 0, tzinfo=_BR_TZ)
+
+
+def _to_utc_str(dt_br):
+    return dt_br.astimezone(timezone.utc).strftime(_DT_FMT)
+
+
+def _month_first(dt):
+    return _br_dt(dt.year, dt.month, 1)
+
+
+def _add_months(dt, n):
+    idx = (dt.year * 12 + (dt.month - 1)) + n
+    return _br_dt(idx // 12, idx % 12 + 1, 1)
+
+
+def _count_periodo(conn, usuario, ini_br, fim_br):
+    row = conn.execute(
+        "SELECT COUNT(*) AS n FROM cotacoes WHERE usuario = ? AND criado_em >= ? AND criado_em < ?",
+        (usuario, _to_utc_str(ini_br), _to_utc_str(fim_br)),
+    ).fetchone()
+    return row["n"] if row else 0
+
+
+def _delta_pct(atual, anterior):
+    if not anterior:
+        return None
+    return round((atual - anterior) / anterior * 100, 1)
+
+
+@app.get("/api/cotacoes/metrics")
+def cotacoes_metrics(
+    period: Optional[str] = None,
+    from_: Optional[str] = Query(None, alias="from"),
+    to: Optional[str] = None,
+    user=Depends(require_corretor),
+):
+    usuario = user["sub"]
+    conn = get_connection()
+    try:
+        # ── Modo intervalo específico: ?from=YYYY-MM-DD&to=YYYY-MM-DD ──
+        if from_ or to:
+            if not (from_ and to):
+                raise HTTPException(400, "Informe 'from' e 'to' juntos")
+            try:
+                d_from = datetime.strptime(from_, "%Y-%m-%d").date()
+                d_to = datetime.strptime(to, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(400, "Datas inválidas (use YYYY-MM-DD)")
+            if d_to < d_from:
+                raise HTTPException(400, "'to' não pode ser anterior a 'from'")
+            ini = _br_dt(d_from.year, d_from.month, d_from.day)
+            fim = _br_dt(d_to.year, d_to.month, d_to.day) + timedelta(days=1)  # 'to' inclusivo
+            return {"from": from_, "to": to, "count": _count_periodo(conn, usuario, ini, fim)}
+
+        # ── Modo período: week | month ──
+        period = period or "week"
+        if period not in ("week", "month"):
+            raise HTTPException(400, "period deve ser 'week' ou 'month'")
+
+        total_row = conn.execute(
+            "SELECT COUNT(*) AS n FROM cotacoes WHERE usuario = ?", (usuario,)
+        ).fetchone()
+        total = total_row["n"] if total_row else 0
+
+        agora = datetime.now(_BR_TZ)
+
+        if period == "week":
+            hoje = _br_dt(agora.year, agora.month, agora.day)
+            seg_atual = hoje - timedelta(days=hoje.weekday())   # segunda 00:00 BR
+            atual = _count_periodo(conn, usuario, seg_atual, seg_atual + timedelta(days=7))
+            anterior = _count_periodo(conn, usuario, seg_atual - timedelta(days=7), seg_atual)
+            serie = []
+            for i in range(7, -1, -1):                          # últimas 8 semanas ISO
+                ini = seg_atual - timedelta(days=7 * i)
+                serie.append({
+                    "label": ini.strftime("%d/%m"),
+                    "inicio": ini.strftime("%Y-%m-%d"),
+                    "count": _count_periodo(conn, usuario, ini, ini + timedelta(days=7)),
+                })
+        else:  # month
+            m_atual = _month_first(agora)
+            atual = _count_periodo(conn, usuario, m_atual, _add_months(m_atual, 1))
+            anterior = _count_periodo(conn, usuario, _add_months(m_atual, -1), m_atual)
+            serie = []
+            for i in range(5, -1, -1):                          # últimos 6 meses
+                ini = _add_months(m_atual, -i)
+                serie.append({
+                    "label": _MESES_PT[ini.month - 1],
+                    "inicio": ini.strftime("%Y-%m-%d"),
+                    "count": _count_periodo(conn, usuario, ini, _add_months(ini, 1)),
+                })
+
+        return {
+            "period": period, "total": total, "atual": atual, "anterior": anterior,
+            "delta_pct": _delta_pct(atual, anterior), "serie": serie,
+        }
+    finally:
+        conn.close()
 
 
 # ── Catálogo público (usado pelo cotador) ─────────────────────────────────────

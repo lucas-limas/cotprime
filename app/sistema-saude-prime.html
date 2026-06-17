@@ -610,6 +610,14 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
 
 <!-- NAV BAR (visível após login de corretor) -->
 <div class="switcher main-nav" id="main-nav" style="display:none">
+  <button class="sw-btn" onclick="showCotador()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
+    Cotação
+  </button>
+  <button class="sw-btn" onclick="showHistorico()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+    Histórico
+  </button>
   <button class="sw-btn" onclick="window.location.href='crm-saude-prime.html'">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     CRM
@@ -624,8 +632,9 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
 </div>
 
 <div class="frames">
-  <iframe id="cotador" src="cotador-planos-saude.html" class="visible"></iframe>
-  <iframe id="apres"   src="apresentacao-executiva.html"></iframe>
+  <iframe id="cotador"   src="cotador-planos-saude.html" class="visible"></iframe>
+  <iframe id="apres"     src="apresentacao-executiva.html"></iframe>
+  <iframe id="historico" src="historico-cotacoes.html"></iframe>
 </div>
 
 <script>
@@ -1552,6 +1561,13 @@ function show(id, btn) {
 function showCotador() {
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
   document.getElementById('cotador').classList.add('visible');
+}
+
+function showHistorico() {
+  document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
+  const f = document.getElementById('historico');
+  f.classList.add('visible');
+  if (f.contentWindow && f.contentWindow.refreshHistorico) f.contentWindow.refreshHistorico();
 }
 
 function syncApres(data) {

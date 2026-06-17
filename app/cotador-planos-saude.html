@@ -42,9 +42,6 @@ html[data-theme="dark"]{
 }
 /* Hard-coded color overrides for dark mode */
 html[data-theme="dark"] .rt tbody tr:hover{background:rgba(255,255,255,.04)!important}
-html[data-theme="dark"] .hist-modal{background:var(--white)!important}
-html[data-theme="dark"] .hist-item:hover{background:var(--line)!important}
-html[data-theme="dark"] .hist-del:hover{background:rgba(255,107,107,.15)!important;color:#ff6b6b!important}
 html[data-theme="dark"] .car-tbl td{border-bottom:1px solid var(--line)!important}
 html[data-theme="dark"] .car-tbl{background:var(--white)!important}
 /* Visibilidade — inputs, selects, placeholders */
@@ -434,23 +431,6 @@ body{-webkit-overflow-scrolling:touch}
   .car-ops{flex-wrap:wrap}
   .modal{width:100%;max-width:100vw;border-radius:var(--r) var(--r) 0 0;position:fixed;bottom:0;left:0;right:0}
 }
-/* ── HISTÓRICO ── */
-.hist-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;align-items:center;justify-content:center}
-.hist-overlay.on{display:flex}
-.hist-modal{background:#fff;border-radius:var(--r);width:min(540px,94vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.hist-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.25rem;border-bottom:1px solid var(--line)}
-.hist-head h3{font-size:13px;font-weight:600;color:var(--ink)}
-.hist-close{background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink2);padding:2px 5px;line-height:1}
-.hist-body{overflow-y:auto;flex:1;padding:.4rem .5rem}
-.hist-empty{padding:2rem;text-align:center;color:var(--ink3);font-size:12px;font-style:italic;line-height:1.6}
-.hist-item{display:grid;grid-template-columns:1fr auto;gap:.25rem .5rem;padding:.65rem .9rem;border-radius:var(--r-sm);cursor:pointer;transition:background .12s;align-items:center;margin-bottom:1px}
-.hist-item:hover{background:#f5f2ee}
-.hist-nome{font-size:13px;font-weight:600;color:var(--ink)}
-.hist-meta{font-size:11px;color:var(--ink3);margin-top:1px}
-.hist-del{background:none;border:none;font-size:12px;color:var(--ink3);cursor:pointer;padding:3px 6px;border-radius:4px;line-height:1}
-.hist-del:hover{color:#c0392b;background:#fef0f0}
-.hist-footer{padding:.65rem 1.25rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-.hist-count{font-size:11px;color:var(--ink3)}
 
 /* ═══ WIZARD ═══ */
 .wizard-nav{display:flex;align-items:center;padding:1.25rem 0 1.5rem}
@@ -504,7 +484,7 @@ html[data-theme="dark"] .op-row-head:hover{background:rgba(255,255,255,.04)}
   </div>
   <div class="bar-right">
     <span class="pill">Mai / 2026</span>
-    <button class="btn btn-ghost" onclick="openHistorico()" title="Ver cotações salvas">📋 Histórico</button>
+    <button class="btn btn-ghost" onclick="window.parent && window.parent.showHistorico && window.parent.showHistorico()" title="Ver cotações salvas">📋 Histórico</button>
     <button class="btn btn-ghost" onclick="limpar()">Limpar</button>
     <button class="btn-theme-cot" id="cot-theme-btn" onclick="toggleCotTheme()" title="Alternar tema claro/escuro">
       <svg id="cot-theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
@@ -1998,10 +1978,9 @@ _initCotador().then(() => {
   }
 });
 
-// ── HISTÓRICO DE COTAÇÕES ────────────────────────────────────────────
-const HIST_KEY = 'sp_historico_cotacoes';
-const HIST_MAX = 20;
-
+// ── SALVAR COTAÇÃO ───────────────────────────────────────────────────
+// Fonte única de verdade: o backend (POST /api/cotacoes). O histórico é
+// consultado na tela própria (historico-cotacoes.html via GET /api/cotacoes).
 function saveToHistory(clienteId = null) {
   const nome = document.getElementById('nome')?.value?.trim() || 'Sem nome';
   const tv = qtds.reduce((a,b)=>a+b,0);
@@ -2018,8 +1997,6 @@ function saveToHistory(clienteId = null) {
     .filter(x => x.total > 0);
   const winner = withTotal.length ? withTotal.slice().sort((a,b)=>a.total-b.total)[0].op : null;
   const entry = {
-    id: Date.now(),
-    data: new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),
     nome, obs: document.getElementById('obs')?.value?.trim()||'',
     winner, winnerTotal: winner?(withTotal.find(x=>x.op===winner)?.total||0):0,
     totalVidas: tv, qtds:[...qtds], selPlanos:{...selPlanos},
@@ -2027,10 +2004,6 @@ function saveToHistory(clienteId = null) {
     copartOp:{...copartOp}, modOp:{...modOp}, vigOp:{...vigOp},
     cliente_id: clienteId
   };
-  const hist = loadHistory();
-  hist.unshift(entry);
-  if (hist.length > HIST_MAX) hist.length = HIST_MAX;
-  localStorage.setItem(HIST_KEY, JSON.stringify(hist));
 
   const tok = window.parent?.token?.();
   if (tok) {
@@ -2041,33 +2014,6 @@ function saveToHistory(clienteId = null) {
     }).catch(() => {});
   }
 }
-
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); } catch { return []; }
-}
-
-function openHistorico() {
-  const hist = loadHistory();
-  const body = document.getElementById('hist-body');
-  const count = document.getElementById('hist-count');
-  if (!hist.length) {
-    body.innerHTML = '<div class="hist-empty">Nenhuma cotação salva ainda.<br>As cotações são salvas automaticamente ao clicar em "✨ Apresentação".</div>';
-  } else {
-    const f = v => 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-    body.innerHTML = hist.map(e => `
-      <div class="hist-item" onclick="restaurarCotacao('${e.id}')">
-        <div>
-          <div class="hist-nome">${e.nome}${e.cliente_id ? `<a href="crm-saude-prime.html" target="_top" onclick="event.stopPropagation();sessionStorage.setItem('crm_cliente_id','${e.cliente_id}')" style="font-size:11px;color:#461BFF;text-decoration:none;border:1px solid #461BFF;border-radius:4px;padding:2px 8px;margin-left:6px">Ver no CRM</a>` : ''}</div>
-          <div class="hist-meta">${e.data} · ${e.totalVidas} vida${e.totalVidas!==1?'s':''} · ${e.winner?(OP_META[e.winner]?.nome||e.winner):'sem operadora'} ${e.winnerTotal>0?'· '+f(e.winnerTotal)+'/mês':''}</div>
-        </div>
-        <button class="hist-del" onclick="event.stopPropagation();deleteHistEntry('${e.id}')" title="Remover">✕</button>
-      </div>`).join('');
-  }
-  count.textContent = hist.length+'/'+HIST_MAX;
-  document.getElementById('hist-overlay').classList.add('on');
-}
-
-function closeHistorico() { document.getElementById('hist-overlay').classList.remove('on'); }
 
 // Restaura o estado de uma cotação salva. Aceita formato NOVO (copartOp/modOp/vigOp)
 // e ANTIGO (filtroCopart/filtroMod/filtroVig globais + activeOps), reconstruindo o
@@ -2115,38 +2061,7 @@ function _aplicarRestore(e){
 }
 
 function restaurarCotacaoFromObj(e){ _aplicarRestore(e); }
-
-function restaurarCotacao(id) {
-  const e = loadHistory().find(x=>String(x.id)===String(id));
-  if (!e) return;
-  _aplicarRestore(e);
-  closeHistorico();
-}
-
-function deleteHistEntry(id) {
-  localStorage.setItem(HIST_KEY, JSON.stringify(loadHistory().filter(x=>String(x.id)!==String(id))));
-  openHistorico();
-}
-
-function clearHistorico() {
-  if (confirm('Apagar todo o histórico de cotações?')) { localStorage.removeItem(HIST_KEY); openHistorico(); }
-}
 </script>
-
-<!-- HISTÓRICO MODAL -->
-<div class="hist-overlay" id="hist-overlay" onclick="if(event.target===this)closeHistorico()">
-  <div class="hist-modal">
-    <div class="hist-head">
-      <h3>📋 Histórico de cotações</h3>
-      <button class="hist-close" onclick="closeHistorico()">✕</button>
-    </div>
-    <div class="hist-body" id="hist-body"></div>
-    <div class="hist-footer">
-      <span class="hist-count" id="hist-count"></span>
-      <button class="btn btn-ghost" onclick="clearHistorico()" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#c0392b">Limpar tudo</button>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

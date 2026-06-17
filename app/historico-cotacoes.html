@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<link rel="icon" href="data:,">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CotPrime — Histórico de cotações</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* Tokens semânticos — idênticos ao shell/CRM (dark default) */
+:root{
+  --navy:#1f1e1e;--navy2:#2a2929;--navy3:#141414;
+  --gold:#c9a227;
+  --bg:var(--navy);--surface2:var(--navy2);
+  --card:rgba(255,255,255,.04);--inp:rgba(255,255,255,.06);
+  --bd1:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.1);--bd3:rgba(255,255,255,.15);
+  --inp-bd:rgba(255,255,255,.12);
+  --t1:#fff;--t2:rgba(255,255,255,.75);--t3:rgba(255,255,255,.5);
+  --t4:rgba(255,255,255,.4);
+  --tab-active:rgba(255,255,255,.1);--btn-bg:rgba(255,255,255,.1);--btn-t:rgba(255,255,255,.7);
+  --green:#22c55e;--red:#f87171;
+  /* gráfico: barra navy da marca em claro / clara em escuro; barra atual em gold */
+  --bar:rgba(255,255,255,.5);--bar-cur:var(--gold);
+}
+html[data-theme="light"]{
+  --bg:#eef1f5;--surface2:#ffffff;
+  --card:rgba(0,0,0,.03);--inp:rgba(0,0,0,.05);
+  --bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.1);--bd3:rgba(0,0,0,.16);
+  --inp-bd:rgba(0,0,0,.14);
+  --t1:#111827;--t2:rgba(0,0,0,.75);--t3:rgba(0,0,0,.55);
+  --t4:rgba(0,0,0,.45);
+  --tab-active:rgba(0,0,0,.07);--btn-bg:rgba(0,0,0,.07);--btn-t:rgba(0,0,0,.65);
+  --bar:#0f2340;--bar-cur:var(--gold);
+}
+
+html,body{height:100%}
+body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--t1);overflow-y:auto;font-size:13px;line-height:1.5}
+.page{max-width:980px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
+
+.title{font-size:20px;font-weight:700;letter-spacing:-.2px;margin-bottom:2px}
+.subtitle{font-size:12px;color:var(--t3);margin-bottom:1.25rem}
+
+.card{background:var(--card);border:1px solid var(--bd1);border-radius:12px}
+.card-head{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);padding:11px 16px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* ── CARDS DE MÉTRICA ── */
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.metric-body{padding:16px}
+.metric-num{font-size:34px;font-weight:700;letter-spacing:-1px;line-height:1}
+.metric-lbl{font-size:11px;color:var(--t3);margin-top:4px}
+.delta{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;margin-top:8px}
+.delta.up{color:var(--green)}.delta.down{color:var(--red)}.delta.flat{color:var(--t3)}
+.delta-sub{font-size:11px;color:var(--t4);font-weight:400;margin-left:2px}
+
+/* toggle Semana/Mês */
+.toggle{display:flex;gap:0;border:1px solid var(--bd2);border-radius:8px;overflow:hidden}
+.toggle button{padding:5px 13px;border:none;background:transparent;color:var(--t3);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.toggle button.on{background:var(--gold);color:#1a1a1a}
+
+/* ── GRÁFICO ── */
+.chart-card{margin-bottom:1rem}
+#chart-wrap{padding:14px 16px 8px}
+#chart-wrap svg{display:block;width:100%;height:auto}
+.bar{fill:var(--bar);transition:fill .15s}
+.bar-cur{fill:var(--bar-cur)}
+.bar-val{fill:var(--t2);font-size:10px;font-weight:700;font-family:"Outfit",sans-serif}
+.bar-lbl{fill:var(--t3);font-size:9px;font-family:"Outfit",sans-serif}
+.empty{padding:2rem 1rem;text-align:center;color:var(--t3);font-size:12px;font-style:italic}
+
+/* ── INTERVALO ── */
+.range-card{margin-bottom:1rem}
+.range-body{padding:14px 16px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;color:var(--t3);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.field input{font-family:inherit;font-size:13px;background:var(--inp);border:1.5px solid var(--inp-bd);border-radius:7px;padding:7px 10px;color:var(--t1);outline:none;color-scheme:dark}
+html[data-theme="light"] .field input{color-scheme:light}
+.btn{padding:8px 16px;border-radius:7px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:none;background:var(--gold);color:#1a1a1a;transition:opacity .15s;white-space:nowrap}
+.btn:hover{opacity:.88}
+.range-result{font-size:13px;color:var(--t2);margin-left:auto;font-weight:500}
+
+/* ── LISTA ── */
+.list-card .card-head{margin-bottom:0}
+.hist-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:12px 16px;border-bottom:1px solid var(--bd1);align-items:center}
+.hist-item:last-child{border-bottom:none}
+.hist-nome{font-size:14px;font-weight:600;color:var(--t1)}
+.hist-meta{font-size:11px;color:var(--t3);margin-top:2px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.hist-meta .sep{opacity:.5}
+.hist-actions{display:flex;gap:6px;align-items:center}
+.act{padding:5px 11px;border-radius:6px;border:1px solid var(--bd2);background:var(--btn-bg);color:var(--btn-t);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap}
+.act:hover{background:var(--tab-active);color:var(--t1)}
+.act-open{border-color:rgba(201,162,39,.4);color:var(--gold)}
+.act-open:hover{background:rgba(201,162,39,.12);color:var(--gold)}
+.act-del:hover{background:rgba(248,113,113,.14);color:#f87171;border-color:rgba(248,113,113,.4)}
+.act-crm{border-color:rgba(70,27,255,.35);color:#8b7bff}
+.act-crm:hover{background:rgba(70,27,255,.12)}
+.list-empty,.list-error{padding:2.5rem 1rem;text-align:center;color:var(--t3);font-size:13px}
+.list-error{color:var(--red)}
+
+@media(max-width:640px){
+  .metrics{grid-template-columns:1fr}
+  .hist-item{grid-template-columns:1fr}
+  .hist-actions{justify-content:flex-start}
+  .range-result{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="title">Histórico de cotações</div>
+  <div class="subtitle">Suas cotações salvas · contagens e tendências</div>
+
+  <!-- MÉTRICAS -->
+  <div class="metrics">
+    <div class="card">
+      <div class="card-head">Total de cotações</div>
+      <div class="metric-body">
+        <div class="metric-num" id="m-total">—</div>
+        <div class="metric-lbl">desde o início</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <span id="periodo-lbl">Esta semana</span>
+        <div class="toggle">
+          <button id="tg-week" class="on" onclick="setPeriod('week')">Semana</button>
+          <button id="tg-month" onclick="setPeriod('month')">Mês</button>
+        </div>
+      </div>
+      <div class="metric-body">
+        <div class="metric-num" id="m-atual">—</div>
+        <div class="delta flat" id="m-delta">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRÁFICO -->
+  <div class="card chart-card">
+    <div class="card-head"><span id="chart-title">Últimas 8 semanas</span></div>
+    <div id="chart-wrap"></div>
+  </div>
+
+  <!-- INTERVALO -->
+  <div class="card range-card">
+    <div class="card-head">Intervalo específico</div>
+    <div class="range-body">
+      <div class="field"><label>De</label><input type="date" id="r-from"></div>
+      <div class="field"><label>Até</label><input type="date" id="r-to"></div>
+      <button class="btn" onclick="verPeriodo()">Ver período</button>
+      <span class="range-result" id="r-result"></span>
+    </div>
+  </div>
+
+  <!-- LISTA -->
+  <div class="card list-card">
+    <div class="card-head">Últimas cotações</div>
+    <div id="hist-list"><div class="list-empty">Carregando…</div></div>
+  </div>
+</div>
+
+<script>
+let _period = 'week';
+let _lista  = [];
+let OP_NOME = {};
+
+const f$ = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function _syncTheme(){
+  let t = 'dark';
+  try { t = (window.parent && window.parent.document.documentElement.getAttribute('data-theme')) || localStorage.getItem('adm_theme') || 'dark'; }
+  catch(e){ t = localStorage.getItem('adm_theme') || 'dark'; }
+  document.documentElement.setAttribute('data-theme', t);
+}
+
+function _token(){
+  try { return (window.parent && window.parent.token && window.parent.token()) || null; }
+  catch(e){ return null; }
+}
+
+async function api(path, opts){
+  opts = opts || {};
+  const tok = _token();
+  const headers = Object.assign({}, opts.headers || {}, tok ? {'Authorization':'Bearer '+tok} : {});
+  const r = await fetch(path, Object.assign({}, opts, {headers}));
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+/* ── DATAS ── */
+function fmtDateTimeBR(s){
+  if (!s) return '';
+  const d = new Date(s.replace(' ','T') + 'Z');           // criado_em é UTC
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function fmtDateBR(iso){            // "YYYY-MM-DD" → "DD/MM/YYYY"
+  const p = (iso||'').split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+}
+
+/* ── MÉTRICAS + GRÁFICO ── */
+function setPeriod(p){
+  _period = p;
+  document.getElementById('tg-week').classList.toggle('on', p === 'week');
+  document.getElementById('tg-month').classList.toggle('on', p === 'month');
+  document.getElementById('periodo-lbl').textContent = p === 'week' ? 'Esta semana' : 'Este mês';
+  document.getElementById('chart-title').textContent = p === 'week' ? 'Últimas 8 semanas' : 'Últimos 6 meses';
+  loadMetrics();
+}
+
+async function loadMetrics(){
+  try {
+    const d = await api('/api/cotacoes/metrics?period=' + _period);
+    document.getElementById('m-total').textContent = d.total;
+    document.getElementById('m-atual').textContent = d.atual;
+    renderDelta(d.delta_pct, d.anterior);
+    renderChart(d.serie || []);
+  } catch(e){
+    document.getElementById('m-total').textContent = '—';
+    document.getElementById('m-atual').textContent = '—';
+    document.getElementById('m-delta').className = 'delta flat';
+    document.getElementById('m-delta').textContent = '—';
+    document.getElementById('chart-wrap').innerHTML = '<div class="empty">Não foi possível carregar as métricas.</div>';
+  }
+}
+
+function renderDelta(pct, anterior){
+  const el = document.getElementById('m-delta');
+  if (pct === null || pct === undefined){
+    el.className = 'delta flat';
+    el.innerHTML = '— <span class="delta-sub">sem período anterior</span>';
+    return;
+  }
+  const val = Math.abs(pct).toFixed(1).replace('.', ',') + '%';
+  if (pct > 0){ el.className = 'delta up';   el.innerHTML = '↑ ' + val + ' <span class="delta-sub">vs. período anterior</span>'; }
+  else if (pct < 0){ el.className = 'delta down'; el.innerHTML = '↓ ' + val + ' <span class="delta-sub">vs. período anterior</span>'; }
+  else { el.className = 'delta flat'; el.innerHTML = '0,0% <span class="delta-sub">vs. período anterior</span>'; }
+}
+
+function renderChart(serie){
+  const wrap = document.getElementById('chart-wrap');
+  if (!serie.length){ wrap.innerHTML = '<div class="empty">Sem dados.</div>'; return; }
+  const max = Math.max.apply(null, serie.map(s => s.count));
+  if (max === 0){ wrap.innerHTML = '<div class="empty">Sem cotações no período</div>'; return; }
+  const n = serie.length, slot = 44, W = n * slot, H = 140, top = 20, bot = 24, chartH = H - top - bot;
+  const bw = slot * 0.52;
+  let svg = '';
+  serie.forEach((s, i) => {
+    const cur = (i === n - 1);
+    const h = s.count > 0 ? Math.max(3, (s.count / max) * chartH) : 2;
+    const x = i * slot + (slot - bw) / 2;
+    const y = top + (chartH - h);
+    const cx = i * slot + slot / 2;
+    svg += `<rect class="bar${cur ? ' bar-cur' : ''}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2"><title>${s.label}: ${s.count}</title></rect>`;
+    if (s.count > 0) svg += `<text class="bar-val" x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${s.count}</text>`;
+    svg += `<text class="bar-lbl" x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle">${s.label}</text>`;
+  });
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Cotações por período">${svg}</svg>`;
+}
+
+/* ── INTERVALO ── */
+async function verPeriodo(){
+  const from = document.getElementById('r-from').value;
+  const to   = document.getElementById('r-to').value;
+  const out  = document.getElementById('r-result');
+  if (!from || !to){ out.textContent = 'Selecione as duas datas.'; return; }
+  out.textContent = 'Calculando…';
+  try {
+    const d = await api(`/api/cotacoes/metrics?from=${from}&to=${to}`);
+    out.textContent = `${d.count} cotação${d.count === 1 ? '' : 's'} entre ${fmtDateBR(from)} e ${fmtDateBR(to)}`;
+  } catch(e){
+    out.textContent = (String(e).includes('400')) ? 'Intervalo inválido.' : 'Erro ao calcular o período.';
+  }
+}
+
+/* ── LISTA ── */
+async function loadCatalogo(){
+  try {
+    const c = await fetch('/api/catalogo').then(r => r.ok ? r.json() : null);
+    OP_NOME = {};
+    if (c && c.operadoras) Object.entries(c.operadoras).forEach(([k,v]) => { OP_NOME[k] = (v && v.nome) || k; });
+  } catch(e){ /* mantém vazio; cai no fallback da chave */ }
+}
+
+async function loadList(){
+  const box = document.getElementById('hist-list');
+  try {
+    _lista = await api('/api/cotacoes') || [];
+  } catch(e){
+    box.innerHTML = '<div class="list-error">Não foi possível carregar as cotações.</div>';
+    return;
+  }
+  if (!_lista.length){
+    box.innerHTML = '<div class="list-empty">Nenhuma cotação salva ainda.<br>As cotações são salvas ao gerar a Apresentação no cotador.</div>';
+    return;
+  }
+  box.innerHTML = _lista.map(it => {
+    const d = it.dados || {};
+    const nome = d.nome || it.cliente || 'Sem nome';
+    const vidas = d.totalVidas != null ? d.totalVidas : 0;
+    const opNome = d.winner ? (OP_NOME[d.winner] || d.winner) : null;
+    const cid = d.cliente_id || null;
+    const meta = [
+      fmtDateTimeBR(it.criado_em),
+      `${vidas} vida${vidas === 1 ? '' : 's'}`,
+      opNome ? opNome : 'sem operadora',
+    ];
+    if (d.winnerTotal > 0) meta.push(f$(d.winnerTotal) + '/mês');
+    const crmLink = cid
+      ? `<a class="act act-crm" href="crm-saude-prime.html" target="_top" onclick="event.stopPropagation();sessionStorage.setItem('crm_cliente_id','${cid}')">Ver no CRM</a>`
+      : '';
+    return `<div class="hist-item">
+      <div>
+        <div class="hist-nome">${esc(nome)}</div>
+        <div class="hist-meta">${meta.map((m,i) => (i ? '<span class="sep">·</span>' : '') + esc(String(m))).join(' ')}</div>
+      </div>
+      <div class="hist-actions">
+        <button class="act act-open" onclick="abrirCotacao(${it.id})">Abrir</button>
+        ${crmLink}
+        <button class="act act-del" onclick="excluirCotacao(${it.id})" title="Excluir">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ── AÇÕES ── */
+function abrirCotacao(id){
+  const it = _lista.find(x => String(x.id) === String(id));
+  if (!it) return;
+  try {
+    if (window.parent && window.parent.showCotador) window.parent.showCotador();
+    const cot = window.parent.document.getElementById('cotador');
+    if (cot && cot.contentWindow && cot.contentWindow.restaurarCotacaoFromObj){
+      cot.contentWindow.restaurarCotacaoFromObj(it.dados);
+    }
+  } catch(e){ /* fora do shell: nada a fazer */ }
+}
+
+async function excluirCotacao(id){
+  if (!confirm('Excluir esta cotação? Esta ação não pode ser desfeita.')) return;
+  try {
+    await api('/api/cotacoes/' + id, {method:'DELETE'});
+  } catch(e){
+    alert('Não foi possível excluir a cotação.');
+    return;
+  }
+  await loadList();
+  loadMetrics();   // a contagem cai
+}
+
+/* ── ENTRADA / REFRESH (chamado pelo shell em showHistorico) ── */
+function refreshHistorico(){
+  _syncTheme();
+  loadCatalogo().then(loadList);
+  loadMetrics();
+}
+window.refreshHistorico = refreshHistorico;
+
+document.addEventListener('DOMContentLoaded', () => {
+  // defaults do intervalo: 1º do mês atual → hoje (horário local do navegador)
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  document.getElementById('r-from').value = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+  document.getElementById('r-to').value   = iso(now);
+  refreshHistorico();
+});
+</script>
+</body>
+</html>
