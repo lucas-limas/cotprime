@@ -387,6 +387,10 @@ def _migrations_pg(conn):
         "UPDATE operadoras SET cor='#1B3A8A' WHERE chave='bestsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#D5531C' WHERE chave='sulamerica' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#007B40' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
+        # QA: SulAmérica não possui copart parcial — só "Sem copart" e copart completa (30%).
+        # Renomeia os planos "Com copart —" para "Copart Completa —" (alinha à convenção
+        # Hapvida/Bradesco; o cotador então os classifica como completa, não parcial).
+        "UPDATE planos SET nome = REPLACE(nome, 'Com copart —', 'Copart Completa —') WHERE nome LIKE 'Com copart —%' AND operadora_id = (SELECT id FROM operadoras WHERE chave='sulamerica')",
     ]
     for sql in safe:
         try:
@@ -725,6 +729,10 @@ def _migrations_sqlite(c):
         "UPDATE operadoras SET cor='#1B3A8A' WHERE chave='bestsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#D5531C' WHERE chave='sulamerica' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#007B40' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
+        # QA: SulAmérica não possui copart parcial — só "Sem copart" e copart completa (30%).
+        # Renomeia os planos "Com copart —" para "Copart Completa —" (alinha à convenção
+        # Hapvida/Bradesco; o cotador então os classifica como completa, não parcial).
+        "UPDATE planos SET nome = REPLACE(nome, 'Com copart —', 'Copart Completa —') WHERE nome LIKE 'Com copart —%' AND operadora_id = (SELECT id FROM operadoras WHERE chave='sulamerica')",
     ]
     for sql in safe:
         try:

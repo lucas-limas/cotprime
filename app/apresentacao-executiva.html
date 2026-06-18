@@ -1766,7 +1766,7 @@ function receiveFromCotador(data) {
   } else {
     copTipo = 'parcial';
     if (pNome.includes('sem copart')) copTipo = 'sem';
-    else if (pNome.includes('copart total')) copTipo = 'total';
+    else if (pNome.includes('copart total') || pNome.includes('copart completa')) copTipo = 'total';
     else if (pNome.includes('copart parcial') || pNome.includes('com copart')) copTipo = 'parcial';
   }
   document.getElementById('g-cop-tipo').value = copTipo;

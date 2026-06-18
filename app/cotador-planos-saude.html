@@ -1020,7 +1020,7 @@ function _updateFVidasHint() {
 function getCopart(nome) {
   const n = nome.toLowerCase();
   if (n.includes('sem copart')) return 'sem';
-  if (n.includes('copart total') || n.includes('copart. completa')) return 'total';
+  if (n.includes('copart total') || n.includes('copart completa') || n.includes('copart. completa')) return 'total';
   return 'parcial';
 }
 
