@@ -390,7 +390,9 @@ def _migrations_pg(conn):
         # QA: SulAmérica não possui copart parcial — só "Sem copart" e copart completa (30%).
         # Renomeia os planos "Com copart —" para "Copart Completa —" (alinha à convenção
         # Hapvida/Bradesco; o cotador então os classifica como completa, não parcial).
-        "UPDATE planos SET nome = REPLACE(nome, 'Com copart —', 'Copart Completa —') WHERE nome LIKE 'Com copart —%' AND operadora_id = (SELECT id FROM operadoras WHERE chave='sulamerica')",
+        # Sem LIKE/%: o wrapper passa params=() ao psycopg2, que então trata '%' como
+        # placeholder e quebra. REPLACE já é seletivo (só muda quem contém 'Com copart —').
+        "UPDATE planos SET nome = REPLACE(nome, 'Com copart —', 'Copart Completa —') WHERE operadora_id = (SELECT id FROM operadoras WHERE chave='sulamerica')",
     ]
     for sql in safe:
         try:
@@ -732,7 +734,8 @@ def _migrations_sqlite(c):
         # QA: SulAmérica não possui copart parcial — só "Sem copart" e copart completa (30%).
         # Renomeia os planos "Com copart —" para "Copart Completa —" (alinha à convenção
         # Hapvida/Bradesco; o cotador então os classifica como completa, não parcial).
-        "UPDATE planos SET nome = REPLACE(nome, 'Com copart —', 'Copart Completa —') WHERE nome LIKE 'Com copart —%' AND operadora_id = (SELECT id FROM operadoras WHERE chave='sulamerica')",
+        # Sem LIKE/% por simetria com o caminho Postgres (REPLACE já é seletivo).
+        "UPDATE planos SET nome = REPLACE(nome, 'Com copart —', 'Copart Completa —') WHERE operadora_id = (SELECT id FROM operadoras WHERE chave='sulamerica')",
     ]
     for sql in safe:
         try:
