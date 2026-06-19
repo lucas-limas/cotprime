@@ -34,6 +34,21 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+
+# ── Cache-busting dos recursos que mudam a cada deploy ────────────────────────
+# StaticFiles envia ETag/Last-Modified mas não Cache-Control, então o browser
+# reaproveita a cópia em cache sem revalidar. Forçamos revalidação (no-cache, que
+# ainda permite 304 via ETag — sempre fresco, mas eficiente) nos .html, no
+# dados.js e em /api/catalogo. Demais assets (libs CDN etc.) seguem inalterados.
+@app.middleware("http")
+async def _no_cache_dynamic(request: Request, call_next):
+    resp = await call_next(request)
+    p = request.url.path
+    if p.endswith(".html") or p.endswith("/dados.js") or p == "/api/catalogo":
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return resp
+
+
 security = HTTPBearer()
 
 MAX_TENTATIVAS = 5
