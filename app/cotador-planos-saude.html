@@ -320,11 +320,6 @@ body{font-family:"Outfit",sans-serif;background:var(--cream);color:var(--ink);fo
 .car-tbl td{padding:8px 12px;border-bottom:1px solid var(--line)}
 .car-tbl td:not(:first-child){text-align:center;font-weight:500;font-size:11px}
 .car-tbl tr:last-child td{border-bottom:none}
-/* MedSênior — coluna de carência reduzida (aproveitamento de congênere ≤60 dias): só aparece com o toggle ligado */
-.car-arc-col{display:none}
-.car-panel.show-arc .car-arc-col{display:table-cell}
-.car-arc-toggle{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:500;color:var(--ink2);cursor:pointer;margin-bottom:10px;padding:9px 11px;background:var(--medsenior-bg);border:1px solid var(--line);border-radius:var(--r-sm)}
-.car-arc-toggle input{accent-color:var(--medsenior-dark);cursor:pointer;width:15px;height:15px;flex-shrink:0}
 .proc{font-weight:500;color:var(--ink);font-size:12px}
 .proc-sub{font-size:10px;color:var(--ink3);margin-top:1px}
 .cv-r{color:var(--red)}.cv-y{color:var(--amber)}.cv-g{color:var(--green)}.cv-m{color:var(--ink3)}
@@ -767,26 +762,22 @@ html[data-theme="dark"] .op-row-head:hover{background:rgba(255,255,255,.04)}
   </div>
   <div class="car-panel" id="car-medsenior">
     <div>
-      <label class="car-arc-toggle">
-        <input type="checkbox" onchange="this.closest('.car-panel').classList.toggle('show-arc', this.checked)">
-        Cliente possui plano vigente ou cancelado há ≤ 60 dias <span style="color:var(--ink3);font-weight:400">— mostra carência reduzida (aproveitamento de congênere)</span>
-      </label>
       <table class="car-tbl">
-      <thead><tr style="background:var(--medsenior-dark)"><th>Procedimento</th><th>Padrão</th><th class="car-arc-col">Com aproveitamento ≤60d</th></tr></thead>
+      <thead><tr style="background:var(--medsenior-dark)"><th>Procedimento</th><th>Com aproveitamento ≤60d</th></tr></thead>
       <tbody>
-        <tr><td><div class="proc">Urgência, Emergência e Acidente Pessoal</div></td><td class="cv-g">24h</td><td class="cv-g car-arc-col">24h</td></tr>
-        <tr><td><div class="proc">Consultas Médicas</div></td><td class="cv-r">30 dias</td><td class="cv-g car-arc-col">24h</td></tr>
-        <tr><td><div class="proc">Exames Simples</div><div class="proc-sub">Radiografias, laboratório, ECG</div></td><td class="cv-r">30 dias</td><td class="cv-g car-arc-col">24h</td></tr>
-        <tr><td><div class="proc">Exames / Proc. Complexos I</div><div class="proc-sub">Lab. imuno/hormonais, RX contrastadas, US simples, mamografia, ergométrico</div></td><td class="cv-y">90 dias</td><td class="cv-g car-arc-col">24h</td></tr>
-        <tr><td><div class="proc">Exames / Proc. Complexos II</div><div class="proc-sub">Teste alérgico, densitometria</div></td><td class="cv-r">120 dias</td><td class="cv-y car-arc-col">90 dias</td></tr>
-        <tr><td><div class="proc">Exames / Proc. Especiais</div><div class="proc-sub">Endoscopia, USG/eco com doppler, holter, mapa, peq. cirurgia ambul., biologia molecular</div></td><td class="cv-r">180 dias</td><td class="cv-y car-arc-col">90 dias</td></tr>
-        <tr><td><div class="proc">Fisioterapias</div><div class="proc-sub">Fisioterapia, fonoterapia, acupuntura; exceto saúde mental</div></td><td class="cv-r">180 dias</td><td class="cv-y car-arc-col">90 dias</td></tr>
-        <tr><td><div class="proc">Exames / Proc. de Alta Complexidade</div><div class="proc-sub">RNM, hemodinâmica, radio/quimioterapia, hemodiálise, tomografia, medicina nuclear</div></td><td class="cv-r">180 dias</td><td class="cv-r car-arc-col">180 dias</td></tr>
-        <tr><td><div class="proc">Saúde Mental — ambulatorial</div></td><td class="cv-r">180 dias</td><td class="cv-r car-arc-col">180 dias</td></tr>
-        <tr><td><div class="proc">Internações Clínicas, Cirúrgicas e UTI</div></td><td class="cv-r">180 dias</td><td class="cv-r car-arc-col">180 dias</td></tr>
-        <tr><td><div class="proc">Internações Psiquiátricas</div></td><td class="cv-r">180 dias</td><td class="cv-r car-arc-col">180 dias</td></tr>
-        <tr><td><div class="proc">Parto a Termo</div></td><td class="cv-r">300 dias</td><td class="cv-r car-arc-col">300 dias</td></tr>
-        <tr><td><div class="proc">CPT — Doenças Preexistentes</div></td><td class="cv-r" style="text-align:center">24 meses</td><td class="cv-r car-arc-col" style="text-align:center">24 meses</td></tr>
+        <tr><td><div class="proc">Urgência, Emergência e Acidente Pessoal</div></td><td class="cv-g">24h</td></tr>
+        <tr><td><div class="proc">Consultas Médicas</div></td><td class="cv-g">24h</td></tr>
+        <tr><td><div class="proc">Exames Simples</div><div class="proc-sub">Radiografias, laboratório, ECG</div></td><td class="cv-g">24h</td></tr>
+        <tr><td><div class="proc">Exames / Proc. Complexos I</div><div class="proc-sub">Lab. imuno/hormonais, RX contrastadas, US simples, mamografia, ergométrico</div></td><td class="cv-g">24h</td></tr>
+        <tr><td><div class="proc">Exames / Proc. Complexos II</div><div class="proc-sub">Teste alérgico, densitometria</div></td><td class="cv-y">90 dias</td></tr>
+        <tr><td><div class="proc">Exames / Proc. Especiais</div><div class="proc-sub">Endoscopia, USG/eco com doppler, holter, mapa, peq. cirurgia ambul., biologia molecular</div></td><td class="cv-y">90 dias</td></tr>
+        <tr><td><div class="proc">Fisioterapias</div><div class="proc-sub">Fisioterapia, fonoterapia, acupuntura; exceto saúde mental</div></td><td class="cv-y">90 dias</td></tr>
+        <tr><td><div class="proc">Exames / Proc. de Alta Complexidade</div><div class="proc-sub">RNM, hemodinâmica, radio/quimioterapia, hemodiálise, tomografia, medicina nuclear</div></td><td class="cv-r">180 dias</td></tr>
+        <tr><td><div class="proc">Saúde Mental — ambulatorial</div></td><td class="cv-r">180 dias</td></tr>
+        <tr><td><div class="proc">Internações Clínicas, Cirúrgicas e UTI</div></td><td class="cv-r">180 dias</td></tr>
+        <tr><td><div class="proc">Internações Psiquiátricas</div></td><td class="cv-r">180 dias</td></tr>
+        <tr><td><div class="proc">Parto a Termo</div></td><td class="cv-r">300 dias</td></tr>
+        <tr><td><div class="proc">CPT — Doenças Preexistentes</div></td><td class="cv-r" style="text-align:center">24 meses</td></tr>
       </tbody>
     </table></div>
     <div class="car-side">
