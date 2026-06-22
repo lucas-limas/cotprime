@@ -411,6 +411,9 @@ def _migrations_pg(conn):
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'su_ad_14', id, 'Com copart — Superior', 'apt', 'adesao', NULL, NULL, NULL, '[714.88,875.01,1095.61,1210.72,1289.56,1495.86,1788.17,2144.61,2546.15,4289.21]', 110 FROM operadoras WHERE chave='segurosunimed' ON CONFLICT (codigo) DO NOTHING",
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'su_ad_15', id, 'Com copart — Superior Plus', 'apt', 'adesao', NULL, NULL, NULL, '[800.50,979.82,1226.86,1355.75,1444.03,1675.06,2002.37,2401.50,2851.14,4802.99]', 111 FROM operadoras WHERE chave='segurosunimed' ON CONFLICT (codigo) DO NOTHING",
         "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'su_ad_16', id, 'Com copart — S\xeanior', 'apt', 'adesao', NULL, NULL, NULL, '[1649.11,2018.53,2527.42,2792.93,2974.83,3450.77,4125.09,4947.33,5873.64,9894.65]', 112 FROM operadoras WHERE chave='segurosunimed' ON CONFLICT (codigo) DO NOTHING",
+        # Seguros Unimed Adesão — rede_chave próprio: Essencial e Efetivo têm rede distinta (colunas ESSENCIAL/EFETIVO_ADESAO no front). Os demais tiers caem no match por nome.
+        "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_9','su_ad_10')",
+        "UPDATE planos SET rede_chave='EFETIVO_ADESAO' WHERE codigo IN ('su_ad_4','su_ad_12')",
     ]
     for sql in safe:
         try:
@@ -772,6 +775,9 @@ def _migrations_sqlite(c):
         "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'su_ad_14', id, 'Com copart — Superior', 'apt', 'adesao', NULL, NULL, NULL, '[714.88,875.01,1095.61,1210.72,1289.56,1495.86,1788.17,2144.61,2546.15,4289.21]', 110 FROM operadoras WHERE chave='segurosunimed'",
         "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'su_ad_15', id, 'Com copart — Superior Plus', 'apt', 'adesao', NULL, NULL, NULL, '[800.50,979.82,1226.86,1355.75,1444.03,1675.06,2002.37,2401.50,2851.14,4802.99]', 111 FROM operadoras WHERE chave='segurosunimed'",
         "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'su_ad_16', id, 'Com copart — S\xeanior', 'apt', 'adesao', NULL, NULL, NULL, '[1649.11,2018.53,2527.42,2792.93,2974.83,3450.77,4125.09,4947.33,5873.64,9894.65]', 112 FROM operadoras WHERE chave='segurosunimed'",
+        # Seguros Unimed Adesão — rede_chave próprio: Essencial e Efetivo têm rede distinta (colunas ESSENCIAL/EFETIVO_ADESAO no front). Os demais tiers caem no match por nome.
+        "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_9','su_ad_10')",
+        "UPDATE planos SET rede_chave='EFETIVO_ADESAO' WHERE codigo IN ('su_ad_4','su_ad_12')",
     ]
     for sql in safe:
         try:
