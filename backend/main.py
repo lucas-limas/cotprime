@@ -498,6 +498,15 @@ def seed_catalogo():
         ("su_ef99_2","segurosunimed","Sem copart — Essencial II","apt","pme","30-99","fac",None,[341.93,418.52,524.04,579.09,616.81,715.49,855.30,1025.79,1217.85,2051.58],94),
         ("su_ef99_3","segurosunimed","Com copart — Essencial III","enf","pme","30-99","fac",None,[226.35,277.05,346.90,383.34,408.31,473.63,566.18,679.04,806.18,1358.08],95),
         ("su_ef99_4","segurosunimed","Com copart — Essencial IV","apt","pme","30-99","fac",None,[253.28,310.02,388.18,428.96,456.89,529.99,633.56,759.84,902.11,1519.69],96),
+        # SEGUROS UNIMED — Coletivo por Adesão · Sem coparticipação (faixa 49-58 do documento replicada em 49-53 e 54-58)
+        ("su_ad_1","segurosunimed","Sem copart — Novo Essencial DF I","enf","adesao",None,None,None,[325.08,399.37,498.21,550.55,586.40,680.22,813.14,975.22,975.22,1157.80],97),
+        ("su_ad_2","segurosunimed","Sem copart — Novo Essencial DF II","apt","adesao",None,None,None,[363.18,445.22,557.46,616.03,656.15,761.13,909.87,1091.22,1091.22,1295.52],98),
+        ("su_ad_3","segurosunimed","Sem copart — Compacto","enf","adesao",None,None,None,[526.76,644.75,807.31,892.12,950.21,1102.23,1317.62,1580.26,1580.26,1876.13],99),
+        ("su_ad_4","segurosunimed","Sem copart — Efetivo","apt","adesao",None,None,None,[589.42,721.45,903.35,998.25,1063.26,1233.38,1474.38,1768.27,1768.27,2099.99],100),
+        ("su_ad_5","segurosunimed","Sem copart — Completo","apt","adesao",None,None,None,[695.53,851.31,1065.94,1177.94,1254.66,1455.36,1739.78,2099.35,2099.35,2477.23],101),
+        ("su_ad_6","segurosunimed","Sem copart — Superior","apt","adesao",None,None,None,[829.39,1015.17,1271.10,1404.64,1496.12,1735.46,2074.60,2488.13,2488.13,2953.99],102),
+        ("su_ad_7","segurosunimed","Sem copart — Superior Plus","apt","adesao",None,None,None,[928.72,1136.76,1423.37,1572.90,1675.31,1943.35,2323.09,2786.15,2786.15,3307.80],103),
+        ("su_ad_8","segurosunimed","Sem copart — Sênior","apt","adesao",None,None,None,[1823.88,2232.44,2795.27,3088.94,3290.09,3816.47,4562.26,5471.64,5471.64,6496.17],104),
         # SULAMERICA — PME 03-04v 12m
         ("sa_04_12_sc_1","sulamerica","Sem copart — Direto Enf","enf","pme","03-04",None,12,[388.10,485.12,601.55,667.72,714.46,828.78,990.72,1161.13,1382.33,2328.55],1),
         ("sa_04_12_sc_2","sulamerica","Sem copart — Direto Qto","apt","pme","03-04",None,12,[429.21,536.51,665.27,738.45,790.15,916.58,1095.68,1284.14,1528.78,2575.22],2),
