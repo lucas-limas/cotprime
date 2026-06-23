@@ -37,3 +37,20 @@ def decode_token(token: str) -> dict | None:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
+
+def create_state_token(data: dict, minutes: int = 10) -> str:
+    """Token curto e assinado para o `state` do OAuth (CSRF + identifica o corretor
+    no callback, que não tem header Authorization)."""
+    payload = data.copy()
+    payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+    payload["purpose"] = "google_oauth_state"
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def decode_state_token(token: str) -> dict | None:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("purpose") != "google_oauth_state":
+        return None
+    return payload

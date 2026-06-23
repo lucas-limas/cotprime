@@ -943,6 +943,16 @@ def init_db():
                 atualizado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS integracao_google (
+                usuario TEXT PRIMARY KEY REFERENCES users(username),
+                refresh_token TEXT,
+                google_email TEXT,
+                escopo TEXT,
+                criado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+                atualizado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+            )
+        """)
         conn.commit()
         _migrations_pg(conn)
     else:
@@ -1090,6 +1100,16 @@ def init_db():
                 duracao_min INTEGER DEFAULT 30,
                 status TEXT DEFAULT 'pendente',
                 google_event_id TEXT,
+                criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS integracao_google (
+                usuario TEXT PRIMARY KEY REFERENCES users(username),
+                refresh_token TEXT,
+                google_email TEXT,
+                escopo TEXT,
                 criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
             )

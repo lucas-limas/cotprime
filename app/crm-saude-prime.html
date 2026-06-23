@@ -358,6 +358,17 @@ html[data-theme="dark"] .tar-form input{color-scheme:dark}
 .tar-gcal{background:#1a73e8;border-color:#1a73e8;color:#fff}
 .tar-gcal:hover{background:#1666d4;color:#fff}
 .tar-empty{font-size:13px;color:var(--t4);text-align:center;padding:16px}
+.tar-gsync{font-size:10px;font-weight:700;letter-spacing:.03em;color:#34a853;display:inline-flex;align-items:center;gap:4px}
+
+/* conexão Google no cabeçalho */
+.g-conn{display:inline-flex;align-items:center;gap:8px}
+.g-conn-email{font-size:11px;color:#34a853;font-weight:600;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-gconn{
+  background:#1a73e8;border:none;color:#fff;border-radius:5px;
+  padding:5px 11px;font-size:11px;font-family:"Outfit",sans-serif;font-weight:600;
+  cursor:pointer;transition:opacity .15s;white-space:nowrap;
+}
+.btn-gconn:hover{opacity:.9}
 .tar-cta{
   display:none;margin-top:10px;padding:11px 12px;border-radius:8px;
   background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.4);
@@ -441,6 +452,7 @@ html[data-theme="dark"] .tar-form input{color-scheme:dark}
     Voltar
   </button>
   <div class="user-info">
+    <span class="g-conn" id="google-conn"></span>
     <span class="user-nome" id="user-nome-bar"></span>
     <button class="btn-theme" onclick="toggleTheme()" title="Alternar tema claro/escuro">
       <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
@@ -718,8 +730,14 @@ async function init(){
     if (!res.ok){ window.location.href = 'sistema-saude-prime.html'; return; }
     currentUser = await res.json();
     document.getElementById('user-nome-bar').textContent = currentUser.nome || currentUser.username || '';
+    // Retorno do OAuth Google (?google=connected|erro)
+    const _gp = new URLSearchParams(location.search).get('google');
+    if (_gp === 'connected') showToast('Google Agenda conectado ✓');
+    else if (_gp === 'erro') showToast('Não foi possível conectar o Google Agenda');
+    if (_gp) history.replaceState({}, '', location.pathname);
     await loadKanban('meus');
     loadTarefasPendentes();
+    loadGoogleStatus();
     const _autoId = sessionStorage.getItem('crm_cliente_id');
     if (_autoId) {
       sessionStorage.removeItem('crm_cliente_id');
@@ -1251,17 +1269,23 @@ function renderTarefas(tarefas){
       acoes.push(`<button class="tar-btn" onclick="concluirTarefa(${t.id})">✓ Concluir</button>`);
       acoes.push(`<button class="tar-btn" onclick="cancelarTarefa(${t.id})">✕ Cancelar</button>`);
     }
-    acoes.push(`<a class="tar-btn tar-gcal" href="${esc(_gcalHref(t))}" target="_blank" rel="noopener">📅 Google Agenda</a>`);
+    const sincronizada = _googleStatus.connected && t.google_event_id;
+    // Conectado + sincronizada: o evento já está na agenda (auto-sync) → link/.ics viram secundários (só .ics).
+    // Sem conexão (Fase 1): mantém link do Google + .ics intactos.
+    if (!_googleStatus.connected){
+      acoes.push(`<a class="tar-btn tar-gcal" href="${esc(_gcalHref(t))}" target="_blank" rel="noopener">📅 Google Agenda</a>`);
+    }
     acoes.push(`<button class="tar-btn" onclick="baixarIcs(${t.id})">⬇ .ics</button>`);
     if (_modalEditable) acoes.push(`<button class="tar-btn del" onclick="excluirTarefa(${t.id})">🗑</button>`);
     const isNovo = String(t.id) === String(_lastTarefaId);
+    const selo = sincronizada ? `<span class="tar-gsync">✓ na sua Agenda Google</span>` : '';
     return `<div class="tar-item tar-${st}${isNovo ? ' tar-novo' : ''}">
       <div class="tar-top">
         <span class="tar-icon">${TAR_ICON[t.tipo] || '📌'}</span>
         <span class="tar-titulo">${esc(t.titulo || '')}</span>
         <span class="tar-badge ${st}">${TAR_STATUS_LABEL[st] || st}</span>
       </div>
-      <div class="tar-meta">🕒 ${_fmtTarInicio(t.inicio)} · ${t.duracao_min || 30} min</div>
+      <div class="tar-meta">🕒 ${_fmtTarInicio(t.inicio)} · ${t.duracao_min || 30} min${selo ? ' · ' + selo : ''}</div>
       ${t.descricao ? `<div class="tar-desc">${esc(t.descricao)}</div>` : ''}
       <div class="tar-actions">${acoes.join('')}</div>
     </div>`;
@@ -1276,8 +1300,19 @@ async function reloadTarefas(){
 
 function showTarefaCta(t){
   const cta = document.getElementById('tar-cta');
-  document.getElementById('tar-cta-gcal').href = _gcalHref(t);
-  document.getElementById('tar-cta-ics').onclick = () => baixarIcs(t.id);
+  const txt = cta.querySelector('.tar-cta-txt');
+  const gcalBtn = document.getElementById('tar-cta-gcal');
+  const icsBtn = document.getElementById('tar-cta-ics');
+  if (_googleStatus.connected && t.google_event_id){
+    // Já entrou na agenda do corretor automaticamente — sem clique manual
+    if (txt) txt.innerHTML = '<b>✓ Adicionado à sua Agenda Google.</b> Você receberá o lembrete no celular.';
+    if (gcalBtn) gcalBtn.style.display = 'none';
+    if (icsBtn) icsBtn.style.display = 'none';
+  } else {
+    if (txt) txt.innerHTML = 'Tarefa criada! <b>Adicione ao Google Agenda</b> para receber o lembrete no celular.';
+    if (gcalBtn){ gcalBtn.style.display = ''; gcalBtn.href = _gcalHref(t); }
+    if (icsBtn){ icsBtn.style.display = ''; icsBtn.onclick = () => baixarIcs(t.id); }
+  }
   cta.classList.add('on');
 }
 
@@ -1304,34 +1339,40 @@ async function agendarTarefa(){
     _lastTarefaId = nova.id;
     await reloadTarefas();
     showTarefaCta(nova);
-    showToast('Agendamento criado');
+    _handleGoogleResp(nova._google);
+    showToast(nova._google === 'synced' ? 'Agendamento criado e sincronizado ✓' : 'Agendamento criado');
     loadTarefasPendentes();
   } catch { showToast('Erro ao agendar'); }
 }
 
 async function _patchTarefa(id, body){
   const r = await fetch(`${API}/api/tarefas/${id}`, {method: 'PATCH', headers: authH(), body: JSON.stringify(body)});
-  if (!r.ok){ const d = await r.json().catch(() => ({})); showToast(d.detail || 'Erro'); return false; }
-  return true;
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok){ showToast(d.detail || 'Erro'); return null; }
+  return d;
 }
 async function concluirTarefa(id){
-  if (await _patchTarefa(id, {status: 'feito'})){
+  const d = await _patchTarefa(id, {status: 'feito'});
+  if (d){
     _lastTarefaId = null; document.getElementById('tar-cta').classList.remove('on');
-    await reloadTarefas(); loadTarefasPendentes(); showToast('Tarefa concluída');
+    await reloadTarefas(); loadTarefasPendentes(); _handleGoogleResp(d._google); showToast('Tarefa concluída');
   }
 }
 async function cancelarTarefa(id){
-  if (await _patchTarefa(id, {status: 'cancelado'})){
+  const d = await _patchTarefa(id, {status: 'cancelado'});
+  if (d){
     _lastTarefaId = null; document.getElementById('tar-cta').classList.remove('on');
-    await reloadTarefas(); loadTarefasPendentes(); showToast('Tarefa cancelada');
+    await reloadTarefas(); loadTarefasPendentes(); _handleGoogleResp(d._google); showToast('Tarefa cancelada');
   }
 }
 async function excluirTarefa(id){
   if (!confirm('Excluir este agendamento?')) return;
   const r = await fetch(`${API}/api/tarefas/${id}`, {method: 'DELETE', headers: authH()});
-  if (!r.ok){ const d = await r.json().catch(() => ({})); showToast(d.detail || 'Erro'); return; }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok){ showToast(d.detail || 'Erro'); return; }
   _lastTarefaId = null; document.getElementById('tar-cta').classList.remove('on');
-  await reloadTarefas(); loadTarefasPendentes(); showToast('Agendamento excluído');
+  await reloadTarefas(); loadTarefasPendentes(); _handleGoogleResp(d._google);
+  showToast(d._google === 'synced' ? 'Excluído (e removido da Agenda Google)' : 'Agendamento excluído');
 }
 
 /* Dashboard: minhas tarefas pendentes/próximas */
@@ -1358,6 +1399,51 @@ function renderTarefasPanel(list){
       <span class="tp-quando">${_fmtTarInicio(t.inicio)}</span>
     </div>`;
   }).join('');
+}
+
+/* ── INTEGRAÇÃO GOOGLE AGENDA (Fase 2) ── */
+let _googleStatus = {enabled: false, connected: false, email: null};
+
+async function loadGoogleStatus(){
+  try {
+    const r = await fetch(`${API}/api/google/status`, {headers: authH()});
+    if (r.ok) _googleStatus = await r.json();
+  } catch { /* mantém estado anterior */ }
+  renderGoogleBtn();
+}
+function renderGoogleBtn(){
+  const el = document.getElementById('google-conn');
+  if (!el) return;
+  if (!_googleStatus.enabled){ el.innerHTML = ''; return; }   // feature off → nada (Fase 1 segue)
+  if (_googleStatus.connected){
+    el.innerHTML = `<span class="g-conn-email" title="${esc(_googleStatus.email || '')}">📅 ${esc(_googleStatus.email || 'Conectado')}</span>`
+      + `<button class="btn-sair" onclick="googleDisconnect()">Desconectar</button>`;
+  } else {
+    el.innerHTML = `<button class="btn-gconn" onclick="googleConnect()">🔗 Conectar Google Agenda</button>`;
+  }
+}
+async function googleConnect(){
+  try {
+    const r = await fetch(`${API}/api/google/connect`, {headers: authH()});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.url){ window.location.href = d.url; }
+    else showToast(d.detail || 'Integração Google indisponível');
+  } catch { showToast('Erro ao conectar com o Google'); }
+}
+async function googleDisconnect(){
+  if (!confirm('Desconectar sua Agenda Google? Novas tarefas deixarão de sincronizar.')) return;
+  try { await fetch(`${API}/api/google/disconnect`, {method: 'POST', headers: authH()}); }
+  catch { showToast('Erro ao desconectar'); return; }
+  _googleStatus = {enabled: true, connected: false, email: null};
+  renderGoogleBtn();
+  showToast('Google Agenda desconectado');
+}
+function _handleGoogleResp(g){
+  if (g === 'reconectar'){
+    _googleStatus.connected = false;
+    renderGoogleBtn();
+    showToast('Reconecte sua Agenda Google');
+  }
 }
 
 /* ── COTAÇÕES ── */

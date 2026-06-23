@@ -13,8 +13,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from auth import verify_password, hash_password, create_access_token, decode_token
+from auth import (
+    verify_password, hash_password, create_access_token, decode_token,
+    create_state_token, decode_state_token,
+)
 from database import get_connection, init_db, insert_returning
+import google_sync
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 logger = logging.getLogger("audit")
@@ -2143,15 +2147,18 @@ def criar_tarefa(cliente_id: int, body: TarefaRequest, user=Depends(require_corr
     except HTTPException:
         conn.close()
         raise
-    nova = insert_returning(
+    nova = dict(insert_returning(
         conn,
         "INSERT INTO tarefas (cliente_id, usuario, tipo, titulo, descricao, inicio, duracao_min, status) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (cliente_id, user["sub"], body.tipo, body.titulo.strip(), body.descricao, body.inicio, dur, status),
         "tarefas",
-    )
+    ))
+    cliente = dict(row)
     conn.close()
-    return dict(nova)
+    # Sync Google best-effort (nunca derruba a operação no CRM)
+    nova["_google"] = _sync_tarefa_criar(user["sub"], nova, cliente)
+    return nova
 
 
 @app.patch("/api/tarefas/{tarefa_id}")
@@ -2193,9 +2200,12 @@ def atualizar_tarefa(tarefa_id: int, body: TarefaUpdate, user=Depends(require_co
         params.append(tarefa_id)
         conn.execute(f"UPDATE tarefas SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
-    atual = conn.execute("SELECT * FROM tarefas WHERE id = ?", (tarefa_id,)).fetchone()
+    atual = dict(conn.execute("SELECT * FROM tarefas WHERE id = ?", (tarefa_id,)).fetchone())
+    cli = dict(cliente)
     conn.close()
-    return dict(atual)
+    # Sync Google best-effort: cancelado→remove, demais→patch (cria se faltar id)
+    atual["_google"] = _sync_tarefa_editar(user["sub"], atual, cli)
+    return atual
 
 
 @app.delete("/api/tarefas/{tarefa_id}")
@@ -2214,10 +2224,12 @@ def excluir_tarefa(tarefa_id: int, user=Depends(require_corretor)):
     except HTTPException:
         conn.close()
         raise
+    event_id = tar["google_event_id"]
     conn.execute("DELETE FROM tarefas WHERE id = ?", (tarefa_id,))
     conn.commit()
     conn.close()
-    return {"ok": True}
+    # Remove o evento da agenda Google (requisito central da Fase 2), best-effort
+    return {"ok": True, "_google": _sync_tarefa_excluir(user["sub"], event_id)}
 
 
 @app.get("/api/tarefas")
@@ -2246,6 +2258,224 @@ def listar_minhas_tarefas(status: Optional[str] = None, user=Depends(require_cor
     rows = conn.execute(sql, tuple(params)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ── Integração Google Agenda (Fase 2) ──────────────────────────────────────────
+# Degradação graciosa: sem env/libs, is_enabled() é False e tudo aqui vira no-op;
+# o CRM continua na Fase 1 (link/.ics). Refresh tokens só trafegam criptografados.
+
+def _desc_evento(descricao, cliente):
+    s = descricao or ""
+    nome = (cliente or {}).get("nome")
+    if nome:
+        s += ("\n\n" if s else "") + f"Lead: {nome}"
+    tel = (cliente or {}).get("telefone")
+    if tel:
+        s += f"\nTelefone: {tel}"
+    return s
+
+
+def _google_invalidate(usuario):
+    try:
+        conn = get_connection()
+        conn.execute("DELETE FROM integracao_google WHERE usuario = ?", (usuario,))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def _google_save(usuario, refresh_enc, email, escopo):
+    conn = get_connection()
+    now_br = datetime.now(_BR_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    existe = conn.execute(
+        "SELECT usuario FROM integracao_google WHERE usuario = ?", (usuario,)
+    ).fetchone()
+    if existe:
+        conn.execute(
+            "UPDATE integracao_google SET refresh_token = ?, google_email = ?, escopo = ?, atualizado_em = ? WHERE usuario = ?",
+            (refresh_enc, email, escopo, now_br, usuario),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO integracao_google (usuario, refresh_token, google_email, escopo, atualizado_em) VALUES (?, ?, ?, ?, ?)",
+            (usuario, refresh_enc, email, escopo, now_br),
+        )
+    conn.commit()
+    conn.close()
+
+
+def _google_service(usuario):
+    """Retorna (service, None) ou (None, motivo). motivo ∈ {'off','reconectar','erro'}.
+    Em token revogado/expirado, invalida a conexão (apaga a linha)."""
+    if not google_sync.is_enabled():
+        return None, "off"
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT refresh_token FROM integracao_google WHERE usuario = ?", (usuario,)
+    ).fetchone()
+    conn.close()
+    if not row or not row["refresh_token"]:
+        return None, "off"
+    try:
+        refresh = google_sync.decrypt_token(row["refresh_token"])
+    except Exception:
+        _google_invalidate(usuario)
+        return None, "reconectar"
+    try:
+        return google_sync.service_from_refresh(refresh), None
+    except google_sync.ReconnectRequired:
+        _google_invalidate(usuario)
+        return None, "reconectar"
+    except Exception as e:  # falha de rede etc. — não derruba o request
+        logger.warning("Google service indisponível p/ %s: %s", usuario, e)
+        return None, "erro"
+
+
+def _sync_tarefa_criar(usuario, tarefa, cliente):
+    svc, motivo = _google_service(usuario)
+    if not svc:
+        return motivo
+    try:
+        eid = google_sync.create_event(
+            svc, tarefa["titulo"], _desc_evento(tarefa.get("descricao"), cliente),
+            tarefa["inicio"], tarefa.get("duracao_min") or 30,
+        )
+        conn = get_connection()
+        conn.execute("UPDATE tarefas SET google_event_id = ? WHERE id = ?", (eid, tarefa["id"]))
+        conn.commit()
+        conn.close()
+        tarefa["google_event_id"] = eid
+        return "synced"
+    except Exception as e:
+        logger.warning("Google create_event falhou (%s): %s", usuario, e)
+        return "erro"
+
+
+def _sync_tarefa_editar(usuario, tarefa, cliente):
+    svc, motivo = _google_service(usuario)
+    if not svc:
+        return motivo
+    eid = tarefa.get("google_event_id")
+    try:
+        # cancelado → remove o evento e limpa o id
+        if tarefa.get("status") == "cancelado":
+            if eid:
+                google_sync.delete_event(svc, eid)
+                conn = get_connection()
+                conn.execute("UPDATE tarefas SET google_event_id = NULL WHERE id = ?", (tarefa["id"],))
+                conn.commit()
+                conn.close()
+                tarefa["google_event_id"] = None
+            return "synced"
+        if eid:
+            google_sync.patch_event(
+                svc, eid, tarefa["titulo"], _desc_evento(tarefa.get("descricao"), cliente),
+                tarefa["inicio"], tarefa.get("duracao_min") or 30,
+            )
+            return "synced"
+        # conectado, ativa, mas sem evento (criada offline ou sync anterior falhou) → cria
+        new_eid = google_sync.create_event(
+            svc, tarefa["titulo"], _desc_evento(tarefa.get("descricao"), cliente),
+            tarefa["inicio"], tarefa.get("duracao_min") or 30,
+        )
+        conn = get_connection()
+        conn.execute("UPDATE tarefas SET google_event_id = ? WHERE id = ?", (new_eid, tarefa["id"]))
+        conn.commit()
+        conn.close()
+        tarefa["google_event_id"] = new_eid
+        return "synced"
+    except Exception as e:
+        logger.warning("Google editar evento falhou (%s): %s", usuario, e)
+        return "erro"
+
+
+def _sync_tarefa_excluir(usuario, event_id):
+    if not event_id:
+        return "noop"
+    svc, motivo = _google_service(usuario)
+    if not svc:
+        return motivo
+    try:
+        google_sync.delete_event(svc, event_id)
+        return "synced"
+    except Exception as e:
+        logger.warning("Google delete_event falhou (%s): %s", usuario, e)
+        return "erro"
+
+
+def _google_redirect_uri(request: Request) -> str:
+    if google_sync.GOOGLE_REDIRECT_URI:
+        return google_sync.GOOGLE_REDIRECT_URI
+    base = str(request.base_url).rstrip("/")
+    if base.startswith("http://") and "localhost" not in base and "127.0.0.1" not in base:
+        base = "https://" + base[len("http://"):]
+    return base + "/api/google/callback"
+
+
+@app.get("/api/google/status")
+def google_status(user=Depends(require_corretor)):
+    if not google_sync.is_enabled():
+        return {"enabled": False, "connected": False, "email": None}
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT google_email FROM integracao_google WHERE usuario = ?", (user["sub"],)
+    ).fetchone()
+    conn.close()
+    if row:
+        return {"enabled": True, "connected": True, "email": row["google_email"]}
+    return {"enabled": True, "connected": False, "email": None}
+
+
+@app.get("/api/google/connect")
+def google_connect(request: Request, user=Depends(require_corretor)):
+    if not google_sync.is_enabled():
+        raise HTTPException(503, "Integração Google indisponível")
+    state = create_state_token({"sub": user["sub"]})
+    try:
+        url = google_sync.build_auth_url(state, _google_redirect_uri(request))
+    except Exception as e:
+        logger.warning("build_auth_url falhou: %s", e)
+        raise HTTPException(500, "Não foi possível iniciar a conexão com o Google")
+    return {"url": url}
+
+
+@app.get("/api/google/callback")
+def google_callback(request: Request, code: str = None, state: str = None, error: str = None):
+    destino = "/app/crm-saude-prime.html"
+    if not google_sync.is_enabled() or error or not code or not state:
+        return RedirectResponse(destino + "?google=erro")
+    data = decode_state_token(state)
+    if not data or not data.get("sub"):
+        return RedirectResponse(destino + "?google=erro")
+    usuario = data["sub"]
+    try:
+        refresh_token, email, escopo = google_sync.exchange_code(code, _google_redirect_uri(request))
+        if not refresh_token:
+            # Google não devolveu refresh (consentimento sem prompt) — peça reconsentimento
+            return RedirectResponse(destino + "?google=erro")
+        _google_save(usuario, google_sync.encrypt_token(refresh_token), email, escopo)
+        return RedirectResponse(destino + "?google=connected")
+    except Exception as e:
+        logger.warning("Google callback falhou p/ %s: %s", usuario, e)
+        return RedirectResponse(destino + "?google=erro")
+
+
+@app.post("/api/google/disconnect")
+def google_disconnect(user=Depends(require_corretor)):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT refresh_token FROM integracao_google WHERE usuario = ?", (user["sub"],)
+    ).fetchone()
+    if row and row["refresh_token"] and google_sync.is_enabled():
+        try:
+            google_sync.revoke(google_sync.decrypt_token(row["refresh_token"]))
+        except Exception:
+            pass
+    conn.execute("DELETE FROM integracao_google WHERE usuario = ?", (user["sub"],))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
 
 
 # ── CRM: Cotações vinculadas ao cliente ────────────────────────────────────────
