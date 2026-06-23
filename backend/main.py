@@ -776,6 +776,24 @@ class InteracaoRequest(BaseModel):
     descricao: Optional[str] = None
 
 
+class TarefaRequest(BaseModel):
+    tipo: str
+    titulo: str
+    inicio: str                      # 'YYYY-MM-DD HH:MM' em horário BR
+    descricao: Optional[str] = None
+    duracao_min: Optional[int] = 30
+    status: Optional[str] = "pendente"
+
+
+class TarefaUpdate(BaseModel):
+    tipo: Optional[str] = None
+    titulo: Optional[str] = None
+    inicio: Optional[str] = None
+    descricao: Optional[str] = None
+    duracao_min: Optional[int] = None
+    status: Optional[str] = None
+
+
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 @app.post("/api/login")
@@ -2065,6 +2083,169 @@ def deletar_interacao(interacao_id: int, user=Depends(require_corretor)):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+
+# ── CRM: Tarefas / Agendamentos (Fase 1 — Google Agenda via link/.ics no front) ──
+
+TIPOS_TAREFA = {"ligacao", "reuniao", "reativar", "whatsapp", "email", "outro"}
+STATUS_TAREFA = {"pendente", "feito", "cancelado"}
+
+
+def _validar_inicio(inicio):
+    try:
+        datetime.strptime(inicio, "%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        raise HTTPException(400, "inicio deve estar no formato 'YYYY-MM-DD HH:MM'")
+
+
+@app.get("/api/clientes/{cliente_id}/tarefas")
+def listar_tarefas(cliente_id: int, user=Depends(require_corretor)):
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Cliente não encontrado")
+    try:
+        _check_cliente_acesso(dict(row), user)
+    except HTTPException:
+        conn.close()
+        raise
+    rows = conn.execute(
+        "SELECT * FROM tarefas WHERE cliente_id = ? ORDER BY inicio ASC",
+        (cliente_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/clientes/{cliente_id}/tarefas")
+def criar_tarefa(cliente_id: int, body: TarefaRequest, user=Depends(require_corretor)):
+    # Validação antes de abrir conexão (evita vazar conn em 400)
+    if body.tipo not in TIPOS_TAREFA:
+        raise HTTPException(400, "tipo inválido")
+    if not (body.titulo or "").strip():
+        raise HTTPException(400, "titulo é obrigatório")
+    _validar_inicio(body.inicio)
+    status = body.status or "pendente"
+    if status not in STATUS_TAREFA:
+        raise HTTPException(400, "status inválido")
+    dur = body.duracao_min if body.duracao_min is not None else 30
+    if dur <= 0:
+        raise HTTPException(400, "duracao_min deve ser positivo")
+
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Cliente não encontrado")
+    try:
+        _check_cliente_acesso(dict(row), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
+    nova = insert_returning(
+        conn,
+        "INSERT INTO tarefas (cliente_id, usuario, tipo, titulo, descricao, inicio, duracao_min, status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (cliente_id, user["sub"], body.tipo, body.titulo.strip(), body.descricao, body.inicio, dur, status),
+        "tarefas",
+    )
+    conn.close()
+    return dict(nova)
+
+
+@app.patch("/api/tarefas/{tarefa_id}")
+def atualizar_tarefa(tarefa_id: int, body: TarefaUpdate, user=Depends(require_corretor)):
+    # Validação dos campos enviados antes de abrir conexão
+    if body.tipo is not None and body.tipo not in TIPOS_TAREFA:
+        raise HTTPException(400, "tipo inválido")
+    if body.status is not None and body.status not in STATUS_TAREFA:
+        raise HTTPException(400, "status inválido")
+    if body.inicio is not None:
+        _validar_inicio(body.inicio)
+    if body.duracao_min is not None and body.duracao_min <= 0:
+        raise HTTPException(400, "duracao_min deve ser positivo")
+
+    conn = get_connection()
+    tar = conn.execute("SELECT * FROM tarefas WHERE id = ?", (tarefa_id,)).fetchone()
+    if not tar:
+        conn.close()
+        raise HTTPException(404, "Tarefa não encontrada")
+    cliente = conn.execute("SELECT * FROM clientes WHERE id = ?", (tar["cliente_id"],)).fetchone()
+    if not cliente:
+        conn.close()
+        raise HTTPException(404, "Cliente não encontrado")
+    try:
+        _check_cliente_acesso(dict(cliente), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
+
+    updates, params = [], []
+    for col, val in (("tipo", body.tipo), ("titulo", body.titulo), ("descricao", body.descricao),
+                     ("inicio", body.inicio), ("duracao_min", body.duracao_min), ("status", body.status)):
+        if val is not None:
+            updates.append(f"{col} = ?")
+            params.append(val.strip() if isinstance(val, str) else val)
+    if updates:
+        updates.append("atualizado_em = ?")
+        params.append(datetime.now(_BR_TZ).strftime("%Y-%m-%d %H:%M:%S"))
+        params.append(tarefa_id)
+        conn.execute(f"UPDATE tarefas SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+    atual = conn.execute("SELECT * FROM tarefas WHERE id = ?", (tarefa_id,)).fetchone()
+    conn.close()
+    return dict(atual)
+
+
+@app.delete("/api/tarefas/{tarefa_id}")
+def excluir_tarefa(tarefa_id: int, user=Depends(require_corretor)):
+    conn = get_connection()
+    tar = conn.execute("SELECT * FROM tarefas WHERE id = ?", (tarefa_id,)).fetchone()
+    if not tar:
+        conn.close()
+        raise HTTPException(404, "Tarefa não encontrada")
+    cliente = conn.execute("SELECT * FROM clientes WHERE id = ?", (tar["cliente_id"],)).fetchone()
+    if not cliente:
+        conn.close()
+        raise HTTPException(404, "Cliente não encontrado")
+    try:
+        _check_cliente_acesso(dict(cliente), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
+    conn.execute("DELETE FROM tarefas WHERE id = ?", (tarefa_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.get("/api/tarefas")
+def listar_minhas_tarefas(status: Optional[str] = None, user=Depends(require_corretor)):
+    """Tarefas visíveis ao usuário, respeitando a MESMA visibilidade da lista de
+    clientes (corretor → próprios; admin → corretora; superadmin → todas)."""
+    if status is not None and status not in STATUS_TAREFA:
+        raise HTTPException(400, "status inválido")
+    conn = get_connection()
+    role = user.get("role")
+    sql = ("SELECT t.*, c.nome AS cliente_nome, c.telefone AS cliente_telefone, c.email AS cliente_email "
+           "FROM tarefas t JOIN clientes c ON c.id = t.cliente_id WHERE c.ativo = 1")
+    params = []
+    if role == "superadmin":
+        pass
+    elif role == "admin":
+        sql += " AND c.corretora_id = ?"
+        params.append(user.get("corretora_id"))
+    else:
+        sql += " AND c.corretor_id = ?"
+        params.append(user.get("id"))
+    if status:
+        sql += " AND t.status = ?"
+        params.append(status)
+    sql += " ORDER BY t.inicio ASC"
+    rows = conn.execute(sql, tuple(params)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # ── CRM: Cotações vinculadas ao cliente ────────────────────────────────────────

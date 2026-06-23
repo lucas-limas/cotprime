@@ -320,6 +320,65 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .cot-data{color:var(--t2);font-weight:500}
 .cot-empty{font-size:13px;color:var(--t4);text-align:center;padding:16px}
 
+/* ── TAREFAS / AGENDAMENTOS ── */
+.tar-form{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;align-items:end}
+.tar-form .full{grid-column:1 / -1}
+.tar-form label{display:block;font-size:10px;color:var(--t4);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
+.tar-form input,.tar-form select{
+  width:100%;background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;
+  padding:7px 10px;color:var(--t1);font-size:12px;font-family:"Outfit",sans-serif;outline:none;
+}
+html[data-theme="dark"] .tar-form input{color-scheme:dark}
+.tar-form input:focus,.tar-form select:focus{border-color:var(--bd3)}
+.tar-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.tar-item{
+  display:flex;flex-direction:column;gap:7px;padding:11px;
+  background:var(--card);border:1px solid var(--bd1);border-radius:8px;
+}
+.tar-item.tar-novo{border-color:#22c55e;box-shadow:0 0 0 1px rgba(34,197,94,.35)}
+.tar-item.tar-feito{opacity:.6}
+.tar-item.tar-cancelado{opacity:.5}
+.tar-top{display:flex;align-items:center;gap:8px}
+.tar-icon{font-size:15px;flex-shrink:0}
+.tar-titulo{font-size:13px;color:var(--t1);font-weight:600;flex:1}
+.tar-badge{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:10px}
+.tar-badge.pendente{background:rgba(249,115,22,.15);color:#f97316}
+.tar-badge.feito{background:rgba(34,197,94,.15);color:#22c55e}
+.tar-badge.cancelado{background:var(--bd1);color:var(--t4)}
+.tar-meta{font-size:11px;color:var(--t3)}
+.tar-desc{font-size:12px;color:var(--t3);line-height:1.4}
+.tar-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:1px}
+.tar-btn{
+  font-size:11px;font-family:"Outfit",sans-serif;font-weight:600;cursor:pointer;
+  border:1px solid var(--bd2);background:transparent;color:var(--t2);
+  border-radius:6px;padding:5px 10px;transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+}
+.tar-btn:hover{background:var(--tab-active);color:var(--t1)}
+.tar-btn.del:hover{color:#ef4444;border-color:#ef4444}
+.tar-gcal{background:#1a73e8;border-color:#1a73e8;color:#fff}
+.tar-gcal:hover{background:#1666d4;color:#fff}
+.tar-empty{font-size:13px;color:var(--t4);text-align:center;padding:16px}
+.tar-cta{
+  display:none;margin-top:10px;padding:11px 12px;border-radius:8px;
+  background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.4);
+  align-items:center;gap:10px;flex-wrap:wrap;
+}
+.tar-cta.on{display:flex}
+.tar-cta-txt{font-size:12px;color:var(--t2);flex:1;min-width:140px}
+.tar-cta-txt b{color:var(--t1)}
+
+/* dashboard: minhas tarefas pendentes */
+.tarefas-panel{margin:0 16px 12px;padding:11px 14px;background:var(--card);border:1px solid var(--bd1);border-radius:10px}
+.tarefas-panel-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:8px}
+.tp-item{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--bd1);cursor:pointer}
+.tp-item:first-of-type{border-top:none}
+.tp-item:hover .tp-titulo{color:var(--t1)}
+.tp-icon{font-size:14px;flex-shrink:0}
+.tp-titulo{font-size:13px;color:var(--t2);font-weight:500;flex:1}
+.tp-quando{font-size:11px;color:var(--t4);white-space:nowrap}
+.tp-lead{font-size:11px;color:var(--t3)}
+.tp-atrasada .tp-quando{color:#f97316;font-weight:600}
+
 /* toast */
 #sp-toast{
   position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -409,7 +468,17 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
     <span class="dash-card-label">Sem contato 2+ dias</span>
     <span class="dash-card-val" id="dash-sem-contato" style="color:#f97316">—</span>
   </div>
+  <div class="dash-card">
+    <span class="dash-card-label">Tarefas pendentes</span>
+    <span class="dash-card-val" id="dash-tarefas" style="color:#1a73e8">—</span>
+  </div>
   <button class="btn-novo-cliente" id="btn-novo" onclick="openNovoCliente()">＋ Novo Cliente</button>
+</div>
+
+<!-- MINHAS TAREFAS PRÓXIMAS -->
+<div class="tarefas-panel" id="tarefas-panel" style="display:none">
+  <div class="tarefas-panel-title">📅 Minhas tarefas próximas</div>
+  <div id="tarefas-panel-list"></div>
 </div>
 
 <!-- KANBAN -->
@@ -491,6 +560,53 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
         <div class="int-list" id="int-list"></div>
       </div>
 
+      <!-- AGENDAMENTOS / TAREFAS -->
+      <div class="m-section">
+        <div class="m-section-title">Agendamentos</div>
+        <div class="tar-form" id="tar-form">
+          <div>
+            <label>Tipo</label>
+            <select id="tar-tipo">
+              <option value="ligacao">📞 Ligação</option>
+              <option value="reuniao">👥 Reunião</option>
+              <option value="reativar">🔄 Reativar</option>
+              <option value="whatsapp">💬 WhatsApp</option>
+              <option value="email">📧 E-mail</option>
+              <option value="outro">📌 Outro</option>
+            </select>
+          </div>
+          <div>
+            <label>Duração (min)</label>
+            <input type="number" id="tar-dur" value="30" min="5" step="5">
+          </div>
+          <div class="full">
+            <label>Título</label>
+            <input type="text" id="tar-titulo" placeholder="Ex: Ligar para apresentar proposta">
+          </div>
+          <div>
+            <label>Data</label>
+            <input type="date" id="tar-data">
+          </div>
+          <div>
+            <label>Hora</label>
+            <input type="time" id="tar-hora">
+          </div>
+          <div class="full">
+            <label>Descrição (opcional)</label>
+            <input type="text" id="tar-desc" placeholder="Detalhes do agendamento...">
+          </div>
+          <div class="full">
+            <button class="btn-registrar" onclick="agendarTarefa()">📅 Agendar</button>
+          </div>
+        </div>
+        <div class="tar-cta" id="tar-cta">
+          <span class="tar-cta-txt">Tarefa criada! <b>Adicione ao Google Agenda</b> para receber o lembrete no celular.</span>
+          <a class="tar-btn tar-gcal" id="tar-cta-gcal" href="#" target="_blank" rel="noopener">📅 Adicionar ao Google Agenda</a>
+          <button class="tar-btn" id="tar-cta-ics" onclick="">⬇ .ics</button>
+        </div>
+        <div class="tar-list" id="tar-list"></div>
+      </div>
+
       <!-- COTAÇÕES VINCULADAS -->
       <div class="m-section">
         <div class="m-section-title">Cotações Vinculadas</div>
@@ -553,6 +669,8 @@ const STAGES = ['lead','contato','proposta','negociacao','fechado','perdido'];
 const STAGE_LABEL = {lead:'Lead',contato:'Contato',proposta:'Proposta',negociacao:'Negociação',fechado:'Fechado',perdido:'Perdido'};
 const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',proposta:'#f59e0b',negociacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
 const INT_ICON = {ligacao:'📞',whatsapp:'💬',email:'📧',reuniao:'👥',nota:'📝'};
+const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};
+const TAR_STATUS_LABEL = {pendente:'Pendente',feito:'Concluído',cancelado:'Cancelado'};
 
 let currentView = 'meus';
 let allClientes = [];
@@ -601,6 +719,7 @@ async function init(){
     currentUser = await res.json();
     document.getElementById('user-nome-bar').textContent = currentUser.nome || currentUser.username || '';
     await loadKanban('meus');
+    loadTarefasPendentes();
     const _autoId = sessionStorage.getItem('crm_cliente_id');
     if (_autoId) {
       sessionStorage.removeItem('crm_cliente_id');
@@ -770,20 +889,26 @@ async function openModal(id){
   document.getElementById('modal-dados').innerHTML = '<div class="k-loading">Carregando...</div>';
   document.getElementById('int-list').innerHTML = '';
   document.getElementById('cot-list').innerHTML = '';
+  document.getElementById('tar-list').innerHTML = '';
+  document.getElementById('tar-cta').classList.remove('on');
+  _lastTarefaId = null;
   document.getElementById('motivo-row').style.display = 'none';
 
   try {
-    const [cRes, iRes, cotRes] = await Promise.all([
+    const [cRes, iRes, cotRes, tRes] = await Promise.all([
       fetch(`${API}/api/clientes/${id}`, {headers:authH()}),
       fetch(`${API}/api/clientes/${id}/interacoes`, {headers:authH()}),
-      fetch(`${API}/api/clientes/${id}/cotacoes`, {headers:authH()})
+      fetch(`${API}/api/clientes/${id}/cotacoes`, {headers:authH()}),
+      fetch(`${API}/api/clientes/${id}/tarefas`, {headers:authH()})
     ]);
     const c = await cRes.json();
     const interacoes = iRes.ok ? await iRes.json() : [];
     const cotacoes = cotRes.ok ? await cotRes.json() : [];
+    const tarefas = tRes.ok ? await tRes.json() : [];
     if (!cRes.ok){ showToast(c.detail||'Erro ao carregar'); closeModal(); return; }
     currentCliente = c;
     renderModal(c, interacoes, cotacoes);
+    renderTarefas(tarefas);
   } catch {
     showToast('Erro ao carregar ficha');
     closeModal();
@@ -856,6 +981,8 @@ function renderModal(c, interacoes, cotacoes){
   // Cliente compartilhado de outro corretor: somente leitura
   const intForm = document.querySelector('.int-form');
   if (intForm) intForm.style.display = editable ? '' : 'none';
+  const tarForm = document.getElementById('tar-form');
+  if (tarForm) tarForm.style.display = editable ? '' : 'none';
   _modalEditable = editable;
 
   // Interações
@@ -1038,6 +1165,199 @@ async function registrarInteracao(){
     const c = allClientes.find(x => x.id === currentCliente.id);
     if (c) c.ultima_interacao_em = new Date().toISOString();
   } catch { showToast('Erro ao registrar'); }
+}
+
+/* ── TAREFAS / AGENDAMENTOS ── */
+let _tarefas = [];
+let _lastTarefaId = null;
+
+function _fmtTarInicio(inicio){
+  if (!inicio) return '';
+  const [d, t] = inicio.split(' ');
+  const p = (d || '').split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]} ${t || ''}`.trim() : inicio;
+}
+
+function _tarStartEnd(t){
+  const dp = (t.inicio.split(' ')[0] || '').split('-').map(Number);
+  const tp = (t.inicio.split(' ')[1] || '00:00').split(':').map(Number);
+  const start = new Date(dp[0], (dp[1] || 1) - 1, dp[2] || 1, tp[0] || 0, tp[1] || 0, 0);
+  const end = new Date(start.getTime() + (t.duracao_min || 30) * 60000);
+  return [start, end];
+}
+function _calFmt(dt){
+  const p = n => String(n).padStart(2, '0');
+  return '' + dt.getFullYear() + p(dt.getMonth() + 1) + p(dt.getDate()) + 'T' + p(dt.getHours()) + p(dt.getMinutes()) + '00';
+}
+function _tarDetails(t){
+  let s = t.descricao || '';
+  if (currentCliente){
+    s += (s ? '\n\n' : '') + 'Lead: ' + (currentCliente.nome || '');
+    if (currentCliente.telefone) s += '\nTelefone: ' + currentCliente.telefone;
+  }
+  return s;
+}
+function _gcalHref(t){
+  const [start, end] = _tarStartEnd(t);
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: t.titulo || 'Tarefa',
+    dates: _calFmt(start) + '/' + _calFmt(end),
+    ctz: 'America/Sao_Paulo',
+    details: _tarDetails(t),
+    location: (currentCliente && currentCliente.telefone) ? ('Tel: ' + currentCliente.telefone) : ''
+  });
+  return 'https://calendar.google.com/calendar/render?' + params.toString();
+}
+function _icsEsc(s){
+  return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+function _buildIcs(t){
+  const [start, end] = _tarStartEnd(t);
+  const dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const uid = 'tarefa-' + (t.id || Date.now()) + '-' + Math.random().toString(36).slice(2) + '@saudeprime';
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Saude Prime//CRM//PT', 'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    'UID:' + uid,
+    'DTSTAMP:' + dtstamp,
+    'DTSTART;TZID=America/Sao_Paulo:' + _calFmt(start),
+    'DTEND;TZID=America/Sao_Paulo:' + _calFmt(end),
+    'SUMMARY:' + _icsEsc(t.titulo || 'Tarefa'),
+    'DESCRIPTION:' + _icsEsc(_tarDetails(t)),
+    'BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', 'DESCRIPTION:' + _icsEsc(t.titulo || 'Tarefa'), 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'
+  ].join('\r\n');
+}
+function baixarIcs(id){
+  const t = _tarefas.find(x => String(x.id) === String(id));
+  if (!t) return;
+  const blob = new Blob([_buildIcs(t)], {type: 'text/calendar;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tarefa-' + (t.id || 'novo') + '.ics';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+function renderTarefas(tarefas){
+  _tarefas = tarefas || [];
+  const el = document.getElementById('tar-list');
+  if (!_tarefas.length){ el.innerHTML = '<div class="tar-empty">Nenhum agendamento.</div>'; return; }
+  el.innerHTML = _tarefas.map(t => {
+    const st = t.status || 'pendente';
+    const acoes = [];
+    if (_modalEditable && st === 'pendente'){
+      acoes.push(`<button class="tar-btn" onclick="concluirTarefa(${t.id})">✓ Concluir</button>`);
+      acoes.push(`<button class="tar-btn" onclick="cancelarTarefa(${t.id})">✕ Cancelar</button>`);
+    }
+    acoes.push(`<a class="tar-btn tar-gcal" href="${esc(_gcalHref(t))}" target="_blank" rel="noopener">📅 Google Agenda</a>`);
+    acoes.push(`<button class="tar-btn" onclick="baixarIcs(${t.id})">⬇ .ics</button>`);
+    if (_modalEditable) acoes.push(`<button class="tar-btn del" onclick="excluirTarefa(${t.id})">🗑</button>`);
+    const isNovo = String(t.id) === String(_lastTarefaId);
+    return `<div class="tar-item tar-${st}${isNovo ? ' tar-novo' : ''}">
+      <div class="tar-top">
+        <span class="tar-icon">${TAR_ICON[t.tipo] || '📌'}</span>
+        <span class="tar-titulo">${esc(t.titulo || '')}</span>
+        <span class="tar-badge ${st}">${TAR_STATUS_LABEL[st] || st}</span>
+      </div>
+      <div class="tar-meta">🕒 ${_fmtTarInicio(t.inicio)} · ${t.duracao_min || 30} min</div>
+      ${t.descricao ? `<div class="tar-desc">${esc(t.descricao)}</div>` : ''}
+      <div class="tar-actions">${acoes.join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function reloadTarefas(){
+  if (!currentCliente) return;
+  const r = await fetch(`${API}/api/clientes/${currentCliente.id}/tarefas`, {headers: authH()});
+  renderTarefas(r.ok ? await r.json() : []);
+}
+
+function showTarefaCta(t){
+  const cta = document.getElementById('tar-cta');
+  document.getElementById('tar-cta-gcal').href = _gcalHref(t);
+  document.getElementById('tar-cta-ics').onclick = () => baixarIcs(t.id);
+  cta.classList.add('on');
+}
+
+async function agendarTarefa(){
+  if (!currentCliente) return;
+  const tipo = document.getElementById('tar-tipo').value;
+  const titulo = document.getElementById('tar-titulo').value.trim();
+  const data = document.getElementById('tar-data').value;   // YYYY-MM-DD
+  const hora = document.getElementById('tar-hora').value;    // HH:MM
+  const dur = parseInt(document.getElementById('tar-dur').value, 10) || 30;
+  const desc = document.getElementById('tar-desc').value.trim();
+  if (!titulo){ showToast('Informe o título do agendamento'); return; }
+  if (!data || !hora){ showToast('Informe data e hora'); return; }
+  const inicio = `${data} ${hora}`;
+  try {
+    const res = await fetch(`${API}/api/clientes/${currentCliente.id}/tarefas`, {
+      method: 'POST', headers: authH(),
+      body: JSON.stringify({tipo, titulo, inicio, duracao_min: dur, descricao: desc || null})
+    });
+    const nova = await res.json();
+    if (!res.ok){ showToast(nova.detail || 'Erro ao agendar'); return; }
+    document.getElementById('tar-titulo').value = '';
+    document.getElementById('tar-desc').value = '';
+    _lastTarefaId = nova.id;
+    await reloadTarefas();
+    showTarefaCta(nova);
+    showToast('Agendamento criado');
+    loadTarefasPendentes();
+  } catch { showToast('Erro ao agendar'); }
+}
+
+async function _patchTarefa(id, body){
+  const r = await fetch(`${API}/api/tarefas/${id}`, {method: 'PATCH', headers: authH(), body: JSON.stringify(body)});
+  if (!r.ok){ const d = await r.json().catch(() => ({})); showToast(d.detail || 'Erro'); return false; }
+  return true;
+}
+async function concluirTarefa(id){
+  if (await _patchTarefa(id, {status: 'feito'})){
+    _lastTarefaId = null; document.getElementById('tar-cta').classList.remove('on');
+    await reloadTarefas(); loadTarefasPendentes(); showToast('Tarefa concluída');
+  }
+}
+async function cancelarTarefa(id){
+  if (await _patchTarefa(id, {status: 'cancelado'})){
+    _lastTarefaId = null; document.getElementById('tar-cta').classList.remove('on');
+    await reloadTarefas(); loadTarefasPendentes(); showToast('Tarefa cancelada');
+  }
+}
+async function excluirTarefa(id){
+  if (!confirm('Excluir este agendamento?')) return;
+  const r = await fetch(`${API}/api/tarefas/${id}`, {method: 'DELETE', headers: authH()});
+  if (!r.ok){ const d = await r.json().catch(() => ({})); showToast(d.detail || 'Erro'); return; }
+  _lastTarefaId = null; document.getElementById('tar-cta').classList.remove('on');
+  await reloadTarefas(); loadTarefasPendentes(); showToast('Agendamento excluído');
+}
+
+/* Dashboard: minhas tarefas pendentes/próximas */
+async function loadTarefasPendentes(){
+  try {
+    const r = await fetch(`${API}/api/tarefas?status=pendente`, {headers: authH()});
+    renderTarefasPanel(r.ok ? await r.json() : []);
+  } catch { renderTarefasPanel([]); }
+}
+function renderTarefasPanel(list){
+  const countEl = document.getElementById('dash-tarefas');
+  if (countEl) countEl.textContent = list.length;
+  const panel = document.getElementById('tarefas-panel');
+  const el = document.getElementById('tarefas-panel-list');
+  if (!list.length){ if (panel) panel.style.display = 'none'; return; }
+  if (panel) panel.style.display = '';
+  const now = new Date();
+  el.innerHTML = list.slice(0, 6).map(t => {
+    const [start] = _tarStartEnd(t);
+    const atrasada = start < now;
+    return `<div class="tp-item${atrasada ? ' tp-atrasada' : ''}" onclick="openModal(${t.cliente_id})">
+      <span class="tp-icon">${TAR_ICON[t.tipo] || '📌'}</span>
+      <span class="tp-titulo">${esc(t.titulo || '')} <span class="tp-lead">· ${esc(t.cliente_nome || '')}</span></span>
+      <span class="tp-quando">${_fmtTarInicio(t.inicio)}</span>
+    </div>`;
+  }).join('');
 }
 
 /* ── COTAÇÕES ── */

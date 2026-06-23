@@ -414,6 +414,9 @@ def _migrations_pg(conn):
         # Seguros Unimed Adesão — rede_chave próprio: Essencial e Efetivo têm rede distinta (colunas ESSENCIAL/EFETIVO_ADESAO no front). Os demais tiers caem no match por nome.
         "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_9','su_ad_10')",
         "UPDATE planos SET rede_chave='EFETIVO_ADESAO' WHERE codigo IN ('su_ad_4','su_ad_12')",
+        # Fase 1 — agenda/tarefas do CRM
+        "CREATE INDEX IF NOT EXISTS idx_tarefas_cliente_id ON tarefas(cliente_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tarefas_usuario_status_inicio ON tarefas(usuario, status, inicio)",
     ]
     for sql in safe:
         try:
@@ -778,6 +781,9 @@ def _migrations_sqlite(c):
         # Seguros Unimed Adesão — rede_chave próprio: Essencial e Efetivo têm rede distinta (colunas ESSENCIAL/EFETIVO_ADESAO no front). Os demais tiers caem no match por nome.
         "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_9','su_ad_10')",
         "UPDATE planos SET rede_chave='EFETIVO_ADESAO' WHERE codigo IN ('su_ad_4','su_ad_12')",
+        # Fase 1 — agenda/tarefas do CRM
+        "CREATE INDEX IF NOT EXISTS idx_tarefas_cliente_id ON tarefas(cliente_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tarefas_usuario_status_inicio ON tarefas(usuario, status, inicio)",
     ]
     for sql in safe:
         try:
@@ -921,6 +927,22 @@ def init_db():
                 atualizado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tarefas (
+                id SERIAL PRIMARY KEY,
+                cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                usuario TEXT REFERENCES users(username),
+                tipo TEXT NOT NULL,
+                titulo TEXT NOT NULL,
+                descricao TEXT,
+                inicio TEXT NOT NULL,
+                duracao_min INTEGER DEFAULT 30,
+                status TEXT DEFAULT 'pendente',
+                google_event_id TEXT,
+                criado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+                atualizado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+            )
+        """)
         conn.commit()
         _migrations_pg(conn)
     else:
@@ -1052,6 +1074,22 @@ def init_db():
                 tipo TEXT NOT NULL,
                 descricao TEXT,
                 usuario TEXT REFERENCES users(username),
+                criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS tarefas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                usuario TEXT REFERENCES users(username),
+                tipo TEXT NOT NULL,
+                titulo TEXT NOT NULL,
+                descricao TEXT,
+                inicio TEXT NOT NULL,
+                duracao_min INTEGER DEFAULT 30,
+                status TEXT DEFAULT 'pendente',
+                google_event_id TEXT,
                 criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
             )
