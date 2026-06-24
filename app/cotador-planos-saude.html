@@ -425,6 +425,12 @@ body{-webkit-overflow-scrolling:touch}
 html[data-theme="dark"] .op-row-head:hover{background:rgba(255,255,255,.04)}
 .op-dot2{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 .op-row-name{font-size:13px;font-weight:600;letter-spacing:.01em}
+/* Logo da operadora (só a logo; bolinha+nome são fallback se o arquivo faltar) */
+.op-id{display:flex;align-items:center;gap:9px;min-width:0}
+.op-id .op-dot2,.op-id .op-row-name{display:none}
+.op-id.logo-off .op-logo{display:none}
+.op-id.logo-off .op-dot2,.op-id.logo-off .op-row-name{display:block}
+.op-logo{height:20px;max-width:140px;width:auto;object-fit:contain;display:block}
 .op-count{margin-left:1px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--navy);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
 .op-chev{margin-left:auto;color:var(--ink3);font-size:11px}
 .op-row-ctrls{display:flex;flex-direction:column;gap:6px;padding:0 14px 11px 33px}
@@ -1152,6 +1158,12 @@ function step(i, delta) {
   render();
 }
 
+// Fallback da logo: tenta .svg → .png → bolinha colorida + nome (logo-off).
+function onLogoErr(img){
+  if(img.dataset.tried !== '1'){ img.dataset.tried='1'; img.src='/app/logos/'+img.dataset.op+'.png'; return; }
+  if(img.parentNode) img.parentNode.classList.add('logo-off');
+}
+
 // ── OP LIST (lista vertical + accordion por operadora) ────────────────
 function buildOpConfig() {
   const body = document.getElementById('op-config-body');
@@ -1183,8 +1195,11 @@ function buildOpConfig() {
     // — Header (clicável → expande/recolhe) —
     const countBadge = sel.length ? `<span class="op-count">${sel.length}</span>` : '';
     const head = `<div class="op-row-head" onclick="toggleOpen('${op}')">
-        <span class="op-dot2" style="background:${cor}"></span>
-        <span class="op-row-name" style="color:${cor}">${meta.nome}</span>
+        <span class="op-id">
+          <img class="op-logo" src="/app/logos/${op}.svg" alt="${meta.nome}" data-op="${op}" onerror="onLogoErr(this)">
+          <span class="op-dot2" style="background:${cor}"></span>
+          <span class="op-row-name" style="color:${cor}">${meta.nome}</span>
+        </span>
         ${countBadge}
         <span class="op-chev">${open?'▾':'▸'}</span>
       </div>`;
