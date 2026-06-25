@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<link rel="icon" href="data:,">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CotPrime — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1f1e1e;--navy2:#2a2929;
+  --accent:#f0f0f0;--accent-ink:#1a1a1a;
+  --bg:var(--navy);--card:rgba(255,255,255,.04);--inp:rgba(255,255,255,.06);
+  --bd1:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.1);--bd3:rgba(255,255,255,.15);
+  --t1:#fff;--t2:rgba(255,255,255,.75);--t3:rgba(255,255,255,.5);--t4:rgba(255,255,255,.4);
+  --tab-active:rgba(255,255,255,.1);--btn-bg:rgba(255,255,255,.1);--btn-t:rgba(255,255,255,.7);
+  --green:#22c55e;--red:#f87171;--amber:#f59e0b;
+  --g1:#e8e8e8;--g2:#b8b8b8;--g3:#8a8a8a;--g4:#5f5f5f;--g5:#3f3f3f;
+  --track:rgba(255,255,255,.08);
+}
+html[data-theme="light"]{
+  --bg:#eef1f5;--accent:#1f1e1e;--accent-ink:#fff;
+  --card:#fff;--inp:rgba(0,0,0,.04);
+  --bd1:rgba(0,0,0,.08);--bd2:rgba(0,0,0,.1);--bd3:rgba(0,0,0,.16);
+  --t1:#111827;--t2:rgba(0,0,0,.72);--t3:rgba(0,0,0,.5);--t4:rgba(0,0,0,.4);
+  --tab-active:rgba(0,0,0,.06);--btn-bg:rgba(0,0,0,.05);--btn-t:rgba(0,0,0,.7);
+  --g1:#374151;--g2:#6b7280;--g3:#9ca3af;--g4:#cbd5e1;--g5:#e5e7eb;
+  --track:rgba(0,0,0,.08);
+}
+html,body{height:100%}
+body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--t1);font-size:13px;line-height:1.5;overflow-y:auto;padding:0 0 4rem}
+.wrap{max-width:1160px;margin:0 auto;padding:1.4rem 1.5rem}
+
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:1.2rem}
+.logo{height:34px}
+html[data-theme="light"] .logo{filter:brightness(0) opacity(.82)}
+.h-title{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.spacer{flex:1}
+.seg{display:flex;border:1px solid var(--bd2);border-radius:9px;overflow:hidden}
+.seg button{padding:7px 14px;border:none;background:transparent;color:var(--t3);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(4,1fr);margin-bottom:14px}
+.cols-2{grid-template-columns:1.4fr 1fr}
+.cols-2b{grid-template-columns:1fr 1fr}
+.cols-3{grid-template-columns:1fr 1fr 1fr}
+.card{background:var(--card);border:1px solid var(--bd1);border-radius:14px;padding:16px}
+.card h3{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:13px}
+.kpi .lbl{font-size:11px;color:var(--t3);font-weight:600}
+.kpi .num{font-size:30px;font-weight:700;letter-spacing:-1px;line-height:1.1;margin-top:3px}
+.kpi .sub{font-size:11px;margin-top:5px;font-weight:600}
+.up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--t4)}
+
+.funil-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.funil-row .fl{width:88px;font-size:12px;font-weight:600;color:var(--t2);flex-shrink:0}
+.funil-track{flex:1;height:22px;background:var(--track);border-radius:6px;overflow:hidden}
+.funil-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:7px;font-size:11px;font-weight:700;color:#fff;min-width:22px}
+
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.bar-row .bl{width:120px;font-size:12px;color:var(--t2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.bar-track{flex:1;height:14px;background:var(--track);border-radius:5px;overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;background:var(--accent)}
+.bar-row .bv{width:64px;text-align:right;font-size:12px;font-weight:700;color:var(--t1)}
+
+.donut-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:12px;min-width:140px}
+.legend div{display:flex;align-items:center;gap:7px;color:var(--t2)}
+.dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.legend b{color:var(--t1);margin-left:auto;padding-left:14px}
+
+.trend svg{width:100%;height:auto;display:block}
+.bignum{font-size:34px;font-weight:700;letter-spacing:-1px}
+.bigsub{font-size:11px;color:var(--t3);margin-top:2px}
+
+.lista .li{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--bd1)}
+.lista .li:last-child{border:none}
+.lista .li .tt{flex:1;color:var(--t2);font-weight:500}
+.lista .li .wn{font-size:11px;color:var(--t3);white-space:nowrap}
+.pill{font-size:10px;font-weight:700;padding:1px 8px;border-radius:20px}
+.empty{color:var(--t4);font-size:12px;padding:10px 0}
+
+@media(max-width:860px){.kpis{grid-template-columns:1fr 1fr}.cols-2,.cols-2b,.cols-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <svg class="logo" viewBox="0 0 128 52" xmlns="http://www.w3.org/2000/svg"><rect x="0.75" y="0.75" width="33" height="50.5" rx="6.5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.72)" stroke-width="1.2"/><rect x="4" y="7.5" width="26" height="11.5" rx="2.5" fill="rgba(255,255,255,.92)"/><polyline points="6.5,17.5 10.5,14 15.5,16 20,12.5 24.5,14.5 28.5,11.5" stroke="rgba(20,30,45,.7)" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="23" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="15" y="23" width="6.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="23.5" y="23" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.52)"/><rect x="4" y="29.5" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="15" y="29.5" width="6.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="23.5" y="29.5" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.52)"/><rect x="4" y="36" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="15" y="36" width="6.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="23.5" y="36" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.52)"/><rect x="4" y="42.5" width="15.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.23)"/><rect x="23.5" y="42.5" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.88)"/><text x="43" y="22" font-family="Outfit" font-size="10" font-weight="200" letter-spacing="5" fill="rgba(255,255,255,.5)">COT</text><line x1="43" y1="27.5" x2="122" y2="27.5" stroke="rgba(255,255,255,.17)" stroke-width="0.6"/><text x="43" y="46" font-family="Outfit" font-size="21" font-weight="700" fill="rgba(255,255,255,.96)">PRIME</text></svg>
+    <div class="h-title">Meu desempenho</div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <button id="p-month" class="on" onclick="setPeriodo('month')">Mês</button>
+      <button id="p-week" onclick="setPeriodo('week')">Semana</button>
+    </div>
+  </div>
+
+  <div id="dash-body"><div class="empty" style="padding:40px;text-align:center">Carregando…</div></div>
+</div>
+
+<script>
+let _period = 'month';
+let _dadosTarefas = [];
+
+function _syncTheme(){
+  let t = 'dark';
+  try { t = (window.parent && window.parent.document.documentElement.getAttribute('data-theme')) || localStorage.getItem('adm_theme') || 'dark'; }
+  catch(e){ t = localStorage.getItem('adm_theme') || 'dark'; }
+  document.documentElement.setAttribute('data-theme', t);
+}
+function _token(){
+  try { return (window.parent && window.parent.token && window.parent.token()) || null; }
+  catch(e){ return null; }
+}
+async function api(path){
+  const tok = _token();
+  const r = await fetch(path, {headers: tok ? {'Authorization':'Bearer '+tok} : {}});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+const _money = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0});
+const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',proposta:'#f59e0b',negociacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
+const TIPO_LABEL = {pme:'PME', adesao:'Adesão', pf:'PF'};
+const RAMP = ['var(--g1)','var(--g2)','var(--g3)','var(--g4)','var(--g5)'];
+const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};
+
+/* ── helpers de chart (do protótipo aprovado) ── */
+function donut(data){
+  const tot = data.reduce((a,d)=>a+d.value,0);
+  if (!tot) return '<div class="empty">Sem cotações no período.</div>';
+  const r=54, c=2*Math.PI*r; let off=0;
+  const segs = data.map(d=>{const len=d.value/tot*c;const s=`<circle r="${r}" cx="80" cy="80" fill="none" stroke="${d.color}" stroke-width="20" stroke-dasharray="${len} ${c-len}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"/>`;off+=len;return s;}).join('');
+  const leg = data.map(d=>`<div><span class="dot" style="background:${d.color}"></span>${esc(d.label)}<b>${Math.round(d.value/tot*100)}%</b></div>`).join('');
+  return `<div class="donut-wrap"><svg viewBox="0 0 160 160" width="148" height="148">${segs}<text x="80" y="84" text-anchor="middle" font-size="20" font-weight="700" fill="var(--t1)">${tot}</text></svg><div class="legend">${leg}</div></div>`;
+}
+function hbars(data, fmt){
+  if (!data.length) return '<div class="empty">Sem dados.</div>';
+  const max = Math.max(...data.map(d=>d.value)) || 1;
+  return data.map(d=>`<div class="bar-row"><span class="bl">${esc(d.label)}</span><div class="bar-track"><div class="bar-fill" style="width:${d.value/max*100}%"></div></div><span class="bv">${fmt?fmt(d.value):d.value}</span></div>`).join('');
+}
+function trendChart(vals, labels){
+  const max = Math.max(...vals) || 1, W=100, n=vals.length, bw=W/n*0.6, gap=W/n;
+  const bars = vals.map((v,i)=>{const h=v/max*70;const x=i*gap+(gap-bw)/2;const cur=i===n-1;return `<rect x="${x}" y="${80-h}" width="${bw}" height="${h}" rx="1.5" fill="${cur?'var(--accent)':'var(--g3)'}"/><text x="${x+bw/2}" y="${76-h}" text-anchor="middle" font-size="4.5" font-weight="700" fill="var(--t2)">${v}</text><text x="${x+bw/2}" y="92" text-anchor="middle" font-size="4.5" fill="var(--t3)">${esc(labels[i])}</text>`;}).join('');
+  return `<div class="trend"><svg viewBox="0 0 100 96">${bars}</svg></div>`;
+}
+function kpiCard(lbl,num,sub,cls){return `<div class="card kpi"><div class="lbl">${lbl}</div><div class="num">${num}</div><div class="sub ${cls||'flat'}">${sub||''}</div></div>`;}
+
+function _deltaTxt(dpct){
+  if (dpct == null) return ['sem período anterior', 'flat'];
+  const v = Math.abs(dpct).toFixed(1).replace('.', ',') + '% vs anterior';
+  if (dpct > 0) return ['▲ ' + v, 'up'];
+  if (dpct < 0) return ['▼ ' + v, 'down'];
+  return ['0% vs anterior', 'flat'];
+}
+
+function render(d){
+  const k = d.kpis || {};
+  const cot = k.cotacoes || {};
+  const [dsub, dcls] = _deltaTxt(cot.delta_pct);
+
+  // Funil
+  const fmax = Math.max(...d.funil.map(f=>f.count)) || 1;
+  const funil = d.funil.map(f=>`<div class="funil-row"><span class="fl">${esc(f.label||f.etapa)}</span><div class="funil-track"><div class="funil-fill" style="width:${f.count/fmax*100}%;background:${STAGE_COLOR[f.etapa]||'#6b7280'}">${f.count}</div></div></div>`).join('');
+
+  // Mix operadora → donut com rampa cinza
+  const mixOp = (d.mix_operadora||[]).map((m,i)=>({label:m.nome, value:m.count, color:RAMP[i%RAMP.length]}));
+
+  // Mix contratação
+  const mixCt = (d.mix_contratacao||[]).map(m=>({label:TIPO_LABEL[m.tipo]||m.tipo, value:m.count}));
+
+  // Trend
+  const tvals = (d.trend||[]).map(t=>t.count), tlabs = (d.trend||[]).map(t=>t.label);
+
+  // Motivos
+  const motivos = (d.motivos_perda||[]).map(m=>({label:m.motivo, value:m.count}));
+
+  // Tarefas (lista — reusa /api/tarefas já carregado em _dadosTarefas)
+  const tarefasHtml = _dadosTarefas.length
+    ? _dadosTarefas.slice(0,5).map(t=>`<div class="li"><span class="pill" style="background:rgba(34,197,94,.15);color:#22c55e">${TAR_ICON[t.tipo]||'•'}</span><span class="tt">${esc(t.titulo||'')}${t.cliente_nome?` · ${esc(t.cliente_nome)}`:''}</span><span class="wn">${esc(_fmtInicio(t.inicio))}</span></div>`).join('')
+    : '<div class="empty">Sem tarefas pendentes.</div>';
+
+  const ind = d.indicadores || {};
+  document.getElementById('dash-body').innerHTML = `
+    <div class="grid kpis">
+      ${kpiCard('Cotações no período', cot.atual||0, dsub, dcls)}
+      ${kpiCard('Taxa de conversão', (k.conversao_pct||0)+'%', 'fechados / (fechados+perdidos)', 'flat')}
+      ${kpiCard('Volume fechado', _money(k.volume_fechado), 'mensalidades/mês', 'flat')}
+      ${kpiCard('Tarefas a vencer', k.tarefas_a_vencer||0, 'pendentes', (k.tarefas_a_vencer>0?'down':'flat'))}
+    </div>
+    <div class="grid cols-2">
+      <div class="card"><h3>Funil de vendas — meus clientes</h3>${funil}</div>
+      <div class="card"><h3>Mix por operadora</h3>${donut(mixOp)}</div>
+    </div>
+    <div class="grid cols-3" style="margin-top:14px">
+      <div class="card"><h3>Cotações por período</h3>${trendChart(tvals, tlabs)}</div>
+      <div class="card"><h3>Mix por contratação</h3>${hbars(mixCt)}</div>
+      <div class="card"><h3>Indicadores</h3>
+        <div class="bignum">${_money(ind.ticket_medio)}</div><div class="bigsub">ticket médio (mensalidade)</div>
+        <div class="bignum" style="margin-top:14px">${(ind.vidas_media||0).toLocaleString('pt-BR',{maximumFractionDigits:1})}</div><div class="bigsub">vidas por cotação (média)</div>
+      </div>
+    </div>
+    <div class="grid cols-2b" style="margin-top:14px">
+      <div class="card"><h3>Top motivos de perda</h3>${hbars(motivos)}</div>
+      <div class="card lista"><h3>Próximas tarefas</h3>${tarefasHtml}</div>
+    </div>`;
+}
+
+function _fmtInicio(inicio){
+  if (!inicio) return '';
+  const [d, t] = String(inicio).split(' ');
+  const p = (d || '').split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]} ${t || ''}`.trim() : inicio;
+}
+
+function setPeriodo(p){
+  _period = p;
+  document.getElementById('p-month').classList.toggle('on', p === 'month');
+  document.getElementById('p-week').classList.toggle('on', p === 'week');
+  carregar();
+}
+
+async function carregar(){
+  const box = document.getElementById('dash-body');
+  let d, tarefas = [];
+  try {
+    [d, tarefas] = await Promise.all([
+      api('/api/dashboard?period=' + _period),
+      api('/api/tarefas?status=pendente').catch(()=>[]),
+    ]);
+  } catch(e){
+    box.innerHTML = '<div class="empty" style="padding:40px;text-align:center">Não foi possível carregar o dashboard.</div>';
+    return;
+  }
+  _dadosTarefas = (tarefas || []).slice().sort((a,b)=>String(a.inicio||'').localeCompare(String(b.inicio||'')));
+  render(d);
+}
+
+function refreshDashboard(){
+  _syncTheme();
+  carregar();
+}
+window.refreshDashboard = refreshDashboard;
+
+document.addEventListener('DOMContentLoaded', refreshDashboard);
+</script>
+</body>
+</html>

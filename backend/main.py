@@ -1224,6 +1224,9 @@ def listar_cotacoes(user=Depends(require_corretor)):
 _BR_TZ = timezone(timedelta(hours=-3))
 _DT_FMT = "%Y-%m-%d %H:%M:%S"
 _MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+_STAGES = ['lead', 'contato', 'proposta', 'negociacao', 'fechado', 'perdido']
+_STAGE_LABEL = {'lead': 'Lead', 'contato': 'Contato', 'proposta': 'Proposta',
+                'negociacao': 'Negociação', 'fechado': 'Fechado', 'perdido': 'Perdido'}
 
 
 def _br_dt(y, m, d, h=0):
@@ -1323,6 +1326,144 @@ def cotacoes_metrics(
         return {
             "period": period, "total": total, "atual": atual, "anterior": anterior,
             "delta_pct": _delta_pct(atual, anterior), "serie": serie,
+        }
+    finally:
+        conn.close()
+
+
+# ── Dashboard PESSOAL do corretor (agregação no servidor, sem LIMIT) ──────────
+@app.get("/api/dashboard")
+def dashboard_pessoal(period: Optional[str] = None, user=Depends(require_corretor)):
+    period = period if period in ("week", "month") else "month"
+    usuario = user["sub"]
+    corretor_id = user.get("id")
+    conn = get_connection()
+    try:
+        agora = datetime.now(_BR_TZ)
+        # Limites do período atual/anterior + série (trend), reusando os helpers BR.
+        if period == "week":
+            hoje = _br_dt(agora.year, agora.month, agora.day)
+            ini = hoje - timedelta(days=hoje.weekday())          # segunda 00:00 BR
+            fim = ini + timedelta(days=7)
+            prev_ini, prev_fim = ini - timedelta(days=7), ini
+            trend = []
+            for i in range(7, -1, -1):                            # 8 semanas
+                b = ini - timedelta(days=7 * i)
+                trend.append({"label": b.strftime("%d/%m"),
+                              "count": _count_periodo(conn, usuario, b, b + timedelta(days=7))})
+        else:
+            ini = _month_first(agora)
+            fim = _add_months(ini, 1)
+            prev_ini, prev_fim = _add_months(ini, -1), ini
+            trend = []
+            for i in range(5, -1, -1):                            # 6 meses
+                b = _add_months(ini, -i)
+                trend.append({"label": _MESES_PT[b.month - 1],
+                              "count": _count_periodo(conn, usuario, b, _add_months(b, 1))})
+
+        kpi_atual = _count_periodo(conn, usuario, ini, fim)
+        kpi_anterior = _count_periodo(conn, usuario, prev_ini, prev_fim)
+        ini_utc, fim_utc = _to_utc_str(ini), _to_utc_str(fim)
+
+        # TODAS as cotações do usuário (sem LIMIT) — parse defensivo do JSON.
+        cot = []
+        for r in conn.execute("SELECT dados, criado_em FROM cotacoes WHERE usuario = ?", (usuario,)).fetchall():
+            try:
+                d = json.loads(r["dados"]) if r["dados"] else {}
+            except Exception:
+                d = {}
+            cot.append((d, r["criado_em"]))
+        no_periodo = [d for (d, cr) in cot if cr and ini_utc <= cr < fim_utc]
+
+        # Mix por operadora (top 5 + Outras) — no período.
+        op_nomes = {o["chave"]: o["nome"] for o in conn.execute("SELECT chave, nome FROM operadoras").fetchall()}
+        op_count = {}
+        for d in no_periodo:
+            w = d.get("winner")
+            if w:
+                op_count[w] = op_count.get(w, 0) + 1
+        ordenado = sorted(op_count.items(), key=lambda kv: kv[1], reverse=True)
+        mix_operadora = [{"op": k, "nome": op_nomes.get(k, k), "count": v} for k, v in ordenado[:5]]
+        outras = sum(v for _, v in ordenado[5:])
+        if outras:
+            mix_operadora.append({"op": "_outras", "nome": "Outras", "count": outras})
+
+        # Mix por contratação — no período.
+        tipo_count = {}
+        for d in no_periodo:
+            t = d.get("filtroTipo") or "adesao"
+            tipo_count[t] = tipo_count.get(t, 0) + 1
+        mix_contratacao = [{"tipo": k, "count": v} for k, v in sorted(tipo_count.items(), key=lambda kv: kv[1], reverse=True)]
+
+        # Indicadores (média no período).
+        tickets = [float(d["winnerTotal"]) for d in no_periodo if d.get("winnerTotal")]
+        vidas = [float(d["totalVidas"]) for d in no_periodo if d.get("totalVidas")]
+        ticket_medio = round(sum(tickets) / len(tickets), 2) if tickets else 0
+        vidas_media = round(sum(vidas) / len(vidas), 1) if vidas else 0
+
+        # Funil (snapshot) — clientes ativos do corretor; estágio = última oportunidade.
+        funil_count = {s: 0 for s in _STAGES}
+        estagio_de = {}
+        for r in conn.execute(
+            "SELECT c.id AS cid, "
+            "COALESCE((SELECT estagio FROM oportunidades WHERE cliente_id = c.id ORDER BY criado_em DESC LIMIT 1), 'lead') AS estagio_atual "
+            "FROM clientes c WHERE c.corretor_id = ? AND c.ativo = 1",
+            (corretor_id,)
+        ).fetchall():
+            est = r["estagio_atual"] or "lead"
+            funil_count[est] = funil_count.get(est, 0) + 1
+            estagio_de[r["cid"]] = est
+        funil = [{"etapa": s, "label": _STAGE_LABEL.get(s, s), "count": funil_count.get(s, 0)} for s in _STAGES]
+
+        # Conversão = win rate = fechados / (fechados + perdidos) * 100 (snapshot).
+        fechados, perdidos = funil_count.get("fechado", 0), funil_count.get("perdido", 0)
+        conversao_pct = round(fechados / (fechados + perdidos) * 100, 1) if (fechados + perdidos) else 0
+
+        # Volume fechado = soma de winnerTotal das cotações cujo cliente está 'fechado' (snapshot).
+        volume_fechado = 0.0
+        for (d, cr) in cot:
+            cid = d.get("cliente_id")
+            if cid and estagio_de.get(cid) == "fechado" and d.get("winnerTotal"):
+                try:
+                    volume_fechado += float(d["winnerTotal"])
+                except Exception:
+                    pass
+        volume_fechado = round(volume_fechado, 2)
+
+        # Tarefas pendentes do usuário (mesma visibilidade do GET /api/tarefas p/ corretor).
+        tar = conn.execute(
+            "SELECT COUNT(*) AS n FROM tarefas t JOIN clientes c ON c.id = t.cliente_id "
+            "WHERE c.ativo = 1 AND c.corretor_id = ? AND t.status = ?",
+            (corretor_id, "pendente")
+        ).fetchone()
+        tarefas_a_vencer = tar["n"] if tar else 0
+
+        # Top motivos de perda (snapshot) — oportunidades dos clientes do corretor.
+        motivo_count = {}
+        for r in conn.execute(
+            "SELECT o.motivo_perda AS motivo FROM oportunidades o JOIN clientes c ON c.id = o.cliente_id "
+            "WHERE c.corretor_id = ? AND o.motivo_perda IS NOT NULL AND o.motivo_perda <> ''",
+            (corretor_id,)
+        ).fetchall():
+            m = (r["motivo"] or "").strip()
+            if m:
+                motivo_count[m] = motivo_count.get(m, 0) + 1
+        motivos_perda = [{"motivo": k, "count": v} for k, v in sorted(motivo_count.items(), key=lambda kv: kv[1], reverse=True)[:5]]
+
+        return {
+            "period": period,
+            "kpis": {
+                "cotacoes": {"atual": kpi_atual, "anterior": kpi_anterior, "delta_pct": _delta_pct(kpi_atual, kpi_anterior)},
+                "conversao_pct": conversao_pct,
+                "volume_fechado": volume_fechado,
+                "tarefas_a_vencer": tarefas_a_vencer,
+            },
+            "funil": funil,
+            "mix_operadora": mix_operadora,
+            "mix_contratacao": mix_contratacao,
+            "trend": trend,
+            "indicadores": {"ticket_medio": ticket_medio, "vidas_media": vidas_media},
+            "motivos_perda": motivos_perda,
         }
     finally:
         conn.close()

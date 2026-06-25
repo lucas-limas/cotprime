@@ -713,6 +713,10 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
         Início
       </button>
+      <button class="drawer-item" data-screen="dashboard" onclick="drawerNav('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Dashboard
+      </button>
       <button class="drawer-item" data-screen="cotador" onclick="drawerNav('cotador')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
         Cotação
@@ -747,6 +751,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
 
 <div class="frames">
   <iframe id="inicio"    src="inicio.html" class="visible"></iframe>
+  <iframe id="dashboard" src="dashboard.html"></iframe>
   <iframe id="cotador"   src="cotador-planos-saude.html"></iframe>
   <iframe id="apres"     src="apresentacao-executiva.html"></iframe>
   <iframe id="historico" src="historico-cotacoes.html"></iframe>
@@ -1784,6 +1789,14 @@ function showInicio() {
   _activeScreen = 'inicio';
 }
 
+function showDashboard() {
+  document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
+  const f = document.getElementById('dashboard');
+  f.classList.add('visible');
+  if (f.contentWindow && f.contentWindow.refreshDashboard) f.contentWindow.refreshDashboard();
+  _activeScreen = 'dashboard';
+}
+
 function showCotador() {
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
   document.getElementById('cotador').classList.add('visible');
@@ -1875,6 +1888,7 @@ function _drawerKey(e) {
 function drawerNav(target) {
   closeDrawer();
   if (target === 'inicio') showInicio();
+  else if (target === 'dashboard') showDashboard();
   else if (target === 'cotador') showCotador();
   else if (target === 'historico') showHistorico();
   else if (target === 'crm') window.location.href = 'crm-saude-prime.html';
