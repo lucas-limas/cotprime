@@ -309,6 +309,10 @@ html[data-theme="light"] .painel-logo{filter:brightness(0) opacity(.75)}
 .form-msg.error{color:#ff6b6b}
 .form-msg.success{color:#86efac}
 .admin-loading{color:var(--t5);text-align:center;padding:40px;font-family:"Outfit",sans-serif;font-size:14px}
+.precos-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.precos-tbl th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--t3);padding:7px 10px;border-bottom:1px solid var(--bd2);white-space:nowrap}
+.precos-tbl td{padding:7px 10px;border-bottom:1px solid var(--bd1);color:var(--t2);vertical-align:top}
+.precos-tbl tbody tr:hover{background:var(--tab-active)}
 .pf-ctrl{background:var(--inp);border:1px solid var(--bd2);border-radius:6px;color:var(--t1);font-size:12px;font-family:"Outfit",sans-serif;padding:6px 10px;min-width:130px}
 .pf-ctrl:focus{outline:none;border-color:rgba(59,130,246,.5)}
 .pf-ctrl option{background:var(--opt-bg);color:var(--t1)}
@@ -421,6 +425,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="cat-tab active" onclick="catTab('operadoras',this)">Operadoras</button>
         <button class="cat-tab" onclick="catTab('planos',this)">Planos</button>
+        <button class="cat-tab" onclick="catTab('precos',this)">Preços (CSV)</button>
         <button class="cat-tab" onclick="catTab('rede',this)">Rede</button>
         <button class="cat-tab" onclick="catTab('importar',this)" style="margin-left:auto;background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.3);color:#fbbf24">⬆ Importar dados.js</button>
       </div>
@@ -609,6 +614,38 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
           <select id="cat-rd-filtro-op" onchange="loadRede()" class="pf-ctrl"><option value="">Todas as operadoras</option></select>
         </div>
         <div id="sa-rede-body"><div class="admin-loading">Carregando...</div></div>
+      </div>
+
+      <!-- IMPORTAR PREÇOS (CSV) -->
+      <div id="cat-sub-precos" style="display:none">
+        <div class="form-card">
+          <h3>Atualizar preços via planilha (CSV)</h3>
+          <p style="color:rgba(255,255,255,.55);font-size:13px;margin:8px 0 16px">
+            Fluxo seguro: <strong>1)</strong> exporte a planilha atual, <strong>2)</strong> edite os preços no Excel,
+            <strong>3)</strong> importe para ver o <strong>preview</strong> (nada é gravado), <strong>4)</strong> confirme.
+            Casamento por <code>codigo</code>; só <strong>atualiza</strong> planos existentes (nunca cria/apaga).
+            Se qualquer linha for inválida, a gravação é bloqueada (tudo-ou-nada).
+          </p>
+          <div class="form-actions" style="gap:10px;flex-wrap:wrap">
+            <button class="btn-novo" onclick="exportarPrecos()">⬇ Exportar preços (CSV)</button>
+            <label class="btn-toggle" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+              ⬆ Importar preços
+              <input type="file" id="precos-file" accept=".csv,text/csv" style="display:none" onchange="onImportPrecosFile(event)">
+            </label>
+            <span class="form-msg" id="precos-msg"></span>
+          </div>
+
+          <div id="precos-preview" style="display:none;margin-top:16px">
+            <div id="precos-resumo" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+            <div class="form-actions" style="margin-bottom:12px">
+              <button class="btn-novo" id="precos-confirmar" onclick="confirmarImportPrecos()" disabled>Confirmar importação</button>
+              <button class="btn-toggle" onclick="cancelarImportPrecos()">Cancelar</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="precos-tbl" id="precos-tbl"></table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1053,11 +1090,118 @@ function catTab(tab, btn) {
   document.getElementById('cat-sub-planos').style.display   = tab === 'planos'     ? '' : 'none';
   document.getElementById('cat-sub-rede').style.display     = tab === 'rede'       ? '' : 'none';
   document.getElementById('cat-sub-importar').style.display = tab === 'importar'   ? '' : 'none';
+  document.getElementById('cat-sub-precos').style.display   = tab === 'precos'     ? '' : 'none';
   document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (tab === 'operadoras') loadOpsCat();
   else if (tab === 'planos') loadPlanosCat();
   else if (tab === 'rede') { _populateRedeOpSelects(); loadRede(); }
+}
+
+// ── Importação de preços (CSV) ─────────────────────────────────────────────────
+let _precosCSV = null;
+function _escP(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+const _fmtP = v => v == null ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+async function exportarPrecos(){
+  const msg = document.getElementById('precos-msg');
+  msg.textContent = 'Gerando…';
+  try {
+    const r = await fetch(`${API}/api/superadmin/catalogo/planos/exportar-precos`, {headers: authH()});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'precos_planos.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    msg.textContent = '';
+  } catch(e){ msg.textContent = 'Erro ao exportar.'; }
+}
+
+function onImportPrecosFile(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { _precosCSV = String(reader.result || ''); previewPrecos(); };
+  reader.onerror = () => { document.getElementById('precos-msg').textContent = 'Erro ao ler o arquivo.'; };
+  reader.readAsText(file, 'utf-8');
+  ev.target.value = '';   // permite reimportar o mesmo arquivo
+}
+
+async function previewPrecos(){
+  const msg = document.getElementById('precos-msg');
+  msg.textContent = 'Analisando…';
+  let data;
+  try {
+    const r = await fetch(`${API}/api/superadmin/catalogo/planos/importar-precos/preview`, {
+      method:'POST', headers: authH(), body: JSON.stringify({csv: _precosCSV})
+    });
+    data = await r.json();
+    if (!r.ok) throw new Error('Erro');
+  } catch(e){ msg.textContent = 'Erro ao analisar o CSV.'; return; }
+  msg.textContent = '';
+  renderPrecosPreview(data);
+}
+
+function _stBadgeP(st){
+  const M = {atualizar:['Atualizar','#22c55e'], sem_mudanca:['Sem mudança','#9ca3af'],
+             nao_encontrado:['Não encontrado','#f59e0b'], invalido:['Inválido','#ef4444']};
+  const [lbl, cor] = M[st] || [st, '#9ca3af'];
+  return `<span style="display:inline-block;padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;color:${cor};border:1px solid ${cor}55">${lbl}</span>`;
+}
+
+function renderPrecosPreview(data){
+  const rs = data.resumo || {};
+  document.getElementById('precos-resumo').innerHTML =
+      `<span style="font-size:12px;color:rgba(255,255,255,.7)">Atualizar: <b style="color:#22c55e">${rs.atualizar||0}</b></span>`
+    + `<span style="font-size:12px;color:rgba(255,255,255,.7)">Sem mudança: <b>${rs.sem_mudanca||0}</b></span>`
+    + `<span style="font-size:12px;color:rgba(255,255,255,.7)">Não encontrado: <b style="color:#f59e0b">${rs.nao_encontrado||0}</b></span>`
+    + `<span style="font-size:12px;color:rgba(255,255,255,.7)">Inválido: <b style="color:#ef4444">${rs.invalido||0}</b></span>`;
+  const diff = (a, n) => {
+    if (!n) return '—';
+    return n.map((v, i) => (a && a[i] !== v) ? `<b style="color:#22c55e">${_fmtP(v)}</b>` : _fmtP(v)).join(' · ');
+  };
+  const rows = (data.rows || []).map(r => `
+    <tr>
+      <td>${_escP(r.codigo)}</td>
+      <td>${_stBadgeP(r.status)}${r.erro ? ` <span style="color:#ef4444;font-size:10px">(${_escP(r.erro)})</span>` : ''}</td>
+      <td>${_escP(r.operadora || '')}</td>
+      <td>${_escP(r.nome || '')}</td>
+      <td style="font-size:10px;color:rgba(255,255,255,.45)">${r.precos_antigos ? r.precos_antigos.map(_fmtP).join(' · ') : '—'}</td>
+      <td style="font-size:10px">${diff(r.precos_antigos, r.precos_novos)}</td>
+    </tr>`).join('');
+  document.getElementById('precos-tbl').innerHTML =
+    `<thead><tr><th>Código</th><th>Status</th><th>Operadora</th><th>Plano</th><th>Atuais</th><th>Novos</th></tr></thead><tbody>${rows}</tbody>`;
+  const btn = document.getElementById('precos-confirmar');
+  btn.disabled = !data.pode_aplicar;
+  btn.textContent = data.pode_aplicar ? `Confirmar importação (${rs.atualizar||0})` : 'Confirmar (corrija os erros)';
+  const wrap = document.getElementById('precos-preview');
+  wrap.style.display = '';
+  wrap.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+async function confirmarImportPrecos(){
+  if (!_precosCSV) return;
+  const btn = document.getElementById('precos-confirmar');
+  btn.disabled = true; btn.textContent = 'Aplicando…';
+  try {
+    const r = await fetch(`${API}/api/superadmin/catalogo/planos/importar-precos/aplicar`, {
+      method:'POST', headers: authH(), body: JSON.stringify({csv: _precosCSV})
+    });
+    const data = await r.json();
+    if (!r.ok){ showToast('Importação bloqueada — verifique os erros.'); btn.disabled = false; btn.textContent = 'Confirmar importação'; return; }
+    showToast(`${data.atualizados} plano(s) atualizado(s) ✓`);
+    cancelarImportPrecos();
+    if (typeof loadPlanosCat === 'function') loadPlanosCat();
+  } catch(e){ showToast('Erro ao aplicar a importação.'); btn.disabled = false; btn.textContent = 'Confirmar importação'; }
+}
+
+function cancelarImportPrecos(){
+  _precosCSV = null;
+  document.getElementById('precos-preview').style.display = 'none';
+  document.getElementById('precos-tbl').innerHTML = '';
+  document.getElementById('precos-resumo').innerHTML = '';
+  document.getElementById('precos-msg').textContent = '';
 }
 
 // ── Rede Credenciada ──────────────────────────────────────────────────────────

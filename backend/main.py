@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import logging
 import os
@@ -8,7 +10,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -1530,6 +1532,172 @@ def deletar_plano(plano_id: int, admin=Depends(require_superadmin)):
     conn.close()
     log_action(admin["sub"], "deletar_plano", f"Plano {row['codigo']} removido")
     return {"ok": True}
+
+
+# ── Superadmin: Importação de preços (CSV, preview + aplicar tudo-ou-nada) ─────
+
+_PRECO_HDR = ['0-18','19-23','24-28','29-33','34-38','39-43','44-48','49-53','54-58','59+']
+_EXPORT_HDR = ['codigo', 'operadora', 'nome'] + _PRECO_HDR
+
+
+class ImportPrecosRequest(BaseModel):
+    csv: str
+
+
+def _num_br(s):
+    """Converte texto de preço (BR '1.234,56' ou '1234.56') em float. Lança ValueError."""
+    t = str(s).strip().replace('R$', '').replace(' ', '').replace(' ', '')
+    if t == '':
+        raise ValueError('vazio')
+    if ',' in t and '.' in t:
+        t = t.replace('.', '').replace(',', '.')   # '.' milhar, ',' decimal
+    elif ',' in t:
+        t = t.replace(',', '.')                     # só vírgula = decimal
+    v = float(t)
+    if v < 0:
+        raise ValueError('negativo')
+    return v
+
+
+def _parse_precos_csv(texto):
+    """Parse + validação do CSV de preços. Retorna (rows, resumo, pode_aplicar, atualizacoes).
+    `atualizacoes` = lista de (codigo, [10 precos]) das linhas com status 'atualizar'.
+    Não toca no banco além de SELECTs (a conexão é aberta/fechada aqui)."""
+    # mapa codigo -> {precos, nome, op} do catálogo atual
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "SELECT p.codigo, p.precos, p.nome, o.nome AS op_nome "
+            "FROM planos p JOIN operadoras o ON p.operadora_id = o.id"
+        ).fetchall()
+    finally:
+        conn.close()
+    catalogo = {}
+    for r in cur:
+        d = dict(r)
+        try:
+            precos = json.loads(d['precos'])
+        except Exception:
+            precos = []
+        catalogo[d['codigo']] = {'precos': precos, 'nome': d['nome'], 'op': d['op_nome']}
+
+    # remove BOM (Excel/round-trip do próprio export) p/ o cabeçalho ser reconhecido
+    texto = (texto or '').lstrip('﻿')
+    # delimitador: ';' (Excel pt-BR) se houver mais ';' que ',' na 1ª linha não vazia
+    linhas = texto.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    primeira = next((l for l in linhas if l.strip() != ''), '')
+    delim = ';' if primeira.count(';') >= primeira.count(',') else ','
+
+    rows = []
+    resumo = {'atualizar': 0, 'sem_mudanca': 0, 'nao_encontrado': 0, 'invalido': 0}
+    atualizacoes = []
+    reader = csv.reader(io.StringIO(texto or ''), delimiter=delim)
+    for campos in reader:
+        if not campos or all((c or '').strip() == '' for c in campos):
+            continue
+        codigo = (campos[0] or '').strip().lstrip('﻿')
+        if codigo.lower() == 'codigo':   # cabeçalho
+            continue
+        # preços nas colunas 3..12 (mesma ordem do export)
+        brutos = campos[3:13]
+        precos_novos, erro = None, None
+        try:
+            if len(brutos) != 10:
+                raise ValueError('número de faixas diferente de 10')
+            if codigo == '':
+                raise ValueError('código vazio')
+            precos_novos = [round(_num_br(x), 2) for x in brutos]
+        except ValueError as e:
+            erro = str(e)
+
+        if erro is not None or precos_novos is None:
+            resumo['invalido'] += 1
+            rows.append({'codigo': codigo, 'operadora': '', 'nome': '',
+                         'precos_antigos': None, 'precos_novos': None,
+                         'status': 'invalido', 'erro': erro or 'inválido'})
+            continue
+        atual = catalogo.get(codigo)
+        if not atual:
+            resumo['nao_encontrado'] += 1
+            rows.append({'codigo': codigo, 'operadora': '', 'nome': '',
+                         'precos_antigos': None, 'precos_novos': precos_novos,
+                         'status': 'nao_encontrado'})
+            continue
+        antigos = [round(float(x), 2) for x in (atual['precos'] or [])]
+        status = 'sem_mudanca' if antigos == precos_novos else 'atualizar'
+        resumo[status] += 1
+        if status == 'atualizar':
+            atualizacoes.append((codigo, precos_novos))
+        rows.append({'codigo': codigo, 'operadora': atual['op'], 'nome': atual['nome'],
+                     'precos_antigos': antigos, 'precos_novos': precos_novos, 'status': status})
+
+    pode_aplicar = (resumo['invalido'] == 0 and resumo['nao_encontrado'] == 0)
+    return rows, resumo, pode_aplicar, atualizacoes
+
+
+@app.get("/api/superadmin/catalogo/planos/exportar-precos")
+def exportar_precos(admin=Depends(require_superadmin)):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT p.codigo, p.precos, p.nome, o.nome AS op_nome "
+            "FROM planos p JOIN operadoras o ON p.operadora_id = o.id "
+            "ORDER BY o.ordem, p.ordem, p.id"
+        ).fetchall()
+    finally:
+        conn.close()
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=';')
+    w.writerow(_EXPORT_HDR)
+    for r in rows:
+        d = dict(r)
+        try:
+            precos = json.loads(d['precos'])
+        except Exception:
+            precos = []
+        precos = (precos + [0] * 10)[:10]
+        w.writerow([d['codigo'], d['op_nome'], d['nome']] + [f"{float(x):.2f}" for x in precos])
+    csv_txt = '﻿' + buf.getvalue()   # BOM p/ Excel abrir acentos
+    return Response(
+        content=csv_txt, media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=precos_planos.csv"},
+    )
+
+
+@app.post("/api/superadmin/catalogo/planos/importar-precos/preview")
+def importar_precos_preview(body: ImportPrecosRequest, admin=Depends(require_superadmin)):
+    rows, resumo, pode_aplicar, _ = _parse_precos_csv(body.csv)
+    return {"rows": rows, "resumo": resumo, "pode_aplicar": pode_aplicar}
+
+
+@app.post("/api/superadmin/catalogo/planos/importar-precos/aplicar")
+def importar_precos_aplicar(body: ImportPrecosRequest, admin=Depends(require_superadmin)):
+    rows, resumo, pode_aplicar, atualizacoes = _parse_precos_csv(body.csv)
+    if not pode_aplicar:
+        erros = [
+            {"codigo": r["codigo"], "status": r["status"], "erro": r.get("erro")}
+            for r in rows if r["status"] in ("invalido", "nao_encontrado")
+        ]
+        raise HTTPException(400, {"msg": "Importação bloqueada: corrija os erros antes de aplicar.",
+                                  "resumo": resumo, "erros": erros})
+    if not atualizacoes:
+        return {"ok": True, "atualizados": 0}
+    conn = get_connection()
+    try:
+        for codigo, precos in atualizacoes:
+            conn.execute("UPDATE planos SET precos = ? WHERE codigo = ?", (json.dumps(precos), codigo))
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        raise HTTPException(500, "Falha ao aplicar a importação; nada foi gravado.")
+    conn.close()
+    n = len(atualizacoes)
+    log_action(admin["sub"], "importar_precos", f"{n} planos atualizados via importação")
+    return {"ok": True, "atualizados": n}
 
 
 @app.patch("/api/superadmin/catalogo/operadoras/{op_id}/toggle")
