@@ -98,6 +98,28 @@ html[data-theme="light"] .field input{color-scheme:light}
 .list-empty,.list-error{padding:2.5rem 1rem;text-align:center;color:var(--t3);font-size:13px}
 .list-error{color:var(--red)}
 
+/* ── Fase A: barra de filtros + status ── */
+.filterbar{padding:12px 16px;border-bottom:1px solid var(--bd1);display:flex;flex-direction:column;gap:10px}
+.fb-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search{flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--inp);border:1.5px solid var(--inp-bd);border-radius:8px;padding:7px 11px}
+.search input{flex:1;border:none;background:transparent;color:var(--t1);font-family:inherit;font-size:13px;outline:none}
+.search svg{flex-shrink:0;opacity:.5}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{padding:4px 11px;font-size:11px;font-weight:600;border:1px solid var(--bd2);border-radius:20px;background:transparent;color:var(--t3);cursor:pointer;transition:all .12s}
+.chip:hover{color:var(--t2);border-color:var(--bd3)}
+.chip.active{color:#fff;border-color:transparent}
+.chip[data-s="todos"].active{background:#0f2340}
+.chip[data-s="lead"].active{background:#6b7280}
+.chip[data-s="contato"].active{background:#3b82f6}
+.chip[data-s="proposta"].active{background:#f59e0b;color:#1a1a1a}
+.chip[data-s="negociacao"].active{background:#f97316;color:#1a1a1a}
+.chip[data-s="fechado"].active{background:#22c55e;color:#1a1a1a}
+.chip[data-s="perdido"].active{background:#ef4444}
+.chip[data-s="sem"].active{background:#9ca3af;color:#1a1a1a}
+.hist-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.st-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;color:var(--t1);background:var(--card);border:1px solid var(--bd2);white-space:nowrap}
+.st-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
 @media(max-width:640px){
   .metrics{grid-template-columns:1fr}
   .hist-item{grid-template-columns:1fr}
@@ -154,7 +176,31 @@ html[data-theme="light"] .field input{color-scheme:light}
 
   <!-- LISTA -->
   <div class="card list-card">
-    <div class="card-head">Últimas cotações</div>
+    <div class="card-head"><span>Cotações</span><span id="hist-count"></span></div>
+
+    <!-- Fase A: busca + exportar + chips de status -->
+    <div class="filterbar">
+      <div class="fb-row">
+        <div class="search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="hist-q" type="text" placeholder="Buscar por cliente ou operadora…" oninput="renderList()">
+        </div>
+        <button class="btn" onclick="exportarCSV()">⭳ Exportar CSV</button>
+      </div>
+      <div class="fb-row">
+        <div class="chips" id="hist-chips">
+          <button class="chip active" data-s="todos" onclick="setFiltroStatus('todos')">Todos</button>
+          <button class="chip" data-s="lead" onclick="setFiltroStatus('lead')">Lead</button>
+          <button class="chip" data-s="contato" onclick="setFiltroStatus('contato')">Contato</button>
+          <button class="chip" data-s="proposta" onclick="setFiltroStatus('proposta')">Proposta</button>
+          <button class="chip" data-s="negociacao" onclick="setFiltroStatus('negociacao')">Negociação</button>
+          <button class="chip" data-s="fechado" onclick="setFiltroStatus('fechado')">Fechado</button>
+          <button class="chip" data-s="perdido" onclick="setFiltroStatus('perdido')">Perdido</button>
+          <button class="chip" data-s="sem" onclick="setFiltroStatus('sem')">Sem cliente</button>
+        </div>
+      </div>
+    </div>
+
     <div id="hist-list"><div class="list-empty">Carregando…</div></div>
   </div>
 </div>
@@ -163,6 +209,12 @@ html[data-theme="light"] .field input{color-scheme:light}
 let _period = 'week';
 let _lista  = [];
 let OP_NOME = {};
+
+// Estágios do funil — IDÊNTICOS ao CRM (crm-saude-prime.html)
+const STAGE_LABEL = {lead:'Lead',contato:'Contato',proposta:'Proposta',negociacao:'Negociação',fechado:'Fechado',perdido:'Perdido'};
+const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',proposta:'#f59e0b',negociacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
+let _filtroStatus = 'todos';
+let _clienteEstagio = {};   // { [cliente_id]: estagio_atual } — espelho só-leitura do CRM
 
 const f$ = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -284,24 +336,74 @@ async function loadCatalogo(){
   } catch(e){ /* mantém vazio; cai no fallback da chave */ }
 }
 
+// Espelho só-leitura do estágio de cada cliente (mesma fonte do CRM: GET /api/clientes)
+async function loadClientes(){
+  try {
+    const cs = await api('/api/clientes') || [];
+    _clienteEstagio = {};
+    cs.forEach(c => { if (c && c.id != null) _clienteEstagio[c.id] = c.estagio_atual || 'lead'; });
+  } catch(e){ _clienteEstagio = {}; }   // sem clientes → tudo cai em "Sem cliente"
+}
+
+function _estagioDe(it){
+  const cid = (it.dados || {}).cliente_id || null;
+  return (cid && _clienteEstagio[cid]) ? _clienteEstagio[cid] : null;
+}
+function _opNomeDe(it){
+  const w = (it.dados || {}).winner;
+  return w ? (OP_NOME[w] || w) : '';
+}
+function _badgeHtml(est){
+  if (!est) return '<span class="st-badge"><span class="st-dot" style="background:#9ca3af"></span>Sem cliente</span>';
+  return `<span class="st-badge"><span class="st-dot" style="background:${STAGE_COLOR[est] || '#9ca3af'}"></span>${STAGE_LABEL[est] || esc(est)}</span>`;
+}
+function _cotacaoVisivel(it){
+  const stKey = _estagioDe(it) || 'sem';
+  if (_filtroStatus !== 'todos' && stKey !== _filtroStatus) return false;
+  const inp = document.getElementById('hist-q');
+  const q = (inp ? inp.value : '').trim().toLowerCase();
+  if (q){
+    const d = it.dados || {};
+    const nome = (d.nome || it.cliente || '').toLowerCase();
+    const op = _opNomeDe(it).toLowerCase();
+    if (!nome.includes(q) && !op.includes(q)) return false;
+  }
+  return true;
+}
+
 async function loadList(){
   const box = document.getElementById('hist-list');
   try {
-    _lista = await api('/api/cotacoes') || [];
+    const [cot] = await Promise.all([ api('/api/cotacoes'), loadClientes() ]);
+    _lista = cot || [];
   } catch(e){
     box.innerHTML = '<div class="list-error">Não foi possível carregar as cotações.</div>';
     return;
   }
+  renderList();
+}
+
+function renderList(){
+  const box = document.getElementById('hist-list');
+  const countEl = document.getElementById('hist-count');
   if (!_lista.length){
+    if (countEl) countEl.textContent = '';
     box.innerHTML = '<div class="list-empty">Nenhuma cotação salva ainda.<br>As cotações são salvas ao gerar a Apresentação no cotador.</div>';
     return;
   }
-  box.innerHTML = _lista.map(it => {
+  const vis = _lista.filter(_cotacaoVisivel);
+  if (countEl) countEl.textContent = vis.length + (vis.length === 1 ? ' cotação' : ' cotações');
+  if (!vis.length){
+    box.innerHTML = '<div class="list-empty">Nenhuma cotação para este filtro.</div>';
+    return;
+  }
+  box.innerHTML = vis.map(it => {
     const d = it.dados || {};
     const nome = d.nome || it.cliente || 'Sem nome';
     const vidas = d.totalVidas != null ? d.totalVidas : 0;
-    const opNome = d.winner ? (OP_NOME[d.winner] || d.winner) : null;
+    const opNome = _opNomeDe(it);
     const cid = d.cliente_id || null;
+    const est = _estagioDe(it);
     const meta = [
       fmtDateTimeBR(it.criado_em),
       `${vidas} vida${vidas === 1 ? '' : 's'}`,
@@ -313,7 +415,10 @@ async function loadList(){
       : '';
     return `<div class="hist-item">
       <div>
-        <div class="hist-nome">${esc(nome)}</div>
+        <div class="hist-top">
+          <span class="hist-nome">${esc(nome)}</span>
+          ${_badgeHtml(est)}
+        </div>
         <div class="hist-meta">${meta.map((m,i) => (i ? '<span class="sep">·</span>' : '') + esc(String(m))).join(' ')}</div>
       </div>
       <div class="hist-actions">
@@ -323,6 +428,37 @@ async function loadList(){
       </div>
     </div>`;
   }).join('');
+}
+
+function setFiltroStatus(s){
+  _filtroStatus = s;
+  document.querySelectorAll('#hist-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.s === s));
+  renderList();
+}
+
+function exportarCSV(){
+  const vis = _lista.filter(_cotacaoVisivel);
+  if (!vis.length){ alert('Nada para exportar com o filtro/busca atual.'); return; }
+  const linhas = [['Cliente','Operadora','Vidas','Total','Status','Data']];
+  vis.forEach(it => {
+    const d = it.dados || {};
+    const est = _estagioDe(it);
+    linhas.push([
+      d.nome || it.cliente || 'Sem nome',
+      _opNomeDe(it) || 'sem operadora',
+      d.totalVidas != null ? d.totalVidas : 0,
+      d.winnerTotal > 0 ? f$(d.winnerTotal) : '',
+      est ? (STAGE_LABEL[est] || est) : 'Sem cliente',
+      fmtDateTimeBR(it.criado_em),
+    ]);
+  });
+  const csv = linhas.map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([String.fromCharCode(0xFEFF) + csv], {type:'text/csv;charset=utf-8'});   // BOM p/ Excel abrir acentos
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cotacoes.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
 }
 
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
