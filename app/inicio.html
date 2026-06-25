@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<link rel="icon" href="data:,">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CotPrime — Início</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* Tokens semânticos — idênticos ao shell/CRM (dark default) */
+:root{
+  --navy:#1f1e1e;--navy2:#2a2929;--navy3:#141414;
+  --gold:#c9a227;
+  --bg:var(--navy);--surface2:var(--navy2);
+  --card:rgba(255,255,255,.04);--inp:rgba(255,255,255,.06);
+  --bd1:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.1);--bd3:rgba(255,255,255,.15);
+  --inp-bd:rgba(255,255,255,.12);
+  --t1:#fff;--t2:rgba(255,255,255,.75);--t3:rgba(255,255,255,.5);
+  --t4:rgba(255,255,255,.4);
+  --tab-active:rgba(255,255,255,.1);--btn-bg:rgba(255,255,255,.1);--btn-t:rgba(255,255,255,.7);
+  --green:#22c55e;--red:#f87171;
+}
+html[data-theme="light"]{
+  --bg:#eef1f5;--surface2:#ffffff;
+  --card:rgba(0,0,0,.03);--inp:rgba(0,0,0,.05);
+  --bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.1);--bd3:rgba(0,0,0,.16);
+  --inp-bd:rgba(0,0,0,.14);
+  --t1:#111827;--t2:rgba(0,0,0,.75);--t3:rgba(0,0,0,.55);
+  --t4:rgba(0,0,0,.45);
+  --tab-active:rgba(0,0,0,.07);--btn-bg:rgba(0,0,0,.07);--btn-t:rgba(0,0,0,.65);
+}
+
+html,body{height:100%}
+body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--t1);overflow-y:auto;font-size:13px;line-height:1.5}
+.page{max-width:980px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
+
+.title{font-size:22px;font-weight:700;letter-spacing:-.3px;margin-bottom:2px}
+.subtitle{font-size:12px;color:var(--t3);margin-bottom:1.25rem}
+
+.card{background:var(--card);border:1px solid var(--bd1);border-radius:12px}
+.card-head{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);padding:11px 16px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* ── ATALHOS ── */
+.atalhos{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.25rem}
+.btn-novo{
+  flex:1;min-width:200px;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--gold);color:#1a1a1a;border:none;border-radius:12px;
+  padding:16px 18px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s;
+}
+.btn-novo:hover{opacity:.9}
+.btn-atalho{
+  display:flex;align-items:center;gap:8px;
+  background:var(--card);border:1px solid var(--bd2);color:var(--t2);border-radius:12px;
+  padding:16px 18px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;
+}
+.btn-atalho:hover{color:var(--t1);border-color:var(--bd3);background:var(--tab-active)}
+.btn-atalho svg,.btn-novo svg{width:18px;height:18px;flex-shrink:0}
+
+/* ── MÉTRICAS ── */
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}
+.metric-body{padding:16px}
+.metric-num{font-size:34px;font-weight:700;letter-spacing:-1px;line-height:1}
+.metric-lbl{font-size:11px;color:var(--t3);margin-top:4px}
+
+/* ── LISTAS ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.row-item{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:11px 16px;border-bottom:1px solid var(--bd1);align-items:center}
+.row-item:last-child{border-bottom:none}
+.row-nome{font-size:13px;font-weight:600;color:var(--t1)}
+.row-meta{font-size:11px;color:var(--t3);margin-top:2px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.row-meta .sep{opacity:.5}
+.row-quando{font-size:11px;color:var(--t3);white-space:nowrap}
+.row-tarefa{display:flex;align-items:center;gap:9px;padding:11px 16px;border-bottom:1px solid var(--bd1)}
+.row-tarefa:last-child{border-bottom:none}
+.row-tarefa .tp-icon{font-size:14px;flex-shrink:0}
+.row-tarefa .tp-titulo{font-size:13px;color:var(--t2);font-weight:500;flex:1}
+.act{padding:5px 11px;border-radius:6px;border:1px solid var(--bd2);background:var(--btn-bg);color:var(--btn-t);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.act:hover{background:var(--tab-active);color:var(--t1)}
+.act-open{border-color:rgba(201,162,39,.4);color:var(--gold)}
+.list-empty{padding:1.75rem 1rem;text-align:center;color:var(--t4);font-size:12px}
+
+@media(max-width:640px){
+  .metrics,.grid2{grid-template-columns:1fr}
+  .atalhos{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="title" id="saudacao">Início</div>
+  <div class="subtitle">Seu resumo do dia e atalhos rápidos</div>
+
+  <!-- 1. ATALHOS -->
+  <div class="atalhos">
+    <button class="btn-novo" onclick="novaCotacao()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nova cotação
+    </button>
+    <button class="btn-atalho" onclick="irHistorico()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+      Histórico
+    </button>
+    <button class="btn-atalho" onclick="irCRM()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      CRM
+    </button>
+  </div>
+
+  <!-- 2. MINI-RESUMO -->
+  <div class="metrics">
+    <div class="card">
+      <div class="card-head">Total de cotações</div>
+      <div class="metric-body"><div class="metric-num" id="m-total">—</div><div class="metric-lbl">desde o início</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head">Esta semana</div>
+      <div class="metric-body"><div class="metric-num" id="m-semana">—</div><div class="metric-lbl">cotações criadas</div></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <!-- 3. COTAÇÕES RECENTES -->
+    <div class="card">
+      <div class="card-head">Cotações recentes</div>
+      <div id="recentes-list"><div class="list-empty">Carregando…</div></div>
+    </div>
+    <!-- 4. AGENDA / PRÓXIMAS TAREFAS -->
+    <div class="card">
+      <div class="card-head">Próximas tarefas</div>
+      <div id="tarefas-list"><div class="list-empty">Carregando…</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let _recentes = [];
+let OP_NOME = {};
+
+const f$ = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function _syncTheme(){
+  let t = 'dark';
+  try { t = (window.parent && window.parent.document.documentElement.getAttribute('data-theme')) || localStorage.getItem('adm_theme') || 'dark'; }
+  catch(e){ t = localStorage.getItem('adm_theme') || 'dark'; }
+  document.documentElement.setAttribute('data-theme', t);
+}
+function _token(){
+  try { return (window.parent && window.parent.token && window.parent.token()) || null; }
+  catch(e){ return null; }
+}
+async function api(path, opts){
+  opts = opts || {};
+  const tok = _token();
+  const headers = Object.assign({}, opts.headers || {}, tok ? {'Authorization':'Bearer '+tok} : {});
+  const r = await fetch(path, Object.assign({}, opts, {headers}));
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (r.status === 204) return null;
+  return r.json();
+}
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function fmtDateTimeBR(s){
+  if (!s) return '';
+  const d = new Date(s.replace(' ','T') + 'Z');   // criado_em é UTC
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+// inicio da tarefa é wall-clock BR ('YYYY-MM-DD HH:MM') — só rearranja, sem mexer no fuso
+function fmtInicioBR(inicio){
+  if (!inicio) return '';
+  const [d, t] = inicio.split(' ');
+  const p = (d || '').split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]} ${t || ''}`.trim() : inicio;
+}
+
+/* ── ATALHOS ── */
+function novaCotacao(){ try { if (window.parent && window.parent.iniciarNovaCotacao) window.parent.iniciarNovaCotacao(); } catch(e){} }
+function irHistorico(){ try { if (window.parent && window.parent.showHistorico) window.parent.showHistorico(); } catch(e){} }
+function irCRM(){ try { window.parent.location.href = 'crm-saude-prime.html'; } catch(e){ window.location.href = 'crm-saude-prime.html'; } }
+
+/* ── DADOS ── */
+async function loadCatalogo(){
+  try {
+    const c = await fetch('/api/catalogo').then(r => r.ok ? r.json() : null);
+    OP_NOME = {};
+    if (c && c.operadoras) Object.entries(c.operadoras).forEach(([k,v]) => { OP_NOME[k] = (v && v.nome) || k; });
+  } catch(e){ /* fallback na chave */ }
+}
+
+async function loadResumo(){
+  try {
+    const d = await api('/api/cotacoes/metrics?period=week');
+    document.getElementById('m-total').textContent = (d && d.total != null) ? d.total : '—';
+    document.getElementById('m-semana').textContent = (d && d.atual != null) ? d.atual : '—';
+  } catch(e){
+    document.getElementById('m-total').textContent = '—';
+    document.getElementById('m-semana').textContent = '—';
+  }
+}
+
+async function loadRecentes(){
+  const box = document.getElementById('recentes-list');
+  let lista;
+  try { lista = await api('/api/cotacoes') || []; }
+  catch(e){ box.innerHTML = '<div class="list-empty">Não foi possível carregar.</div>'; return; }
+  _recentes = lista.slice(0, 5);
+  if (!_recentes.length){ box.innerHTML = '<div class="list-empty">Nenhuma cotação ainda.</div>'; return; }
+  box.innerHTML = _recentes.map(it => {
+    const dd = it.dados || {};
+    const nome = dd.nome || it.cliente || 'Sem nome';
+    const op = dd.winner ? (OP_NOME[dd.winner] || dd.winner) : 'sem operadora';
+    const meta = [op];
+    if (dd.winnerTotal > 0) meta.push(f$(dd.winnerTotal) + '/mês');
+    meta.push(fmtDateTimeBR(it.criado_em));
+    return `<div class="row-item">
+      <div>
+        <div class="row-nome">${esc(nome)}</div>
+        <div class="row-meta">${meta.map((m,i) => (i ? '<span class="sep">·</span>' : '') + esc(String(m))).join(' ')}</div>
+      </div>
+      <button class="act act-open" onclick="abrirCotacao(${it.id})">Abrir</button>
+    </div>`;
+  }).join('');
+}
+
+async function loadTarefas(){
+  const box = document.getElementById('tarefas-list');
+  let lista;
+  try { lista = await api('/api/tarefas?status=pendente') || []; }
+  catch(e){ box.innerHTML = '<div class="list-empty">Não foi possível carregar.</div>'; return; }
+  lista = lista.slice().sort((a,b) => String(a.inicio||'').localeCompare(String(b.inicio||''))).slice(0, 5);
+  if (!lista.length){ box.innerHTML = '<div class="list-empty">Sem tarefas pendentes.</div>'; return; }
+  const ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};
+  box.innerHTML = lista.map(t => `
+    <div class="row-tarefa">
+      <span class="tp-icon">${ICON[t.tipo] || '📌'}</span>
+      <span class="tp-titulo">${esc(t.titulo || '')}${t.cliente_nome ? ` <span style="color:var(--t4)">· ${esc(t.cliente_nome)}</span>` : ''}</span>
+      <span class="row-quando">${esc(fmtInicioBR(t.inicio))}</span>
+    </div>`).join('');
+}
+
+function abrirCotacao(id){
+  const it = _recentes.find(x => String(x.id) === String(id));
+  if (!it) return;
+  try {
+    const cot = window.parent.document.getElementById('cotador');
+    if (cot && cot.contentWindow && cot.contentWindow.restaurarCotacaoFromObj){
+      cot.contentWindow.restaurarCotacaoFromObj(it.dados);
+    }
+    if (window.parent && window.parent.showCotador) window.parent.showCotador();
+  } catch(e){ /* fora do shell: nada */ }
+}
+
+/* ── ENTRADA / REFRESH (chamado pelo shell em showInicio) ── */
+function refreshInicio(){
+  _syncTheme();
+  try {
+    const nome = (window.parent && window.parent.sessionStorage.getItem('sp_nome')) || '';
+    document.getElementById('saudacao').textContent = nome ? `Olá, ${nome.split(' ')[0]} 👋` : 'Início';
+  } catch(e){}
+  loadResumo();
+  loadCatalogo().then(loadRecentes);
+  loadTarefas();
+}
+window.refreshInicio = refreshInicio;
+
+document.addEventListener('DOMContentLoaded', refreshInicio);
+</script>
+</body>
+</html>

@@ -672,6 +672,10 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
   <nav class="drawer-body">
     <div class="drawer-section">
       <div class="drawer-cap">Navegar</div>
+      <button class="drawer-item" data-screen="inicio" onclick="drawerNav('inicio')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+        Início
+      </button>
       <button class="drawer-item" data-screen="cotador" onclick="drawerNav('cotador')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
         Cotação
@@ -705,7 +709,8 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
 </aside>
 
 <div class="frames">
-  <iframe id="cotador"   src="cotador-planos-saude.html" class="visible"></iframe>
+  <iframe id="inicio"    src="inicio.html" class="visible"></iframe>
+  <iframe id="cotador"   src="cotador-planos-saude.html"></iframe>
   <iframe id="apres"     src="apresentacao-executiva.html"></iframe>
   <iframe id="historico" src="historico-cotacoes.html"></iframe>
 </div>
@@ -788,14 +793,14 @@ function routeByRole(role, nome) {
     document.getElementById('admin-overlay').classList.remove('hidden');
     loadColaboradores();
   } else {
-    // corretor — mostra cotador + barra de nav
+    // corretor — Início é a tela inicial + barra de nav
     const _du = document.getElementById('drawer-user-nome');
     if (_du) _du.textContent = nome || '';
-    _activeScreen = 'cotador';
     document.getElementById('main-nav').style.display = 'flex';
     document.body.classList.add('nav-visible');
     document.querySelector('.frames').style.display = '';
     _setThemeIcon(document.documentElement.getAttribute('data-theme') || 'dark');
+    showInicio();   // tela default pós-login (já seta _activeScreen='inicio' + refresh)
   }
 }
 
@@ -1627,10 +1632,28 @@ async function deletarPlano(id, btn) {
 }
 
 /* ── Navegação cotador ── */
+function showInicio() {
+  document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
+  const f = document.getElementById('inicio');
+  f.classList.add('visible');
+  if (f.contentWindow && f.contentWindow.refreshInicio) f.contentWindow.refreshInicio();
+  _activeScreen = 'inicio';
+}
+
 function showCotador() {
   document.querySelectorAll('iframe').forEach(f => f.classList.remove('visible'));
   document.getElementById('cotador').classList.add('visible');
   _activeScreen = 'cotador';
+}
+
+// "Nova cotação" da Início: sempre começa do zero (avisa se houver cotação pela metade).
+function iniciarNovaCotacao() {
+  const cot = document.getElementById('cotador');
+  if (cot && cot.contentWindow && cot.contentWindow.temCotacaoEmAndamento && cot.contentWindow.temCotacaoEmAndamento()) {
+    if (!confirm('Começar uma nova cotação vai descartar a atual. Continuar?')) return;
+  }
+  if (cot && cot.contentWindow && cot.contentWindow.limpar) cot.contentWindow.limpar();
+  showCotador();
 }
 
 function showHistorico() {
@@ -1654,7 +1677,7 @@ function syncApres(data) {
 }
 
 /* ── DRAWER DE NAVEGAÇÃO ── */
-let _activeScreen = 'cotador';
+let _activeScreen = 'inicio';
 let _drawerOpen = false;
 let _drawerPrevFocus = null;
 
@@ -1707,7 +1730,8 @@ function _drawerKey(e) {
 
 function drawerNav(target) {
   closeDrawer();
-  if (target === 'cotador') showCotador();
+  if (target === 'inicio') showInicio();
+  else if (target === 'cotador') showCotador();
   else if (target === 'historico') showHistorico();
   else if (target === 'crm') window.location.href = 'crm-saude-prime.html';
 }
@@ -1717,6 +1741,17 @@ function drawerLimpar() {
   const cot = document.getElementById('cotador');
   if (cot && cot.contentWindow && cot.contentWindow.limpar) cot.contentWindow.limpar();
 }
+
+// Aviso ao sair do shell (CRM, refresh, fechar) quando há cotação pela metade.
+window.addEventListener('beforeunload', e => {
+  const cot = document.getElementById('cotador');
+  try {
+    if (cot && cot.contentWindow && cot.contentWindow.temCotacaoEmAndamento && cot.contentWindow.temCotacaoEmAndamento()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  } catch(_){}
+});
 
 /* ── Enter no login ── */
 document.getElementById('lg-pass').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });

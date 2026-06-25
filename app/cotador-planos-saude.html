@@ -1642,6 +1642,14 @@ function limpar() {
   updateTitle(); render(); goToStep(1);
 }
 
+// Há trabalho a perder? (vidas, algum plano selecionado ou nome preenchido)
+function temCotacaoEmAndamento() {
+  if (qtds.reduce((a,b) => a + b, 0) > 0) return true;
+  if (Object.keys(selPlanos).some(op => (selPlanos[op] || []).length > 0)) return true;
+  if ((document.getElementById('nome')?.value || '').trim() !== '') return true;
+  return false;
+}
+
 
 // ── CONTEXTO CRM ─────────────────────────────────────────────────────
 let _crmClienteId   = Number(sessionStorage.getItem('crm_cliente_id'))   || null;
