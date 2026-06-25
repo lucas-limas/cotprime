@@ -1455,12 +1455,12 @@ function renderNotes(cols) {
 }
 
 // ── APRESENTAÇÃO ────────────────────────────────────────────────────
-function criarApresentacao() {
+// Monta o objeto `data` da apresentação a partir da LIVE state (PLANOS do catálogo ATUAL
+// + qtds + selPlanos). Retorna null se não houver vidas ou nenhum plano com total>0.
+// Sem efeitos colaterais (não salva, não navega).
+function buildApresentacaoData() {
   const totalVidas = qtds.reduce((a, b) => a + b, 0);
-  if (totalVidas === 0) {
-    showToast('Preencha as faixas etárias antes de gerar a apresentação.');
-    return;
-  }
+  if (totalVidas === 0) return null;
   const opsOrder = Object.keys(OP_META);
   const opsInfo = opsOrder
     .filter(op => activeOps[op] && planosFiltered(op).length > 0)
@@ -1471,15 +1471,12 @@ function criarApresentacao() {
       return {op, pid, total, precos: [...p.precos]};
     }).filter(Boolean));
   const withTotal = opsInfo.filter(x => x.total > 0);
-  if (withTotal.length === 0) {
-    showToast('Selecione ao menos uma operadora e um plano antes de gerar a apresentação.');
-    return;
-  }
+  if (withTotal.length === 0) return null;
   // Vencedor é por PLANO (pid único), não por operadora — uma op pode ter vários planos.
   const w = withTotal.slice().sort((a,b) => a.total - b.total)[0];
   const winner = w.op;          // mantido para os campos legados single-op
   const winnerPid = w.pid;      // vencedor real (plano recomendado)
-  const data = {
+  return {
     nome:        document.getElementById('nome').value,
     obs:         document.getElementById('obs').value,
     qtds:        [...qtds],
@@ -1499,9 +1496,29 @@ function criarApresentacao() {
     filtroMod:    modOp[winner] || 'comp',
     filtroVig:    String(vigOp[winner] || 12)
   };
+}
 
+function criarApresentacao() {
+  const data = buildApresentacaoData();
+  if (!data) {
+    showToast('Selecione as vidas e ao menos uma operadora/plano.');
+    return;
+  }
   _crmTipoCotado = data.filtroTipo;
   _abrirModalCRM(clienteId => _prosseguirApresentacao(data, clienteId));
+}
+
+// Regenera a proposta de uma cotação salva: restaura a seleção contra o catálogo ATUAL
+// e recomputa os preços (não usa os snapshots do `dados`). Abre a Apresentação direto,
+// SEM salvar no histórico e SEM abrir o modal do CRM.
+function regenerarApresentacao(dados) {
+  restaurarCotacaoFromObj(dados);
+  const data = buildApresentacaoData();
+  if (!data) {
+    showToast('Não foi possível regenerar: planos indisponíveis no catálogo atual.');
+    return;
+  }
+  if (window.parent && window.parent.syncApres) window.parent.syncApres(data);
 }
 
 function _prosseguirApresentacao(data, clienteId) {
@@ -1964,6 +1981,12 @@ _initCotador().then(() => {
   if (pendingCot) {
     sessionStorage.removeItem('crm_cotacao_restore');
     try { restaurarCotacaoFromObj(JSON.parse(pendingCot)); } catch {}
+  }
+  // Regenerar PDF (preços atuais) vindo do CRM — roda após o catálogo carregar
+  const pendingRegen = sessionStorage.getItem('crm_cotacao_regen');
+  if (pendingRegen) {
+    sessionStorage.removeItem('crm_cotacao_regen');
+    try { regenerarApresentacao(JSON.parse(pendingRegen)); } catch {}
   }
 });
 

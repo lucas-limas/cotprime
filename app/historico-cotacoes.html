@@ -425,6 +425,7 @@ function renderList(){
       </div>
       <div class="hist-actions">
         <button class="act act-open" onclick="abrirCotacao(${it.id})">Abrir</button>
+        <button class="act" onclick="regenerarPDF(${it.id})" title="Regenerar a apresentação com os preços atuais">PDF</button>
         ${crmLink}
         <button class="act act-del" onclick="excluirCotacao(${it.id})" title="Excluir">✕</button>
       </div>
@@ -474,6 +475,17 @@ function abrirCotacao(id){
     const cot = window.parent.document.getElementById('cotador');
     if (cot && cot.contentWindow && cot.contentWindow.restaurarCotacaoFromObj){
       cot.contentWindow.restaurarCotacaoFromObj(it.dados);
+    }
+  } catch(e){ /* fora do shell: nada a fazer */ }
+}
+
+function regenerarPDF(id){
+  const it = _lista.find(x => String(x.id) === String(id));
+  if (!it) return;
+  try {
+    const cot = window.parent.document.getElementById('cotador');
+    if (cot && cot.contentWindow && cot.contentWindow.regenerarApresentacao){
+      cot.contentWindow.regenerarApresentacao(it.dados);   // restaura + recomputa + abre Apresentação
     }
   } catch(e){ /* fora do shell: nada a fazer */ }
 }

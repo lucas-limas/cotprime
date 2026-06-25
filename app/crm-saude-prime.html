@@ -1554,7 +1554,10 @@ function renderCotacoes(cotacoes){
         <span style="color:var(--t4)">•</span>
         <span>${esc(ops)}</span>
       </span>
-      ${_modalEditable ? `<button onclick="event.stopPropagation();excluirCotacao(${c.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px" title="Excluir cotação">✕</button>` : ''}
+      <span style="display:flex;align-items:center;gap:6px">
+        <button onclick="event.stopPropagation();regenerarPDFDoCRM(${c.id})" style="background:none;border:1px solid var(--bd2);color:var(--t2);cursor:pointer;font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px" title="Regenerar a apresentação com os preços atuais">Reenviar PDF</button>
+        ${_modalEditable ? `<button onclick="event.stopPropagation();excluirCotacao(${c.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px" title="Excluir cotação">✕</button>` : ''}
+      </span>
     </div>`;
   }).join('');
 }
@@ -1567,6 +1570,19 @@ async function abrirCotacaoDoCRM(cotacaoId){
   catch { showToast('Não foi possível abrir a cotação'); return; }
   if (!dados) { showToast('Não foi possível abrir a cotação'); return; }
   sessionStorage.setItem('crm_cotacao_restore', JSON.stringify(dados));
+  window.location.href = 'sistema-saude-prime.html';
+}
+
+// Reenviar PDF = regenerar com preços ATUAIS e abrir a Apresentação (não reabre o cotador
+// nem o modal do CRM). Espelha abrirCotacaoDoCRM, mas grava o flag de regeneração.
+function regenerarPDFDoCRM(cotacaoId){
+  const c = _crmCotacoes.find(x => x.id === cotacaoId);
+  if (!c) return;
+  let dados;
+  try { dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados; }
+  catch { showToast('Não foi possível regenerar a cotação'); return; }
+  if (!dados) { showToast('Não foi possível regenerar a cotação'); return; }
+  sessionStorage.setItem('crm_cotacao_regen', JSON.stringify(dados));
   window.location.href = 'sistema-saude-prime.html';
 }
 
