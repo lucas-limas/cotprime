@@ -176,6 +176,15 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
 }
 .k-advance:hover{color:var(--t1);border-color:var(--bd3)}
 
+/* ── Fase B: drag-and-drop + valor ── */
+.k-card[draggable="true"]{cursor:grab}
+.k-card.dragging{opacity:.45}
+.kanban-col.drag-over{outline:2px dashed var(--col-accent);outline-offset:-3px;background:rgba(255,255,255,.03)}
+html[data-theme="light"] .kanban-col.drag-over{background:rgba(0,0,0,.03)}
+.k-valor{font-size:11px;font-weight:700;color:#22c55e;margin-bottom:6px}
+.col-hdr-right{display:flex;align-items:center;gap:6px}
+.col-soma{font-size:10px;font-weight:700;color:#22c55e;white-space:nowrap}
+
 /* ── MODAL ── */
 .modal-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.55);
@@ -689,6 +698,11 @@ let allClientes = [];
 let currentCliente = null;
 let currentUser = null;
 let _toastTimer;
+let _valorCliente = {};   // { [cliente_id]: mensalidade } — da cotação mais recente vinculada
+let _dragData = null;     // { clienteId, opId, from } durante o arrasto
+
+// Mensalidade compacta: "R$ 1.263/mês"
+function _fmtMes(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0}) + '/mês'; }
 
 /* ── TEMA ── */
 (function(){
@@ -788,7 +802,10 @@ async function loadKanban(view){
   board.innerHTML = '<div class="k-loading">Carregando...</div>';
   try {
     const url = view === 'empresa' ? `${API}/api/clientes?view=empresa` : `${API}/api/clientes`;
-    const res = await fetch(url, {headers:{Authorization:`Bearer ${token()}`}});
+    const [res] = await Promise.all([
+      fetch(url, {headers:{Authorization:`Bearer ${token()}`}}),
+      loadValores(),
+    ]);
     if (!res.ok) throw new Error('Erro ao carregar');
     allClientes = await res.json();
     renderKanban(allClientes, view);
@@ -797,6 +814,20 @@ async function loadKanban(view){
     board.innerHTML = `<div class="k-loading">Erro ao carregar clientes.</div>`;
     showToast('Erro ao carregar clientes');
   }
+}
+
+// Mensalidade por cliente a partir das cotações (1ª ocorrência = mais recente, vêm DESC).
+async function loadValores(){
+  try {
+    const res = await fetch(`${API}/api/cotacoes`, {headers: authH()});
+    const cots = res.ok ? await res.json() : [];
+    _valorCliente = {};
+    cots.forEach(it => {
+      const d = it && it.dados || {};
+      const cid = d.cliente_id;
+      if (cid && d.winnerTotal > 0 && !(cid in _valorCliente)) _valorCliente[cid] = d.winnerTotal;
+    });
+  } catch(e){ _valorCliente = {}; }   // sem valores → cards/colunas sem soma (não quebra)
 }
 
 function updateDashboard(clientes){
@@ -825,20 +856,46 @@ function renderKanban(clientes, view){
     const cards = clientes.filter(c => (c.estagio_atual || 'lead') === stage);
     const col = document.createElement('div');
     col.className = 'kanban-col';
+    col.dataset.stage = stage;
     col.style.setProperty('--col-accent', STAGE_COLOR[stage]);
+    // Soma de mensalidade só na visão "Meus" (na "empresa" os valores são por-usuário → parciais)
+    const soma = cards.reduce((a, c) => a + (_valorCliente[c.id] || 0), 0);
+    const somaHtml = (view !== 'empresa' && soma > 0)
+      ? `<span class="col-soma">${_fmtMes(soma)}</span>` : '';
     col.innerHTML = `
       <div class="kanban-col-hdr">
         <span class="col-name">${STAGE_LABEL[stage]}</span>
-        <span class="col-badge">${cards.length}</span>
+        <span class="col-hdr-right">${somaHtml}<span class="col-badge">${cards.length}</span></span>
       </div>
       <div class="kanban-cards" id="col-${stage}"></div>`;
     board.appendChild(col);
+    // Alvo de drop
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+    col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
+    col.addEventListener('drop', e => onDropCard(e, col));
     const cardsEl = col.querySelector(`#col-${stage}`);
     if (!cards.length){
       cardsEl.innerHTML = '<div style="color:var(--t5);font-size:11px;text-align:center;padding:12px">Sem clientes</div>';
     }
     cards.forEach(c => cardsEl.appendChild(buildCard(c, view)));
   });
+}
+
+async function onDropCard(e, col){
+  e.preventDefault();
+  col.classList.remove('drag-over');
+  if (!_dragData) return;
+  const { clienteId, opId, from } = _dragData;
+  _dragData = null;
+  const destino = col.dataset.stage;
+  if (!destino || destino === from) return;
+  try {
+    const motivo = destino === 'perdido' ? (prompt('Motivo da perda (opcional):') || null) : null;
+    await patchStage(clienteId, opId, destino, motivo);
+    await loadKanban(currentView);   // recalcula posições, contadores e somas
+  } catch(err){
+    showToast('Erro ao mover card');
+  }
 }
 
 function buildCard(c, view){
@@ -853,13 +910,31 @@ function buildCard(c, view){
   el.className = 'k-card';
   el.onclick = () => openModal(c.id);
 
+  // Drag-and-drop só para cards editáveis (UX; o backend valida dono na escrita)
+  if (editable){
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+      _dragData = { clienteId: c.id, opId: c.oportunidade_id || null, from: stage };
+      el.classList.add('dragging');
+      if (e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(c.id)); } catch(_){} }
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dragging');
+      document.querySelectorAll('.kanban-col.drag-over').forEach(k => k.classList.remove('drag-over'));
+    });
+  }
+
   let specialistRow = view === 'empresa' && c.corretor_nome
     ? `<div class="k-empresa" style="color:var(--t4)">Esp.: ${c.corretor_nome}</div>` : '';
+
+  const valor = _valorCliente[c.id] || 0;
+  const valorRow = valor > 0 ? `<div class="k-valor">${_fmtMes(valor)}</div>` : '';
 
   el.innerHTML = `
     <div class="k-nome">${esc(c.nome)}</div>
     <div class="k-empresa">${esc(c.empresa||'—')}</div>
     ${specialistRow}
+    ${valorRow}
     <div class="k-meta">
       ${c.n_vidas_estimado ? `<span class="k-vidas">👥 ${c.n_vidas_estimado}</span>` : ''}
       ${c.segmento ? `<span class="k-seg">${esc(c.segmento)}</span>` : ''}
