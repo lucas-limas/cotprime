@@ -410,7 +410,9 @@ function renderList(){
       opNome ? opNome : 'sem operadora',
     ];
     if (d.winnerTotal > 0) meta.push(f$(d.winnerTotal) + '/mês');
-    const crmLink = cid
+    // "Ver no CRM" só quando o cliente AINDA EXISTE (est != null). Cliente excluído do
+    // CRM mantém dados.cliente_id na cotação, mas não deve oferecer link p/ lead morto.
+    const crmLink = est
       ? `<a class="act act-crm" href="crm-saude-prime.html" target="_top" onclick="event.stopPropagation();sessionStorage.setItem('crm_cliente_id','${cid}')">Ver no CRM</a>`
       : '';
     return `<div class="hist-item">
