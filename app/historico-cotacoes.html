@@ -12,7 +12,8 @@
 /* Tokens semânticos — idênticos ao shell/CRM (dark default) */
 :root{
   --navy:#1f1e1e;--navy2:#2a2929;--navy3:#141414;
-  --gold:#c9a227;
+  /* acento monocromático: escuro->botão claro / claro->botão escuro (igual ao cotador) */
+  --accent:#f0f0f0;--accent-ink:#1a1a1a;
   --bg:var(--navy);--surface2:var(--navy2);
   --card:rgba(255,255,255,.04);--inp:rgba(255,255,255,.06);
   --bd1:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.1);--bd3:rgba(255,255,255,.15);
@@ -21,18 +22,18 @@
   --t4:rgba(255,255,255,.4);
   --tab-active:rgba(255,255,255,.1);--btn-bg:rgba(255,255,255,.1);--btn-t:rgba(255,255,255,.7);
   --green:#22c55e;--red:#f87171;
-  /* gráfico: barra navy da marca em claro / clara em escuro; barra atual em gold */
-  --bar:rgba(255,255,255,.5);--bar-cur:var(--gold);
+  /* gráfico: barras cinza neutras; barra atual no acento monocromático */
+  --bar:rgba(255,255,255,.5);--bar-cur:var(--accent);
 }
 html[data-theme="light"]{
-  --bg:#eef1f5;--surface2:#ffffff;
+  --bg:#eef1f5;--surface2:#ffffff;--accent:#1f1e1e;--accent-ink:#fff;
   --card:rgba(0,0,0,.03);--inp:rgba(0,0,0,.05);
   --bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.1);--bd3:rgba(0,0,0,.16);
   --inp-bd:rgba(0,0,0,.14);
   --t1:#111827;--t2:rgba(0,0,0,.75);--t3:rgba(0,0,0,.55);
   --t4:rgba(0,0,0,.45);
   --tab-active:rgba(0,0,0,.07);--btn-bg:rgba(0,0,0,.07);--btn-t:rgba(0,0,0,.65);
-  --bar:#0f2340;--bar-cur:var(--gold);
+  --bar:rgba(0,0,0,.28);--bar-cur:var(--accent);
 }
 
 html,body{height:100%}
@@ -57,7 +58,7 @@ body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--
 /* toggle Semana/Mês */
 .toggle{display:flex;gap:0;border:1px solid var(--bd2);border-radius:8px;overflow:hidden}
 .toggle button{padding:5px 13px;border:none;background:transparent;color:var(--t3);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
-.toggle button.on{background:var(--gold);color:#1a1a1a}
+.toggle button.on{background:var(--accent);color:var(--accent-ink)}
 
 /* ── GRÁFICO ── */
 .chart-card{margin-bottom:1rem}
@@ -76,7 +77,7 @@ body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--
 .field label{font-size:10px;color:var(--t3);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 .field input{font-family:inherit;font-size:13px;background:var(--inp);border:1.5px solid var(--inp-bd);border-radius:7px;padding:7px 10px;color:var(--t1);outline:none;color-scheme:dark}
 html[data-theme="light"] .field input{color-scheme:light}
-.btn{padding:8px 16px;border-radius:7px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:none;background:var(--gold);color:#1a1a1a;transition:opacity .15s;white-space:nowrap}
+.btn{padding:8px 16px;border-radius:7px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:var(--accent-ink);transition:opacity .15s;white-space:nowrap}
 .btn:hover{opacity:.88}
 .range-result{font-size:13px;color:var(--t2);margin-left:auto;font-weight:500}
 
@@ -90,8 +91,8 @@ html[data-theme="light"] .field input{color-scheme:light}
 .hist-actions{display:flex;gap:6px;align-items:center}
 .act{padding:5px 11px;border-radius:6px;border:1px solid var(--bd2);background:var(--btn-bg);color:var(--btn-t);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap}
 .act:hover{background:var(--tab-active);color:var(--t1)}
-.act-open{border-color:rgba(201,162,39,.4);color:var(--gold)}
-.act-open:hover{background:rgba(201,162,39,.12);color:var(--gold)}
+.act-open{border-color:var(--bd3);color:var(--t1)}
+.act-open:hover{background:var(--tab-active);color:var(--t1)}
 .act-del:hover{background:rgba(248,113,113,.14);color:#f87171;border-color:rgba(248,113,113,.4)}
 .act-crm{border-color:rgba(70,27,255,.35);color:#8b7bff}
 .act-crm:hover{background:rgba(70,27,255,.12)}
@@ -108,7 +109,7 @@ html[data-theme="light"] .field input{color-scheme:light}
 .chip{padding:4px 11px;font-size:11px;font-weight:600;border:1px solid var(--bd2);border-radius:20px;background:transparent;color:var(--t3);cursor:pointer;transition:all .12s}
 .chip:hover{color:var(--t2);border-color:var(--bd3)}
 .chip.active{color:#fff;border-color:transparent}
-.chip[data-s="todos"].active{background:#0f2340}
+.chip[data-s="todos"].active{background:var(--accent);color:var(--accent-ink)}
 .chip[data-s="lead"].active{background:#6b7280}
 .chip[data-s="contato"].active{background:#3b82f6}
 .chip[data-s="proposta"].active{background:#f59e0b;color:#1a1a1a}

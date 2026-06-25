@@ -12,7 +12,8 @@
 /* Tokens semânticos — idênticos ao shell/CRM (dark default) */
 :root{
   --navy:#1f1e1e;--navy2:#2a2929;--navy3:#141414;
-  --gold:#c9a227;
+  /* acento monocromático: escuro->botão claro / claro->botão escuro (igual ao cotador) */
+  --accent:#f0f0f0;--accent-ink:#1a1a1a;
   --bg:var(--navy);--surface2:var(--navy2);
   --card:rgba(255,255,255,.04);--inp:rgba(255,255,255,.06);
   --bd1:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.1);--bd3:rgba(255,255,255,.15);
@@ -23,7 +24,7 @@
   --green:#22c55e;--red:#f87171;
 }
 html[data-theme="light"]{
-  --bg:#eef1f5;--surface2:#ffffff;
+  --bg:#eef1f5;--surface2:#ffffff;--accent:#1f1e1e;--accent-ink:#fff;
   --card:rgba(0,0,0,.03);--inp:rgba(0,0,0,.05);
   --bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.1);--bd3:rgba(0,0,0,.16);
   --inp-bd:rgba(0,0,0,.14);
@@ -46,7 +47,7 @@ body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--
 .atalhos{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.25rem}
 .btn-novo{
   flex:1;min-width:200px;display:flex;align-items:center;justify-content:center;gap:8px;
-  background:var(--gold);color:#1a1a1a;border:none;border-radius:12px;
+  background:var(--accent);color:var(--accent-ink);border:none;border-radius:12px;
   padding:16px 18px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s;
 }
 .btn-novo:hover{opacity:.9}
@@ -78,7 +79,7 @@ body{font-family:"Outfit",system-ui,sans-serif;background:var(--bg);color:var(--
 .row-tarefa .tp-titulo{font-size:13px;color:var(--t2);font-weight:500;flex:1}
 .act{padding:5px 11px;border-radius:6px;border:1px solid var(--bd2);background:var(--btn-bg);color:var(--btn-t);font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
 .act:hover{background:var(--tab-active);color:var(--t1)}
-.act-open{border-color:rgba(201,162,39,.4);color:var(--gold)}
+.act-open{border-color:var(--bd3);color:var(--t1)}
 .list-empty{padding:1.75rem 1rem;text-align:center;color:var(--t4);font-size:12px}
 
 @media(max-width:640px){
