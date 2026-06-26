@@ -269,6 +269,7 @@ html[data-theme="light"] .painel-logo{filter:brightness(0) opacity(.75)}
   cursor:pointer;transition:opacity .15s;
 }
 .btn-toggle{background:var(--btn-bg);color:var(--btn-t)}
+.btn-toggle.on{background:#22c55e;color:#0a2a14}
 .btn-edit{background:rgba(125,211,252,.12);color:#7dd3fc;margin-left:4px}
 .btn-del{background:rgba(255,107,107,.15);color:#ff6b6b;margin-left:4px}
 .btn-toggle:hover,.btn-edit:hover,.btn-del:hover{opacity:.75}
@@ -814,6 +815,9 @@ function onAuthSuccess(data) {
   sessionStorage.setItem('sp_token', data.access_token);
   sessionStorage.setItem('sp_role', data.role || 'corretor');
   sessionStorage.setItem('sp_nome', data.nome || '');
+  // Gestor = admin/superadmin (implícito) OU corretor com pode_ver_equipe=1
+  const gestor = (data.pode_ver_equipe == 1 || data.role === 'admin' || data.role === 'superadmin');
+  sessionStorage.setItem('sp_gestor', gestor ? '1' : '');
   document.getElementById('auth-overlay').classList.add('hidden');
   routeByRole(data.role, data.nome);
 }
@@ -1041,17 +1045,26 @@ async function loadColaboradores() {
   }
   if (!data.usuarios.length) { el.innerHTML = '<div class="admin-loading">Nenhum colaborador cadastrado ainda.</div>'; return; }
   el.innerHTML = `<table class="admin-table">
-    <thead><tr><th>Nome</th><th>Usuário</th><th>Status</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Usuário</th><th>Status</th><th>Gestor</th><th>Ações</th></tr></thead>
     <tbody>${data.usuarios.map(u => `<tr>
       <td>${u.nome||'—'}</td>
       <td style="color:rgba(255,255,255,.5)">${u.username}</td>
       <td><span class="badge-status ${u.ativo?'ativo':'inativo'}">${u.ativo?'Ativo':'Inativo'}</span></td>
+      <td><button class="btn-toggle ${u.pode_ver_equipe?'on':''}" onclick="toggleGestor(${u.id},${u.pode_ver_equipe?1:0},this)" title="Vê o dashboard agregado da equipe">${u.pode_ver_equipe?'✓ Gestor':'Tornar gestor'}</button></td>
       <td style="white-space:nowrap">
         <button class="btn-toggle" onclick="toggleColaborador(${u.id},this)">${u.ativo?'Suspender':'Ativar'}</button>
         <button class="btn-del" onclick="deletarColaborador(${u.id},this)">Remover</button>
       </td>
     </tr>`).join('')}</tbody>
   </table>`;
+}
+
+async function toggleGestor(id, atual, btn) {
+  btn.disabled = true;
+  const res = await fetch(`${API}/api/admin/users/${id}/gestor`, {
+    method:'PATCH', headers: authH(), body: JSON.stringify({pode_ver_equipe: atual ? 0 : 1})
+  });
+  if (res.ok) await loadColaboradores(); else btn.disabled = false;
 }
 
 async function criarColaborador() {

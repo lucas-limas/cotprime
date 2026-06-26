@@ -417,6 +417,8 @@ def _migrations_pg(conn):
         # Fase 1 — agenda/tarefas do CRM
         "CREATE INDEX IF NOT EXISTS idx_tarefas_cliente_id ON tarefas(cliente_id)",
         "CREATE INDEX IF NOT EXISTS idx_tarefas_usuario_status_inicio ON tarefas(usuario, status, inicio)",
+        # Fase Dashboard 2 — flag de gestor (vê o dashboard agregado da corretora)
+        "ALTER TABLE users ADD COLUMN pode_ver_equipe INTEGER DEFAULT 0",
     ]
     for sql in safe:
         try:
@@ -784,6 +786,8 @@ def _migrations_sqlite(c):
         # Fase 1 — agenda/tarefas do CRM
         "CREATE INDEX IF NOT EXISTS idx_tarefas_cliente_id ON tarefas(cliente_id)",
         "CREATE INDEX IF NOT EXISTS idx_tarefas_usuario_status_inicio ON tarefas(usuario, status, inicio)",
+        # Fase Dashboard 2 — flag de gestor (vê o dashboard agregado da corretora)
+        "ALTER TABLE users ADD COLUMN pode_ver_equipe INTEGER DEFAULT 0",
     ]
     for sql in safe:
         try:
