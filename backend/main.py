@@ -1006,17 +1006,67 @@ def atualizar_corretora(corretora_id: int, body: UpdateCorretoraRequest, admin=D
     return {"ok": True}
 
 
+def _purgar_usuario(conn, uid, uname):
+    """Hard-delete em cascata de um usuário e tudo que depende dele (filhos primeiro).
+    Tudo parametrizado. NÃO faz commit/rollback — quem chama controla a transação."""
+    # 1. desliga cotações dos clientes que serão apagados (cotacoes.cliente_id sem cascade no PG)
+    conn.execute(
+        "UPDATE cotacoes SET cliente_id = NULL WHERE cliente_id IN (SELECT id FROM clientes WHERE corretor_id = ?)",
+        (uid,),
+    )
+    # 2. filhos dos clientes do corretor — explícito (no PG haveria cascade; no SQLite a FK é
+    #    off, então apagamos à mão p/ não deixar órfãos: comportamento idêntico nos dois bancos)
+    for tabela in ("oportunidades", "tarefas", "interacoes"):
+        conn.execute(
+            f"DELETE FROM {tabela} WHERE cliente_id IN (SELECT id FROM clientes WHERE corretor_id = ?)",
+            (uid,),
+        )
+    # 3. clientes do corretor
+    conn.execute("DELETE FROM clientes WHERE corretor_id = ?", (uid,))
+    # 3. tarefas/interações próprias do usuário (FK por username)
+    conn.execute("DELETE FROM tarefas WHERE usuario = ?", (uname,))
+    conn.execute("DELETE FROM interacoes WHERE usuario = ?", (uname,))
+    # 4. integração Google
+    conn.execute("DELETE FROM integracao_google WHERE usuario = ?", (uname,))
+    # 5. cotações próprias do usuário
+    conn.execute("DELETE FROM cotacoes WHERE usuario = ?", (uname,))
+    # 6. PRESERVA a auditoria — remove só o vínculo FK (coluna usuario texto permanece)
+    conn.execute("UPDATE audit_log SET usuario_id = NULL WHERE usuario_id = ?", (uid,))
+    # 7. o usuário
+    conn.execute("DELETE FROM users WHERE id = ?", (uid,))
+
+
 @app.delete("/api/superadmin/corretoras/{corretora_id}")
 def deletar_corretora(corretora_id: int, admin=Depends(require_superadmin)):
     conn = get_connection()
     if not conn.execute("SELECT id FROM corretoras WHERE id = ?", (corretora_id,)).fetchone():
         conn.close()
         raise HTTPException(404, "Corretora não encontrada")
-    conn.execute("DELETE FROM users WHERE corretora_id = ?", (corretora_id,))
-    conn.execute("DELETE FROM corretoras WHERE id = ?", (corretora_id,))
-    conn.commit()
+    try:
+        usuarios = conn.execute(
+            "SELECT id, username FROM users WHERE corretora_id = ?", (corretora_id,)
+        ).fetchall()
+        for u in usuarios:
+            _purgar_usuario(conn, u["id"], u["username"])
+        # Clientes/cotações órfãos da corretora (sem dono ou compartilhados)
+        conn.execute("DELETE FROM cotacoes WHERE corretora_id = ?", (corretora_id,))
+        for tabela in ("oportunidades", "tarefas", "interacoes"):
+            conn.execute(
+                f"DELETE FROM {tabela} WHERE cliente_id IN (SELECT id FROM clientes WHERE corretora_id = ?)",
+                (corretora_id,),
+            )
+        conn.execute("DELETE FROM clientes WHERE corretora_id = ?", (corretora_id,))
+        conn.execute("DELETE FROM corretoras WHERE id = ?", (corretora_id,))
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        raise HTTPException(500, "Não foi possível excluir; nada foi removido.")
     conn.close()
-    log_action(admin["sub"], "deletar_corretora", f"Corretora {corretora_id} removida")
+    log_action(admin["sub"], "deletar_corretora", f"Corretora {corretora_id} e usuários/dados removidos (hard-delete)")
     return {"ok": True}
 
 
@@ -1085,10 +1135,18 @@ def deletar_usuario_superadmin(user_id: int, admin=Depends(require_superadmin)):
     if row["role"] == "superadmin":
         conn.close()
         raise HTTPException(400, "Não é possível remover o super administrador")
-    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    conn.commit()
+    try:
+        _purgar_usuario(conn, user_id, row["username"])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        raise HTTPException(500, "Não foi possível excluir; nada foi removido.")
     conn.close()
-    log_action(admin["sub"], "deletar_usuario", f"Usuário {row['username']} removido")
+    log_action(admin["sub"], "deletar_usuario", f"Usuário {row['username']} e dados removidos (hard-delete)")
     return {"ok": True}
 
 
@@ -1216,10 +1274,18 @@ def deletar_usuario_corretora(user_id: int, admin=Depends(require_admin)):
     if corretora_id and row["corretora_id"] != corretora_id:
         conn.close()
         raise HTTPException(403, "Sem permissão para remover este usuário")
-    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    conn.commit()
+    try:
+        _purgar_usuario(conn, user_id, row["username"])
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        raise HTTPException(500, "Não foi possível excluir; nada foi removido.")
     conn.close()
-    log_action(admin["sub"], "deletar_corretor", f"Corretor {row['username']} removido")
+    log_action(admin["sub"], "deletar_corretor", f"Corretor {row['username']} e dados removidos (hard-delete)")
     return {"ok": True}
 
 

@@ -947,10 +947,15 @@ async function toggleCorretora(id, btn) {
 
 async function deletarCorretora(id, btn) {
   const c = _corretoras.find(x => x.id === id);
-  if (!confirm(`Excluir a corretora "${c.nome}" e todos os seus usuários? Esta ação não pode ser desfeita.`)) return;
+  if (!confirm(`Excluir a corretora "${c.nome}", TODOS os seus usuários e TODOS os dados (clientes, cotações, tarefas)? Irreversível.`)) return;
   btn.disabled = true;
-  const res = await fetch(`${API}/api/superadmin/corretoras/${id}`, {method:'DELETE', headers: authH()});
-  if (res.ok) await loadCorretoras(); else btn.disabled = false;
+  try {
+    const res = await fetch(`${API}/api/superadmin/corretoras/${id}`, {method:'DELETE', headers: authH()});
+    if (res.ok) { await loadCorretoras(); return; }
+    const d = await res.json().catch(() => ({}));
+    alert('Não foi possível excluir: ' + (d.detail || ('erro ' + res.status)));
+  } catch(e){ alert('Não foi possível excluir: erro de rede.'); }
+  btn.disabled = false;
 }
 
 async function loadUsuariosSA() {
@@ -1002,10 +1007,15 @@ async function toggleUsuarioSA(id, btn) {
 }
 
 async function deletarUsuarioSA(id, btn) {
-  if (!confirm('Remover este usuário? Esta ação não pode ser desfeita.')) return;
+  if (!confirm('Excluir este usuário e TODOS os seus dados (clientes, cotações, tarefas)? Irreversível.')) return;
   btn.disabled = true;
-  const res = await fetch(`${API}/api/superadmin/users/${id}`, {method:'DELETE', headers: authH()});
-  if (res.ok) await loadUsuariosSA(); else btn.disabled = false;
+  try {
+    const res = await fetch(`${API}/api/superadmin/users/${id}`, {method:'DELETE', headers: authH()});
+    if (res.ok) { await loadUsuariosSA(); return; }
+    const d = await res.json().catch(() => ({}));
+    alert('Não foi possível excluir: ' + (d.detail || ('erro ' + res.status)));
+  } catch(e){ alert('Não foi possível excluir: erro de rede.'); }
+  btn.disabled = false;
 }
 
 async function loadAudit() {
@@ -1092,10 +1102,15 @@ async function toggleColaborador(id, btn) {
 }
 
 async function deletarColaborador(id, btn) {
-  if (!confirm('Remover este colaborador? Esta ação não pode ser desfeita.')) return;
+  if (!confirm('Excluir este colaborador e TODOS os seus dados (clientes, cotações, tarefas)? Irreversível.')) return;
   btn.disabled = true;
-  const res = await fetch(`${API}/api/admin/users/${id}`, {method:'DELETE', headers: authH()});
-  if (res.ok) await loadColaboradores(); else btn.disabled = false;
+  try {
+    const res = await fetch(`${API}/api/admin/users/${id}`, {method:'DELETE', headers: authH()});
+    if (res.ok) { await loadColaboradores(); return; }
+    const d = await res.json().catch(() => ({}));
+    alert('Não foi possível excluir: ' + (d.detail || ('erro ' + res.status)));
+  } catch(e){ alert('Não foi possível excluir: erro de rede.'); }
+  btn.disabled = false;
 }
 
 /* ════════════════════════════════════════
