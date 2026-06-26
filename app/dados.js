@@ -432,8 +432,9 @@ window.REDE_DATA = {
 // Operadoras sem planos no banco continuam usando o hardcoded como fallback.
 (async function sincronizarCatalogo() {
   try {
-    const r = await fetch('/api/catalogo');
-    if (!r.ok) return;
+    const _tok = (window.parent && window.parent.token && window.parent.token()) || null;
+    const r = await fetch('/api/catalogo', {headers: _tok ? {'Authorization': 'Bearer ' + _tok} : {}});
+    if (!r.ok) return;   // sem sessão → mantém o catálogo hardcoded; o cotador derruba p/ login
     const { planos, operadoras, rede } = await r.json();
     if (!planos.length && !Object.keys(operadoras).length) return;
     // Agrupa planos do banco por operadora

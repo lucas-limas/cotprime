@@ -921,13 +921,10 @@ def login(req: LoginRequest, request: Request):
 
 
 @app.get("/api/me")
-def me(user=Depends(get_current_user)):
-    conn = get_connection()
-    row = conn.execute("SELECT id FROM users WHERE username = ?", (user["sub"],)).fetchone()
-    user_id = row["id"] if row else None
-    conn.close()
+def me(user=Depends(require_corretor)):
+    # require_corretor já exige usuário ATIVO + corretora ativa (403 se inativo) e seta user["id"]
     return {
-        "id": user_id,
+        "id": user.get("id"),
         "username": user["sub"],
         "nome": user.get("nome"),
         "role": user.get("role"),
@@ -1000,6 +997,9 @@ def atualizar_corretora(corretora_id: int, body: UpdateCorretoraRequest, admin=D
     if updates:
         params.append(corretora_id)
         conn.execute(f"UPDATE corretoras SET {', '.join(updates)} WHERE id = ?", params)
+        # Desativar a corretora derruba a sessão de TODOS os seus usuários
+        if body.ativo == 0:
+            conn.execute("UPDATE users SET session_token = NULL WHERE corretora_id = ?", (corretora_id,))
         conn.commit()
     conn.close()
     log_action(admin["sub"], "atualizar_corretora", f"Corretora {corretora_id} atualizada")
@@ -1119,7 +1119,11 @@ def toggle_usuario_superadmin(user_id: int, admin=Depends(require_superadmin)):
         conn.close()
         raise HTTPException(400, "Não é possível alterar o super administrador")
     new_status = 0 if row["ativo"] else 1
-    conn.execute("UPDATE users SET ativo = ? WHERE id = ?", (new_status, user_id))
+    if new_status == 0:
+        # desativar derruba a sessão ativa (limpa o session_token)
+        conn.execute("UPDATE users SET ativo = ?, session_token = NULL WHERE id = ?", (new_status, user_id))
+    else:
+        conn.execute("UPDATE users SET ativo = ? WHERE id = ?", (new_status, user_id))
     conn.commit()
     conn.close()
     return {"ativo": new_status}
@@ -1229,7 +1233,11 @@ def toggle_usuario_corretora(user_id: int, admin=Depends(require_admin)):
         conn.close()
         raise HTTPException(403, "Sem permissão para gerenciar este usuário")
     new_status = 0 if row["ativo"] else 1
-    conn.execute("UPDATE users SET ativo = ? WHERE id = ?", (new_status, user_id))
+    if new_status == 0:
+        # desativar derruba a sessão ativa (limpa o session_token)
+        conn.execute("UPDATE users SET ativo = ?, session_token = NULL WHERE id = ?", (new_status, user_id))
+    else:
+        conn.execute("UPDATE users SET ativo = ? WHERE id = ?", (new_status, user_id))
     conn.commit()
     conn.close()
     return {"ativo": new_status}
@@ -1727,12 +1735,12 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
     }
 
 
-# ── Catálogo público (usado pelo cotador) ─────────────────────────────────────
+# ── Catálogo (usado pelo cotador) — exige sessão ATIVA ────────────────────────
 
 FAIXAS = ['0 a 18','19 a 23','24 a 28','29 a 33','34 a 38','39 a 43','44 a 48','49 a 53','54 a 58','59 ou mais']
 
 @app.get("/api/catalogo")
-def catalogo_publico():
+def catalogo_publico(user=Depends(require_corretor)):
     conn = get_connection()
     ops_rows = conn.execute(
         "SELECT id, chave, nome, info, cor, rede_adm, rede_rodape FROM operadoras WHERE ativo = 1 ORDER BY ordem, id"

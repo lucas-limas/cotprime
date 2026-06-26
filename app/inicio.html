@@ -190,7 +190,8 @@ function irCRM(){ try { window.parent.location.href = 'crm-saude-prime.html'; } 
 /* ── DADOS ── */
 async function loadCatalogo(){
   try {
-    const c = await fetch('/api/catalogo').then(r => r.ok ? r.json() : null);
+    const tok = _token();
+    const c = await fetch('/api/catalogo', {headers: tok ? {'Authorization': 'Bearer ' + tok} : {}}).then(r => r.ok ? r.json() : null);
     OP_NOME = {};
     if (c && c.operadoras) Object.entries(c.operadoras).forEach(([k,v]) => { OP_NOME[k] = (v && v.nome) || k; });
   } catch(e){ /* fallback na chave */ }

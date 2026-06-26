@@ -1909,7 +1909,16 @@ document.body.appendChild(_loadingDiv);
 
 async function _initCotador() {
   try {
-    const res = await fetch('/api/catalogo');
+    const _tok = (window.parent && window.parent.token && window.parent.token()) || null;
+    const res = await fetch('/api/catalogo', {headers: _tok ? {'Authorization': 'Bearer ' + _tok} : {}});
+    if (res.status === 401 || res.status === 403) {
+      // Sem preços sem sessão válida. Se HAVIA token (sessão caiu/inativou) → derruba p/ login;
+      // se não havia (iframe carregou antes do login), só para por aqui (frames ficam ocultos).
+      _loadingDiv.remove();
+      if (_tok && window.parent && window.parent.forcarLogout) window.parent.forcarLogout();
+      else _mostrarErroCatalogo();
+      return;
+    }
     if (res.ok) {
       const data = await res.json();
       // Inicializa com fallback do dados.js, depois substitui por operadora se o banco tiver dados

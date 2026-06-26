@@ -605,7 +605,8 @@ Object.entries(window.OP_META || {}).forEach(([k,v]) => {
   OP_META[k] = {nome:(v&&v.nome)||k, cor:_corHex(v&&v.cor)||'#555555'};
 });
 // Catálogo (banco) é a fonte única de cor: atualiza nome E cor de TODAS as ops.
-fetch('/api/catalogo').then(r=>r.ok?r.json():null).then(data=>{
+const _apTok = (window.parent && window.parent.token && window.parent.token()) || null;
+fetch('/api/catalogo', {headers: _apTok ? {'Authorization': 'Bearer ' + _apTok} : {}}).then(r=>r.ok?r.json():null).then(data=>{
   if(!data) return;
   Object.entries(data.operadoras||{}).forEach(([k,v])=>{
     const cor = _corHex(v&&v.cor);

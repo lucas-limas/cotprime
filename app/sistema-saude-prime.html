@@ -818,6 +818,9 @@ function onAuthSuccess(data) {
   // Gestor = admin/superadmin (implícito) OU corretor com pode_ver_equipe=1
   const gestor = (data.pode_ver_equipe == 1 || data.role === 'admin' || data.role === 'superadmin');
   sessionStorage.setItem('sp_gestor', gestor ? '1' : '');
+  // Os iframes do cotador/apresentação carregaram o catálogo no load (antes do login → 401).
+  // Recarrega-os p/ refazerem o fetch COM token agora que há sessão.
+  ['cotador', 'apres'].forEach(id => { const f = document.getElementById(id); if (f) f.src = f.src; });
   document.getElementById('auth-overlay').classList.add('hidden');
   routeByRole(data.role, data.nome);
 }
@@ -868,6 +871,25 @@ function doLogout() {
   document.getElementById('lg-pass').value = '';
   document.getElementById('lg-btn').disabled = false;
 }
+
+// Derruba a sessão localmente (sem chamar /api/logout — o token já é inválido) e volta ao login.
+// Chamado em 401/403 (de /api/me, /api/catalogo ou qualquer chamada autenticada), inclusive
+// pelos iframes via window.parent.forcarLogout().
+function forcarLogout(msg) {
+  if (typeof closeDrawer === 'function') closeDrawer();
+  sessionStorage.clear();
+  document.getElementById('superadmin-overlay').classList.add('hidden');
+  document.getElementById('admin-overlay').classList.add('hidden');
+  document.getElementById('main-nav').style.display = 'none';
+  document.body.classList.remove('nav-visible');
+  document.querySelector('.frames').style.display = 'none';
+  document.getElementById('auth-overlay').classList.remove('hidden');
+  const err = document.getElementById('lg-err');
+  if (err) { err.textContent = msg || 'Sua sessão foi encerrada. Faça login novamente.'; err.style.display = ''; }
+  const btn = document.getElementById('lg-btn');
+  if (btn) btn.disabled = false;
+}
+window.forcarLogout = forcarLogout;
 
 /* ════════════════════════════════════════
    SUPERADMIN
@@ -1955,8 +1977,11 @@ document.querySelector('.frames').style.display = 'none';
       const data = await res.json();
       document.getElementById('auth-overlay').classList.add('hidden');
       routeByRole(data.role, data.nome);
+    } else {
+      // token inválido/usuário inativo/corretora inativa → derruba para o login
+      forcarLogout();
     }
-  } catch {}
+  } catch { /* falha de rede transitória — não derruba a sessão à toa */ }
 })();
 
 let _toastTimer;
