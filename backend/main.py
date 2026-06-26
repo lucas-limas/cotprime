@@ -1581,15 +1581,21 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
     # KPIs do time (conversão/funil/volume = snapshot; cotações = período).
     fechados, perdidos = funil_count.get("fechado", 0), funil_count.get("perdido", 0)
     conversao_pct = round(fechados / (fechados + perdidos) * 100, 1) if (fechados + perdidos) else 0
-    volume_fechado = 0.0
+    # Volume = ÚLTIMA cotação de cada cliente 'fechado' (UMA por cliente — mesma convenção do
+    # dashboard pessoal). _ult_cot: cid -> (criado_em, winnerTotal) da cotação mais recente com valor.
+    _ult_cot = {}
     for (u, d, cr) in cot:
         cid = d.get("cliente_id")
-        if cid and estagio_de.get(cid) == "fechado" and d.get("winnerTotal"):
-            try:
-                volume_fechado += float(d["winnerTotal"])
-            except Exception:
-                pass
-    volume_fechado = round(volume_fechado, 2)
+        if not cid or estagio_de.get(cid) != "fechado" or not d.get("winnerTotal"):
+            continue
+        try:
+            wt = float(d["winnerTotal"])
+        except Exception:
+            continue
+        prev = _ult_cot.get(cid)
+        if prev is None or (cr or "") > (prev[0] or ""):
+            _ult_cot[cid] = (cr, wt)
+    volume_fechado = round(sum(wt for (_, wt) in _ult_cot.values()), 2)
 
     # Mix por operadora (período) — top 5 + Outras.
     op_count = {}
@@ -1622,14 +1628,10 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
             fech_por_corr[corr] = fech_por_corr.get(corr, 0) + 1
         elif est == "perdido":
             perd_por_corr[corr] = perd_por_corr.get(corr, 0) + 1
-    for (u, d, cr) in cot:
-        cid = d.get("cliente_id")
-        if cid and estagio_de.get(cid) == "fechado" and d.get("winnerTotal"):
-            corr = corretor_de.get(cid)
-            try:
-                vol_por_corr[corr] = vol_por_corr.get(corr, 0.0) + float(d["winnerTotal"])
-            except Exception:
-                pass
+    # Volume por corretor = última cotação de cada cliente fechado (1 por cliente), pelo dono do cliente.
+    for cid, (cr, wt) in _ult_cot.items():
+        corr = corretor_de.get(cid)
+        vol_por_corr[corr] = vol_por_corr.get(corr, 0.0) + wt
     ranking = []
     for c in corretores:
         if not c["ativo"]:
