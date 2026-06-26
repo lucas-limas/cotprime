@@ -386,7 +386,10 @@ def _migrations_pg(conn):
         "UPDATE operadoras SET cor='#CC0000' WHERE chave='bradesco' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#1B3A8A' WHERE chave='bestsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#D5531C' WHERE chave='sulamerica' AND (cor IS NULL OR cor LIKE 'var(%')",
-        "UPDATE operadoras SET cor='#007B40' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#F78400' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
+        # Hapvida: troca o verde antigo (#007B40) pelo laranja #F78400. Guardado pelo valor
+        # EXATO (sem '%') p/ rodar uma vez e não sobrescrever cor editada no admin.
+        "UPDATE operadoras SET cor='#F78400' WHERE chave='hapvida' AND cor='#007B40'",
         # QA: SulAmérica não possui copart parcial — só "Sem copart" e copart completa (30%).
         # Renomeia os planos "Com copart —" para "Copart Completa —" (alinha à convenção
         # Hapvida/Bradesco; o cotador então os classifica como completa, não parcial).
@@ -756,7 +759,10 @@ def _migrations_sqlite(c):
         "UPDATE operadoras SET cor='#CC0000' WHERE chave='bradesco' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#1B3A8A' WHERE chave='bestsenior' AND (cor IS NULL OR cor LIKE 'var(%')",
         "UPDATE operadoras SET cor='#D5531C' WHERE chave='sulamerica' AND (cor IS NULL OR cor LIKE 'var(%')",
-        "UPDATE operadoras SET cor='#007B40' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
+        "UPDATE operadoras SET cor='#F78400' WHERE chave='hapvida' AND (cor IS NULL OR cor LIKE 'var(%')",
+        # Hapvida: troca o verde antigo (#007B40) pelo laranja #F78400. Guardado pelo valor
+        # EXATO (sem '%') p/ rodar uma vez e não sobrescrever cor editada no admin.
+        "UPDATE operadoras SET cor='#F78400' WHERE chave='hapvida' AND cor='#007B40'",
         # QA: SulAmérica não possui copart parcial — só "Sem copart" e copart completa (30%).
         # Renomeia os planos "Com copart —" para "Copart Completa —" (alinha à convenção
         # Hapvida/Bradesco; o cotador então os classifica como completa, não parcial).

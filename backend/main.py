@@ -311,7 +311,7 @@ def seed_catalogo():
         "unity": "#0f2340", "evo": "#5c1a40", "plenum": "#0a4028", "amil": "#461BFF",
         "medsenior": "#95C13D", "segurosunimed": "#0074BE", "portosaude": "#005CB9",
         "bradesco": "#CC0000", "bestsenior": "#1B3A8A", "sulamerica": "#D5531C",
-        "hapvida": "#007B40",
+        "hapvida": "#F78400",
     }
     for chave, nome, info, ordem in _OPS:
         conn.execute(
