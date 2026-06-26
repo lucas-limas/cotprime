@@ -558,7 +558,7 @@ html[data-theme="dark"] .tar-form input{color-scheme:dark}
           </button>
           <button class="m-btn share" id="btn-share" onclick="toggleShare()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-            <span id="share-label">Compartilhar</span>
+            <span id="share-label">Compartilhar com a equipe</span>
           </button>
           <button id="btn-delete-cliente" class="m-btn" style="color:#ef4444;border-color:#ef4444;display:none" onclick="excluirCliente()">🗑 Excluir</button>
         </div>
@@ -1065,7 +1065,7 @@ function renderModal(c, interacoes, cotacoes){
   const shareLabel = document.getElementById('share-label');
   const comp = c.compartilhado == 1;
   shareBtn.className = 'm-btn share' + (comp ? ' active' : '');
-  shareLabel.textContent = comp ? 'Compartilhado' : 'Compartilhar';
+  shareLabel.textContent = comp ? 'Compartilhado com a equipe' : 'Compartilhar com a equipe';
   shareBtn.style.display = editable ? '' : 'none';
 
   const deleteBtn = document.getElementById('btn-delete-cliente');
@@ -1198,7 +1198,7 @@ async function toggleShare(){
     const shareBtn = document.getElementById('btn-share');
     const shareLabel = document.getElementById('share-label');
     shareBtn.className = 'm-btn share' + (novoVal ? ' active' : '');
-    shareLabel.textContent = novoVal ? 'Compartilhado' : 'Compartilhar';
+    shareLabel.textContent = novoVal ? 'Compartilhado com a equipe' : 'Compartilhar com a equipe';
     showToast(novoVal ? 'Visível para a equipe' : 'Removido do painel da empresa');
   } catch { showToast('Erro ao atualizar'); }
 }
