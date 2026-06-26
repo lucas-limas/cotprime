@@ -235,6 +235,23 @@ def require_corretor(user=Depends(get_current_user)):
     return user
 
 
+def require_gestor(user=Depends(get_current_user)):
+    """Gestor = admin/superadmin (implícito) OU corretor com pode_ver_equipe=1.
+    Lê a flag do banco AO VIVO (não confia só no JWT)."""
+    check_corretora_ativa(user.get("corretora_id"))
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id, ativo, role, pode_ver_equipe FROM users WHERE username = ?", (user["sub"],)
+    ).fetchone()
+    conn.close()
+    if not row or not row["ativo"]:
+        raise HTTPException(403, "Usuário inativo")
+    if row["role"] not in ("admin", "superadmin") and not row["pode_ver_equipe"]:
+        raise HTTPException(403, "Acesso restrito a gestores")
+    user["id"] = row["id"]
+    return user
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
@@ -810,7 +827,7 @@ def login(req: LoginRequest, request: Request):
 
     row = conn.execute(
         """SELECT id, hashed_password, nome, ativo, role, corretora_id,
-                  tentativas_login, bloqueado_ate
+                  tentativas_login, bloqueado_ate, pode_ver_equipe
            FROM users WHERE username = ?""",
         (req.username.strip(),),
     ).fetchone()
@@ -899,6 +916,7 @@ def login(req: LoginRequest, request: Request):
         "nome": row["nome"],
         "role": row["role"],
         "corretora_id": row["corretora_id"],
+        "pode_ver_equipe": 1 if row["pode_ver_equipe"] else 0,
     }
 
 
@@ -1096,7 +1114,7 @@ def listar_usuarios_corretora(admin=Depends(require_admin)):
         "SELECT nome, limite_usuarios FROM corretoras WHERE id = ?", (corretora_id,)
     ).fetchone() if corretora_id else None
     rows = conn.execute(
-        "SELECT id, username, nome, email, ativo, criado_em FROM users WHERE corretora_id = ? AND role = 'corretor' ORDER BY criado_em DESC",
+        "SELECT id, username, nome, email, ativo, pode_ver_equipe, criado_em FROM users WHERE corretora_id = ? AND role = 'corretor' ORDER BY criado_em DESC",
         (corretora_id,),
     ).fetchall()
     conn.close()
@@ -1157,6 +1175,32 @@ def toggle_usuario_corretora(user_id: int, admin=Depends(require_admin)):
     conn.commit()
     conn.close()
     return {"ativo": new_status}
+
+
+class GestorRequest(BaseModel):
+    pode_ver_equipe: int
+
+
+@app.patch("/api/admin/users/{user_id}/gestor")
+def toggle_gestor(user_id: int, body: GestorRequest, admin=Depends(require_admin)):
+    """Admin concede/revoga a flag de gestor a um corretor DA PRÓPRIA corretora."""
+    corretora_id = admin.get("corretora_id")
+    novo = 1 if body.pode_ver_equipe else 0
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT corretora_id FROM users WHERE id = ? AND role = 'corretor'", (user_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Usuário não encontrado")
+    if corretora_id and row["corretora_id"] != corretora_id:
+        conn.close()
+        raise HTTPException(403, "Sem permissão para gerenciar este usuário")
+    conn.execute("UPDATE users SET pode_ver_equipe = ? WHERE id = ?", (novo, user_id))
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "toggle_gestor", f"Corretor id={user_id} pode_ver_equipe={novo}")
+    return {"pode_ver_equipe": novo}
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -1419,16 +1463,22 @@ def dashboard_pessoal(period: Optional[str] = None, user=Depends(require_correto
         fechados, perdidos = funil_count.get("fechado", 0), funil_count.get("perdido", 0)
         conversao_pct = round(fechados / (fechados + perdidos) * 100, 1) if (fechados + perdidos) else 0
 
-        # Volume fechado = soma de winnerTotal das cotações cujo cliente está 'fechado' (snapshot).
-        volume_fechado = 0.0
+        # Volume fechado = mensalidade da ÚLTIMA cotação de cada cliente 'fechado' (UMA por
+        # cliente — evita contar em dobro quando o cliente foi recotado). criado_em é string
+        # ordenável (UTC), então comparar texto dá a ordem cronológica.
+        _ult_cot = {}   # cid -> (criado_em, winnerTotal) da cotação mais recente COM valor
         for (d, cr) in cot:
             cid = d.get("cliente_id")
-            if cid and estagio_de.get(cid) == "fechado" and d.get("winnerTotal"):
-                try:
-                    volume_fechado += float(d["winnerTotal"])
-                except Exception:
-                    pass
-        volume_fechado = round(volume_fechado, 2)
+            if not cid or estagio_de.get(cid) != "fechado" or not d.get("winnerTotal"):
+                continue
+            try:
+                wt = float(d["winnerTotal"])
+            except Exception:
+                continue
+            prev = _ult_cot.get(cid)
+            if prev is None or (cr or "") > (prev[0] or ""):
+                _ult_cot[cid] = (cr, wt)
+        volume_fechado = round(sum(wt for (_, wt) in _ult_cot.values()), 2)
 
         # Tarefas pendentes do usuário (mesma visibilidade do GET /api/tarefas p/ corretor).
         tar = conn.execute(
@@ -1467,6 +1517,146 @@ def dashboard_pessoal(period: Optional[str] = None, user=Depends(require_correto
         }
     finally:
         conn.close()
+
+
+# ── Dashboard do GESTOR (agregado da corretora) ───────────────────────────────
+@app.get("/api/dashboard/equipe")
+def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor)):
+    period = period if period in ("week", "month") else "month"
+    corretora_id = user.get("corretora_id")
+    conn = get_connection()
+    try:
+        agora = datetime.now(_BR_TZ)
+        if period == "week":
+            hoje = _br_dt(agora.year, agora.month, agora.day)
+            ini = hoje - timedelta(days=hoje.weekday())
+            fim = ini + timedelta(days=7)
+            buckets = [(ini - timedelta(days=7 * i), ini - timedelta(days=7 * (i - 1)),
+                        (ini - timedelta(days=7 * i)).strftime("%d/%m")) for i in range(7, -1, -1)]
+        else:
+            ini = _month_first(agora)
+            fim = _add_months(ini, 1)
+            buckets = [(_add_months(ini, -i), _add_months(ini, -i + 1),
+                        _MESES_PT[_add_months(ini, -i).month - 1]) for i in range(5, -1, -1)]
+        ini_utc, fim_utc = _to_utc_str(ini), _to_utc_str(fim)
+
+        # Cotações da corretora (sem LIMIT), parse defensivo.
+        cot = []
+        for r in conn.execute(
+            "SELECT usuario, dados, criado_em FROM cotacoes WHERE corretora_id = ?", (corretora_id,)
+        ).fetchall():
+            try:
+                d = json.loads(r["dados"]) if r["dados"] else {}
+            except Exception:
+                d = {}
+            cot.append((r["usuario"], d, r["criado_em"]))
+
+        # Clientes da corretora: estágio (última oportunidade) + corretor dono.
+        estagio_de, corretor_de = {}, {}
+        funil_count = {s: 0 for s in _STAGES}
+        for r in conn.execute(
+            "SELECT c.id AS cid, c.corretor_id AS corr, "
+            "COALESCE((SELECT estagio FROM oportunidades WHERE cliente_id = c.id ORDER BY criado_em DESC LIMIT 1), 'lead') AS est "
+            "FROM clientes c WHERE c.corretora_id = ? AND c.ativo = 1", (corretora_id,)
+        ).fetchall():
+            est = r["est"] or "lead"
+            funil_count[est] = funil_count.get(est, 0) + 1
+            estagio_de[r["cid"]] = est
+            corretor_de[r["cid"]] = r["corr"]
+
+        # Corretores da corretora.
+        corretores = []
+        for r in conn.execute(
+            "SELECT id, username, nome, ativo FROM users WHERE corretora_id = ? AND role = 'corretor'",
+            (corretora_id,)
+        ).fetchall():
+            corretores.append({"id": r["id"], "username": r["username"], "nome": r["nome"] or r["username"], "ativo": r["ativo"]})
+
+        op_nomes = {o["chave"]: o["nome"] for o in conn.execute("SELECT chave, nome FROM operadoras").fetchall()}
+    finally:
+        conn.close()
+
+    no_periodo = [(u, d) for (u, d, cr) in cot if cr and ini_utc <= cr < fim_utc]
+
+    # KPIs do time (conversão/funil/volume = snapshot; cotações = período).
+    fechados, perdidos = funil_count.get("fechado", 0), funil_count.get("perdido", 0)
+    conversao_pct = round(fechados / (fechados + perdidos) * 100, 1) if (fechados + perdidos) else 0
+    volume_fechado = 0.0
+    for (u, d, cr) in cot:
+        cid = d.get("cliente_id")
+        if cid and estagio_de.get(cid) == "fechado" and d.get("winnerTotal"):
+            try:
+                volume_fechado += float(d["winnerTotal"])
+            except Exception:
+                pass
+    volume_fechado = round(volume_fechado, 2)
+
+    # Mix por operadora (período) — top 5 + Outras.
+    op_count = {}
+    for (u, d) in no_periodo:
+        w = d.get("winner")
+        if w:
+            op_count[w] = op_count.get(w, 0) + 1
+    ordenado = sorted(op_count.items(), key=lambda kv: kv[1], reverse=True)
+    mix_operadora = [{"op": k, "nome": op_nomes.get(k, k), "count": v} for k, v in ordenado[:5]]
+    outras = sum(v for _, v in ordenado[5:])
+    if outras:
+        mix_operadora.append({"op": "_outras", "nome": "Outras", "count": outras})
+
+    funil = [{"etapa": s, "label": _STAGE_LABEL.get(s, s), "count": funil_count.get(s, 0)} for s in _STAGES]
+
+    # Trend da corretora (mesma janela do pessoal).
+    trend = []
+    for (b_ini, b_fim, lbl) in buckets:
+        bu, bf = _to_utc_str(b_ini), _to_utc_str(b_fim)
+        trend.append({"label": lbl, "count": sum(1 for (u, d, cr) in cot if cr and bu <= cr < bf)})
+
+    # Ranking por corretor: cotações (período) + fechados/conversão/volume (snapshot, por dono do cliente).
+    cot_por_user = {}
+    for (u, d) in no_periodo:
+        cot_por_user[u] = cot_por_user.get(u, 0) + 1
+    fech_por_corr, perd_por_corr, vol_por_corr = {}, {}, {}
+    for cid, est in estagio_de.items():
+        corr = corretor_de.get(cid)
+        if est == "fechado":
+            fech_por_corr[corr] = fech_por_corr.get(corr, 0) + 1
+        elif est == "perdido":
+            perd_por_corr[corr] = perd_por_corr.get(corr, 0) + 1
+    for (u, d, cr) in cot:
+        cid = d.get("cliente_id")
+        if cid and estagio_de.get(cid) == "fechado" and d.get("winnerTotal"):
+            corr = corretor_de.get(cid)
+            try:
+                vol_por_corr[corr] = vol_por_corr.get(corr, 0.0) + float(d["winnerTotal"])
+            except Exception:
+                pass
+    ranking = []
+    for c in corretores:
+        if not c["ativo"]:
+            continue
+        fe, pe = fech_por_corr.get(c["id"], 0), perd_por_corr.get(c["id"], 0)
+        ranking.append({
+            "corretor": c["nome"],
+            "cotacoes": cot_por_user.get(c["username"], 0),
+            "fechados": fe,
+            "conversao_pct": round(fe / (fe + pe) * 100, 1) if (fe + pe) else 0,
+            "volume": round(vol_por_corr.get(c["id"], 0.0), 2),
+        })
+    ranking.sort(key=lambda r: r["cotacoes"], reverse=True)
+
+    return {
+        "period": period,
+        "kpis": {
+            "cotacoes": len(no_periodo),
+            "conversao_pct": conversao_pct,
+            "volume_fechado": volume_fechado,
+            "corretores_ativos": sum(1 for c in corretores if c["ativo"]),
+        },
+        "ranking": ranking,
+        "mix_operadora": mix_operadora,
+        "funil": funil,
+        "trend": trend,
+    }
 
 
 # ── Catálogo público (usado pelo cotador) ─────────────────────────────────────
