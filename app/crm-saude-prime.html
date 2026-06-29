@@ -77,19 +77,36 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
 
 /* ── TABS ── */
 .crm-tabs{
-  display:flex;gap:0;padding:0 1.25rem;
+  display:flex;align-items:center;gap:0;padding:0 1.25rem;
   background:var(--navbar-bg);border-bottom:1px solid var(--bd1);
   flex-shrink:0;
 }
 .crm-tab{
-  padding:10px 18px;background:none;border:none;
+  padding:11px 18px;background:none;border:none;
   font-family:"Outfit",sans-serif;font-size:13px;font-weight:500;
   color:var(--t4);cursor:pointer;
   border-bottom:2px solid transparent;margin-bottom:-1px;
   transition:color .15s,border-color .15s;
+  display:inline-flex;align-items:center;gap:7px;
 }
 .crm-tab.active{color:var(--t1);border-bottom-color:var(--t2)}
 .crm-tab:hover{color:var(--t2)}
+.crm-tab .badge{
+  font-size:11px;font-weight:600;background:var(--card);border:1px solid var(--bd1);
+  color:var(--t3);border-radius:20px;padding:0 7px;
+}
+.crm-tab.active .badge{color:var(--orange)}
+/* toggle de escopo (Meus / Empresa) à direita das abas */
+.scope{margin-left:auto;display:flex;background:var(--card);border:1px solid var(--bd1);border-radius:8px;padding:2px}
+.scope button{
+  border:none;background:none;color:var(--t3);font-family:"Outfit",sans-serif;font-size:12px;font-weight:500;
+  padding:5px 12px;border-radius:6px;cursor:pointer;transition:all .15s;
+}
+.scope button.on{background:var(--tab-active);color:var(--t1)}
+
+/* ── áreas (Funil / Renovação) ── */
+.view{flex:1;overflow:hidden;display:none;flex-direction:column}
+.view.active{display:flex}
 
 /* ── DASHBOARD BAR ── */
 .dashboard-bar{
@@ -445,6 +462,58 @@ html[data-theme="dark"] .tar-form input{color-scheme:dark}
 
 /* loading */
 .k-loading{color:var(--t5);text-align:center;padding:24px 12px;font-size:13px;font-family:"Outfit",sans-serif}
+
+/* ── coluna Fechado vira alvo de drop com dica (sem cards) ── */
+.col-hint{color:var(--t5);font-size:11px;text-align:center;padding:14px 6px;line-height:1.4}
+
+/* ── RENOVAÇÃO ── */
+.ren-scroll{flex:1;overflow-y:auto;padding:14px 1.25rem 40px}
+.ren-scroll::-webkit-scrollbar{width:6px}
+.ren-scroll::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+.ren-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--surface2);border:1px solid var(--bd1);border-radius:10px;padding:12px 15px}
+.kpi .k{font-size:11px;color:var(--t4);font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.kpi .v{font-size:23px;font-weight:700;color:var(--t1);margin-top:4px}
+.kpi .v small{font-size:12px;font-weight:500;color:var(--t3)}
+.ren-grid{display:flex;flex-direction:column;gap:9px}
+.rcard{
+  background:var(--surface2);border:1px solid var(--bd1);border-left-width:3px;border-radius:10px;
+  padding:13px 16px;display:grid;grid-template-columns:1.7fr 1fr 1fr 1.3fr auto;gap:14px;align-items:center;
+}
+.rcard .nm{font-weight:600;font-size:14px;color:var(--t1)}
+.rcard .sub{font-size:12px;color:var(--t3);margin-top:2px}
+.rcard .lab{font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:.05em}
+.rcard .dat{font-size:13.5px;font-weight:600;color:var(--t1);margin-top:2px}
+.rcard .dat.money{color:#22c55e}
+.rstat{font-size:11px;font-weight:600;padding:4px 11px;border-radius:20px;text-align:center;white-space:nowrap}
+.rbtn{font-size:12px;padding:7px 14px;border-radius:7px;border:none;background:var(--t1);color:var(--bg);cursor:pointer;font-weight:600;white-space:nowrap;font-family:"Outfit",sans-serif}
+.rbtn:hover{opacity:.88}
+.rbtn.ghost{background:var(--btn-bg);border:1px solid var(--bd2);color:var(--t2)}
+.ren-note{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--bd1);border-radius:10px;padding:11px 15px;font-size:13px;color:var(--t2);margin-top:14px}
+.ren-empty{color:var(--t4);text-align:center;padding:40px 12px;font-size:13px}
+@media(max-width:720px){
+  .rcard{grid-template-columns:1fr 1fr;gap:10px}
+  .rcard .actcell{grid-column:1/-1;justify-content:flex-start!important}
+}
+
+/* ── modal "fechar venda" (vigência) ── */
+.vig-box{background:var(--surface2);border:1px solid var(--bd2);border-radius:12px;width:380px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+html[data-theme="light"] .vig-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.vig-hdr{padding:15px 18px;border-bottom:1px solid var(--bd1)}
+.vig-hdr h3{font-size:14px;font-weight:600;color:var(--t1)}
+.vig-body{padding:18px;display:flex;flex-direction:column;gap:6px}
+.vig-body label{font-size:10px;color:var(--t4);font-weight:500;letter-spacing:.05em;text-transform:uppercase}
+.vig-body p{font-size:12px;color:var(--t3);line-height:1.4;margin-top:2px}
+.vig-body input{
+  background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:8px 11px;
+  color:var(--t1);font-size:13px;font-family:"Outfit",sans-serif;outline:none;
+}
+html[data-theme="dark"] .vig-body input{color-scheme:dark}
+.vig-actions{display:flex;gap:8px;justify-content:flex-end;padding:0 18px 18px}
+.btn-ghost{background:var(--btn-bg);border:1px solid var(--bd2);color:var(--t3);border-radius:7px;padding:8px 14px;font-family:"Outfit",sans-serif;font-size:13px;cursor:pointer}
+.btn-ghost:hover{color:var(--t1)}
+.btn-solid-green{background:#22c55e;border:none;color:#fff;border-radius:7px;padding:8px 16px;font-family:"Outfit",sans-serif;font-size:13px;font-weight:600;cursor:pointer}
+.btn-solid-green:hover{opacity:.9}
 </style>
 </head>
 <body>
@@ -469,45 +538,65 @@ html[data-theme="dark"] .tar-form input{color-scheme:dark}
   </div>
 </nav>
 
-<!-- TABS -->
+<!-- TABS (área) + escopo (Meus / Empresa) -->
 <div class="crm-tabs">
-  <button class="crm-tab active" id="tab-meus" onclick="switchTab('meus',this)">Meus Clientes</button>
-  <button class="crm-tab" id="tab-empresa" onclick="switchTab('empresa',this)">Empresa</button>
+  <button class="crm-tab active" id="tab-funil" onclick="switchView('funil',this)">Funil de venda</button>
+  <button class="crm-tab" id="tab-renov" onclick="switchView('renov',this)">Renovação <span class="badge" id="renov-badge">0</span></button>
+  <div class="scope">
+    <button class="on" id="scope-meus" onclick="setScope('meus',this)">Meus</button>
+    <button id="scope-empresa" onclick="setScope('empresa',this)">Empresa</button>
+  </div>
 </div>
 
-<!-- DASHBOARD -->
-<div class="dashboard-bar">
-  <div class="dash-card">
-    <span class="dash-card-label">Total ativos</span>
-    <span class="dash-card-val" id="dash-total">—</span>
+<!-- ========== FUNIL ========== -->
+<section class="view active" id="view-funil">
+  <!-- DASHBOARD -->
+  <div class="dashboard-bar">
+    <div class="dash-card">
+      <span class="dash-card-label">Total ativos</span>
+      <span class="dash-card-val" id="dash-total">—</span>
+    </div>
+    <div class="dash-card">
+      <span class="dash-card-label">Por estágio</span>
+      <span class="dash-card-sub" id="dash-estagios">—</span>
+    </div>
+    <div class="dash-card">
+      <span class="dash-card-label">Sem contato 2+ dias</span>
+      <span class="dash-card-val" id="dash-sem-contato" style="color:#f97316">—</span>
+    </div>
+    <div class="dash-card">
+      <span class="dash-card-label">Tarefas pendentes</span>
+      <span class="dash-card-val" id="dash-tarefas" style="color:#1a73e8">—</span>
+    </div>
+    <button class="btn-novo-cliente" id="btn-novo" onclick="openNovoCliente()">＋ Novo Cliente</button>
   </div>
-  <div class="dash-card">
-    <span class="dash-card-label">Por estágio</span>
-    <span class="dash-card-sub" id="dash-estagios">—</span>
-  </div>
-  <div class="dash-card">
-    <span class="dash-card-label">Sem contato 2+ dias</span>
-    <span class="dash-card-val" id="dash-sem-contato" style="color:#f97316">—</span>
-  </div>
-  <div class="dash-card">
-    <span class="dash-card-label">Tarefas pendentes</span>
-    <span class="dash-card-val" id="dash-tarefas" style="color:#1a73e8">—</span>
-  </div>
-  <button class="btn-novo-cliente" id="btn-novo" onclick="openNovoCliente()">＋ Novo Cliente</button>
-</div>
 
-<!-- MINHAS TAREFAS PRÓXIMAS -->
-<div class="tarefas-panel" id="tarefas-panel" style="display:none">
-  <div class="tarefas-panel-title">📅 Minhas tarefas próximas</div>
-  <div id="tarefas-panel-list"></div>
-</div>
-
-<!-- KANBAN -->
-<div class="kanban-wrap">
-  <div class="kanban-board" id="kanban-board">
-    <div class="k-loading">Carregando clientes...</div>
+  <!-- MINHAS TAREFAS PRÓXIMAS -->
+  <div class="tarefas-panel" id="tarefas-panel" style="display:none">
+    <div class="tarefas-panel-title">📅 Minhas tarefas próximas</div>
+    <div id="tarefas-panel-list"></div>
   </div>
-</div>
+
+  <!-- KANBAN -->
+  <div class="kanban-wrap">
+    <div class="kanban-board" id="kanban-board">
+      <div class="k-loading">Carregando clientes...</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== RENOVAÇÃO ========== -->
+<section class="view" id="view-renov">
+  <div class="ren-scroll">
+    <div class="ren-kpis">
+      <div class="kpi"><div class="k">Carteira ativa</div><div class="v"><span id="kpi-carteira">0</span> <small>clientes</small></div></div>
+      <div class="kpi" id="kpi-receita-card"><div class="k">Receita recorrente</div><div class="v" id="kpi-receita">R$ 0<small>/mês</small></div></div>
+      <div class="kpi"><div class="k">Reajustam em 60 dias</div><div class="v" id="kpi-60" style="color:#f97316">0</div></div>
+    </div>
+    <div class="ren-grid" id="renlist"></div>
+    <div class="ren-note">💬 <span>Reter custa menos que prospectar. Falar com o cliente <b>antes</b> do reajuste é o que segura a carteira.</span></div>
+  </div>
+</section>
 
 <!-- MODAL FICHA -->
 <div class="modal-overlay hidden" id="modal-overlay" onclick="modalOverlayClick(event)">
@@ -638,6 +727,22 @@ html[data-theme="dark"] .tar-form input{color-scheme:dark}
   </div>
 </div>
 
+<!-- MODAL VIGÊNCIA (fluxo de fechamento) -->
+<div class="modal-overlay hidden" id="vig-modal" onclick="vigOverlayClick(event)">
+  <div class="vig-box">
+    <div class="vig-hdr"><h3>Fechar venda — <span id="vig-nome"></span></h3></div>
+    <div class="vig-body">
+      <label>Início de vigência</label>
+      <input type="date" id="vig-data">
+      <p>O reajuste será calculado para <b id="vig-reaj">—</b> (próximo aniversário da vigência). O cliente sai do funil e passa a aparecer em <b>Renovação</b>.</p>
+    </div>
+    <div class="vig-actions">
+      <button class="btn-ghost" onclick="cancelVig()">Cancelar</button>
+      <button class="btn-solid-green" id="vig-confirm-btn" onclick="confirmVig()">Marcar como Fechado</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOVO CLIENTE FORM -->
 <div class="form-overlay hidden" id="form-overlay" onclick="formOverlayClick(event)">
   <div class="form-box" id="form-box">
@@ -693,16 +798,40 @@ const INT_ICON = {ligacao:'📞',whatsapp:'💬',email:'📧',reuniao:'👥',not
 const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};
 const TAR_STATUS_LABEL = {pendente:'Pendente',feito:'Concluído',cancelado:'Cancelado'};
 
-let currentView = 'meus';
+let currentScope = 'meus';   // 'meus' | 'empresa' — escopo dos dados (vale para Funil E Renovação)
+let currentTab = 'funil';    // 'funil' | 'renov' — área visível
 let allClientes = [];
 let currentCliente = null;
 let currentUser = null;
 let _toastTimer;
 let _valorCliente = {};   // { [cliente_id]: mensalidade } — da cotação mais recente vinculada
 let _dragData = null;     // { clienteId, opId, from } durante o arrasto
+let _vigCtx = null;       // contexto do modal de vigência: { clienteId, opId, nome, jaFechado }
 
 // Mensalidade compacta: "R$ 1.263/mês"
 function _fmtMes(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0}) + '/mês'; }
+function _money0(n){ return 'R$ ' + Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:0}); }
+
+/* ── DATAS DE VIGÊNCIA / REAJUSTE (tudo em horário local, sem UTC p/ evitar off-by-one) ── */
+function _hojeISO(){ const n=new Date(); const p=x=>String(x).padStart(2,'0'); return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`; }
+function _hojeLocal(){ const n=new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function _parseVig(str){
+  if (!str) return null;
+  const p = String(str).slice(0,10).split('-').map(Number);
+  if (p.length !== 3 || !p[0]) return null;
+  return new Date(p[0], (p[1]||1)-1, p[2]||1);
+}
+// Próximo aniversário da vigência: vig + N×12 meses (N≥1), a MENOR data ≥ hoje. Nunca negativo.
+function _proxReajuste(str){
+  const v = _parseVig(str);
+  if (!v) return null;
+  const hoje = _hojeLocal();
+  const r = new Date(v.getFullYear()+1, v.getMonth(), v.getDate());
+  while (r < hoje){ r.setFullYear(r.getFullYear()+1); }
+  return r;
+}
+function _diasAte(dt){ return Math.round((dt - _hojeLocal()) / 86400000); }
+function _fmtDataBR(dt){ return dt ? dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'; }
 
 /* ── TEMA ── */
 (function(){
@@ -749,7 +878,7 @@ async function init(){
     if (_gp === 'connected') showToast('Google Agenda conectado ✓');
     else if (_gp === 'erro') showToast('Não foi possível conectar o Google Agenda');
     if (_gp) history.replaceState({}, '', location.pathname);
-    await loadKanban('meus');
+    await loadKanban(currentScope);
     loadTarefasPendentes();
     loadGoogleStatus();
     const _autoId = sessionStorage.getItem('crm_cliente_id');
@@ -762,13 +891,26 @@ async function init(){
   }
 }
 
-/* ── TABS ── */
-function switchTab(view, btn){
-  currentView = view;
+/* ── ÁREAS (Funil / Renovação) + ESCOPO (Meus / Empresa) ── */
+function switchView(tab, btn){
+  currentTab = tab;
   document.querySelectorAll('.crm-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('btn-novo').style.display = view === 'meus' ? '' : 'none';
-  loadKanban(view);
+  document.getElementById('view-funil').classList.toggle('active', tab === 'funil');
+  document.getElementById('view-renov').classList.toggle('active', tab === 'renov');
+  // Ambas as áreas já estão renderizadas a partir do mesmo load — só alterna a visibilidade.
+}
+function setScope(scope, btn){
+  if (scope === currentScope) return;
+  currentScope = scope;
+  document.querySelectorAll('.scope button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  loadKanban(currentScope);   // "empresa" usa ?view=empresa → exige refetch
+}
+// "Novo Cliente" é uma ação do escopo "Meus" (o cliente nasce do usuário logado).
+function _applyScopeUI(){
+  const btn = document.getElementById('btn-novo');
+  if (btn) btn.style.display = currentScope === 'empresa' ? 'none' : '';
 }
 
 /* ── UTILS ── */
@@ -797,19 +939,22 @@ function isMyClient(c){ return currentUser && c.corretor_id === currentUser.id; 
 function canEdit(c){ return currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || isMyClient(c)); }
 
 /* ── CARREGAR KANBAN ── */
-async function loadKanban(view){
+async function loadKanban(scope){
+  scope = scope || currentScope;
   const board = document.getElementById('kanban-board');
   board.innerHTML = '<div class="k-loading">Carregando...</div>';
   try {
-    const url = view === 'empresa' ? `${API}/api/clientes?view=empresa` : `${API}/api/clientes`;
+    const url = scope === 'empresa' ? `${API}/api/clientes?view=empresa` : `${API}/api/clientes`;
     const [res] = await Promise.all([
       fetch(url, {headers:{Authorization:`Bearer ${token()}`}}),
       loadValores(),
     ]);
     if (!res.ok) throw new Error('Erro ao carregar');
     allClientes = await res.json();
-    renderKanban(allClientes, view);
+    renderKanban(allClientes, scope);        // Funil (exclui fechados)
     updateDashboard(allClientes);
+    renderRenovacao(allClientes, scope);     // Renovação (só fechados) — mesma fonte de dados
+    _applyScopeUI();
   } catch(e){
     board.innerHTML = `<div class="k-loading">Erro ao carregar clientes.</div>`;
     showToast('Erro ao carregar clientes');
@@ -831,36 +976,41 @@ async function loadValores(){
 }
 
 function updateDashboard(clientes){
-  document.getElementById('dash-total').textContent = clientes.length;
+  // O dashboard reflete o FUNIL — clientes fechados vivem na Renovação.
+  const funil = clientes.filter(c => (c.estagio_atual || 'lead') !== 'fechado');
+  document.getElementById('dash-total').textContent = funil.length;
   const counts = {};
   STAGES.forEach(s => counts[s] = 0);
   let semContato2 = 0;
-  clientes.forEach(c => {
+  funil.forEach(c => {
     const s = c.estagio_atual || 'lead';
     counts[s] = (counts[s]||0) + 1;
     const dias = c.ultima_interacao_em
       ? Math.floor((Date.now() - new Date(_isoZ(c.ultima_interacao_em)).getTime()) / 86400000) : 999;
     if (dias >= 2) semContato2++;
   });
-  const sub = STAGES.filter(s => counts[s]>0)
+  const sub = STAGES.filter(s => s !== 'fechado' && counts[s]>0)
     .map(s => `${STAGE_LABEL[s].slice(0,4)} ${counts[s]}`).join(' · ');
   document.getElementById('dash-estagios').textContent = sub || '—';
   document.getElementById('dash-sem-contato').textContent = semContato2;
 }
 
 /* ── RENDER KANBAN ── */
-function renderKanban(clientes, view){
+function renderKanban(clientes, scope){
   const board = document.getElementById('kanban-board');
   board.innerHTML = '';
+  // Clientes FECHADOS não aparecem no funil — vivem na aba Renovação.
+  const funilClientes = clientes.filter(c => (c.estagio_atual || 'lead') !== 'fechado');
   STAGES.forEach(stage => {
-    const cards = clientes.filter(c => (c.estagio_atual || 'lead') === stage);
+    const isFechado = stage === 'fechado';
+    const cards = isFechado ? [] : funilClientes.filter(c => (c.estagio_atual || 'lead') === stage);
     const col = document.createElement('div');
     col.className = 'kanban-col';
     col.dataset.stage = stage;
     col.style.setProperty('--col-accent', STAGE_COLOR[stage]);
     // Soma de mensalidade só na visão "Meus" (na "empresa" os valores são por-usuário → parciais)
     const soma = cards.reduce((a, c) => a + (_valorCliente[c.id] || 0), 0);
-    const somaHtml = (view !== 'empresa' && soma > 0)
+    const somaHtml = (scope !== 'empresa' && soma > 0)
       ? `<span class="col-soma">${_fmtMes(soma)}</span>` : '';
     col.innerHTML = `
       <div class="kanban-col-hdr">
@@ -874,10 +1024,14 @@ function renderKanban(clientes, view){
     col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
     col.addEventListener('drop', e => onDropCard(e, col));
     const cardsEl = col.querySelector(`#col-${stage}`);
-    if (!cards.length){
-      cardsEl.innerHTML = '<div style="color:var(--t5);font-size:11px;text-align:center;padding:12px">Sem clientes</div>';
+    if (isFechado){
+      // Continua existindo como alvo de drop, mas sem cards: dica de fluxo.
+      cardsEl.innerHTML = '<div class="col-hint">Arraste um card aqui para fechar a venda.<br>Ele migra para <b>Renovação</b>.</div>';
+    } else if (!cards.length){
+      cardsEl.innerHTML = '<div class="col-hint">Sem clientes</div>';
+    } else {
+      cards.forEach(c => cardsEl.appendChild(buildCard(c, scope)));
     }
-    cards.forEach(c => cardsEl.appendChild(buildCard(c, view)));
   });
 }
 
@@ -889,10 +1043,11 @@ async function onDropCard(e, col){
   _dragData = null;
   const destino = col.dataset.stage;
   if (!destino || destino === from) return;
+  if (destino === 'fechado'){ abrirVigencia(clienteId, opId); return; }   // fechar exige vigência
   try {
     const motivo = destino === 'perdido' ? (prompt('Motivo da perda (opcional):') || null) : null;
     await patchStage(clienteId, opId, destino, motivo);
-    await loadKanban(currentView);   // recalcula posições, contadores e somas
+    await loadKanban(currentScope);   // recalcula posições, contadores e somas
   } catch(err){
     showToast('Erro ao mover card');
   }
@@ -954,11 +1109,12 @@ function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
 /* ── ADVANCE STAGE ── */
 async function advanceStage(clienteId, opId, currentStage){
   const idx = STAGES.indexOf(currentStage);
-  if (idx < 0 || idx >= STAGES.length - 2) return; // -2 to skip perdido
+  if (idx < 0 || idx >= STAGES.length - 2) return; // -2 pula 'perdido'
   const newStage = STAGES[idx + 1];
+  if (newStage === 'fechado'){ abrirVigencia(clienteId, opId); return; }   // avançar de Negociação = fechar → vigência
   try {
     await patchStage(clienteId, opId, newStage, null);
-    await loadKanban(currentView);
+    await loadKanban(currentScope);
   } catch { showToast('Erro ao atualizar estágio'); }
 }
 
@@ -1153,6 +1309,10 @@ function setStage(newStage){
     document.getElementById('motivo-input').focus();
     return;
   }
+  if (newStage === 'fechado'){
+    abrirVigencia(currentCliente.id, currentCliente._opId || currentCliente.oportunidade_id || null);
+    return;
+  }
   confirmStage(newStage, null);
 }
 
@@ -1181,7 +1341,7 @@ async function confirmStage(newStage, motivo){
     document.getElementById('motivo-input').value = '';
     if (c) c.estagio_atual = newStage;
     showToast(`Movido para ${STAGE_LABEL[newStage]}`);
-    await loadKanban(currentView);
+    await loadKanban(currentScope);
   } catch { showToast('Erro ao atualizar estágio'); }
 }
 
@@ -1204,11 +1364,165 @@ async function toggleShare(){
 }
 
 /* ── COTAR ── */
+// Navega para o cotador já vinculado a um cliente (por id). Reaproveitado pelo botão
+// "Cotar" da ficha e pelo "Recotar" da Renovação.
+function recotarCliente(clienteId){
+  const cli = allClientes.find(x => x.id === clienteId)
+    || (currentCliente && currentCliente.id === clienteId ? currentCliente : null);
+  if (!cli) return;
+  sessionStorage.setItem('crm_cliente_nome', cli.nome || '');
+  sessionStorage.setItem('crm_cliente_id', String(cli.id || ''));
+  window.location.href = 'sistema-saude-prime.html';
+}
 function cotarParaCliente(){
   if (!currentCliente) return;
-  sessionStorage.setItem('crm_cliente_nome', currentCliente.nome || '');
-  sessionStorage.setItem('crm_cliente_id', String(currentCliente.id || ''));
-  window.location.href = 'sistema-saude-prime.html';
+  recotarCliente(currentCliente.id);
+}
+
+/* ══ FLUXO FECHAR → VIGÊNCIA → RENOVAÇÃO ══════════════════════════════════════
+   Único caminho para "fechar": drop na coluna Fechado, botão "→" saindo de
+   Negociação, ou botão "Fechado" na ficha — todos abrem este modal. Também é o
+   modal de "Definir vigência" para fechados legados (sem data_vigencia). */
+function abrirVigencia(clienteId, opId){
+  const cli = allClientes.find(x => x.id === clienteId)
+    || (currentCliente && currentCliente.id === clienteId ? currentCliente : null);
+  const nome = cli ? (cli.nome || '') : '';
+  const vigAtual = cli && cli.data_vigencia ? String(cli.data_vigencia).slice(0,10) : '';
+  const jaFechado = !!(cli && (cli.estagio_atual === 'fechado'));
+  _vigCtx = { clienteId, opId: opId || (cli ? cli.oportunidade_id : null) || null, nome, jaFechado };
+  document.getElementById('vig-nome').textContent = nome;
+  const inp = document.getElementById('vig-data');
+  inp.value = vigAtual || _hojeISO();   // pré-preenche com hoje (ou a vigência existente)
+  inp.oninput = _updateVigReaj;
+  _updateVigReaj();
+  document.getElementById('vig-confirm-btn').textContent = jaFechado ? 'Salvar vigência' : 'Marcar como Fechado';
+  document.querySelector('#vig-modal .vig-hdr h3').firstChild.textContent =
+    jaFechado ? 'Definir vigência — ' : 'Fechar venda — ';
+  document.getElementById('vig-modal').classList.remove('hidden');
+  setTimeout(() => { try { inp.focus(); } catch(_){} }, 60);
+}
+function _updateVigReaj(){
+  const v = document.getElementById('vig-data').value;
+  const r = v ? _proxReajuste(v) : null;
+  document.getElementById('vig-reaj').textContent = _fmtDataBR(r);
+}
+function cancelVig(){ _vigCtx = null; document.getElementById('vig-modal').classList.add('hidden'); }
+function vigOverlayClick(e){ if (e.target === document.getElementById('vig-modal')) cancelVig(); }
+async function confirmVig(){
+  if (!_vigCtx) return;
+  const v = document.getElementById('vig-data').value;
+  if (!v){ showToast('Informe a data de vigência'); return; }
+  const { clienteId, opId, jaFechado } = _vigCtx;
+  try {
+    // 1) grava a vigência
+    const r1 = await fetch(`${API}/api/clientes/${clienteId}`, {
+      method:'PATCH', headers:authH(), body:JSON.stringify({data_vigencia: v})
+    });
+    if (!r1.ok){ const d = await r1.json().catch(()=>({})); showToast(d.detail || 'Erro ao salvar vigência'); return; }
+    // 2) garante o estágio "fechado" (idempotente para quem já era fechado)
+    await patchStage(clienteId, opId, 'fechado', null);
+    // reflete no estado local
+    const cli = allClientes.find(x => x.id === clienteId);
+    if (cli){ cli.data_vigencia = v; cli.estagio_atual = 'fechado'; }
+    if (currentCliente && currentCliente.id === clienteId){
+      currentCliente.data_vigencia = v;
+      document.querySelectorAll('.funil-stage').forEach(btn => btn.classList.toggle('active', btn.dataset.s === 'fechado'));
+    }
+    _vigCtx = null;
+    document.getElementById('vig-modal').classList.add('hidden');
+    showToast(jaFechado ? 'Vigência salva ✓' : 'Venda fechada ✓ — agora em Renovação');
+    await loadKanban(currentScope);
+  } catch { showToast('Erro ao fechar venda'); }
+}
+
+/* ── RENOVAÇÃO (carteira fechada, ordenada por proximidade do reajuste) ── */
+function renderRenovacao(clientes, scope){
+  const isEmpresa = scope === 'empresa';
+  const fechados = clientes.filter(c => (c.estagio_atual || 'lead') === 'fechado');
+  // Monta linhas; sem vigência sobe ao topo, depois por dias asc.
+  const rows = fechados.map(c => {
+    const vig = c.data_vigencia ? String(c.data_vigencia).slice(0,10) : null;
+    const reaj = vig ? _proxReajuste(vig) : null;
+    const dias = reaj ? _diasAte(reaj) : null;
+    return { c, vig, reaj, dias };
+  }).sort((a, b) => {
+    if (a.dias === null && b.dias === null) return 0;
+    if (a.dias === null) return -1;
+    if (b.dias === null) return 1;
+    return a.dias - b.dias;
+  });
+
+  const list = document.getElementById('renlist');
+  list.innerHTML = '';
+  if (!rows.length){
+    list.innerHTML = '<div class="ren-empty">Nenhum contrato fechado ainda. Quando você fechar uma venda no funil, ela aparece aqui para acompanhar o reajuste.</div>';
+  } else {
+    rows.forEach(r => list.appendChild(_buildRenCard(r, isEmpresa)));
+  }
+
+  // KPIs
+  document.getElementById('kpi-carteira').textContent = fechados.length;
+  const recCard = document.getElementById('kpi-receita-card');
+  if (isEmpresa){
+    // Receita recorrente só em "Meus": a mensalidade vem das cotações do usuário logado.
+    document.getElementById('kpi-receita').innerHTML = '—';
+    if (recCard){ recCard.style.opacity = '.5'; recCard.title = 'Disponível no escopo "Meus" (a mensalidade vem das suas cotações)'; }
+  } else {
+    const receita = fechados.reduce((a, c) => a + (_valorCliente[c.id] || 0), 0);
+    document.getElementById('kpi-receita').innerHTML = _money0(receita) + '<small>/mês</small>';
+    if (recCard){ recCard.style.opacity = ''; recCard.title = ''; }
+  }
+  const reaj60 = rows.filter(r => r.dias !== null && r.dias <= 60).length;
+  document.getElementById('kpi-60').textContent = reaj60;
+  document.getElementById('renov-badge').textContent = reaj60;
+}
+
+function _buildRenCard(r, isEmpresa){
+  const c = r.c;
+  const el = document.createElement('div');
+  el.className = 'rcard';
+  const nome = esc(c.nome || '');
+  const sub = esc([
+    c.operadora_atual, c.segmento,
+    c.n_vidas_estimado ? (c.n_vidas_estimado + ' vidas') : null
+  ].filter(Boolean).join(' · ') || (c.empresa || '—'));
+  const valor = _valorCliente[c.id] || 0;
+  const valorTxt = valor > 0 ? _fmtMes(valor) : '—';   // em "Empresa" pode não haver valor (cotação de outro corretor)
+
+  if (r.dias === null){
+    // Fechado legado: sem data_vigencia → estado "vigência não definida" (NÃO conta no KPI 60d).
+    el.style.borderLeftColor = 'var(--t4)';
+    const podeEditar = canEdit(c);
+    const acao = podeEditar
+      ? `<button class="rbtn ghost" onclick="abrirVigencia(${c.id}, ${c.oportunidade_id || 'null'})">Definir vigência</button>`
+      : '';
+    el.innerHTML = `
+      <div><div class="nm">${nome}</div><div class="sub">${sub}</div></div>
+      <div><div class="lab">Mensalidade</div><div class="dat money">${valorTxt}</div></div>
+      <div><div class="lab">Vigência</div><div class="dat" style="color:var(--t4)">Não definida</div></div>
+      <div><div class="lab">Reajuste</div><div class="dat" style="color:var(--t4)">—</div></div>
+      <div class="actcell" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+        <span class="rstat" style="background:var(--card);color:var(--t3)">Vigência pendente</span>
+        ${acao}
+      </div>`;
+    return el;
+  }
+
+  let color, bg, label;
+  if (r.dias <= 60){ color = '#f97316'; bg = 'rgba(249,115,22,.14)'; label = 'Reajuste próximo'; }
+  else if (r.dias <= 120){ color = 'var(--t2)'; bg = 'var(--card)'; label = 'Acompanhar'; }
+  else { color = '#22c55e'; bg = 'rgba(34,197,94,.12)'; label = 'Em dia'; }
+  el.style.borderLeftColor = color;
+  el.innerHTML = `
+    <div><div class="nm">${nome}</div><div class="sub">${sub}</div></div>
+    <div><div class="lab">Mensalidade</div><div class="dat money">${valorTxt}</div></div>
+    <div><div class="lab">Vigência</div><div class="dat">${_fmtDataBR(_parseVig(r.vig))}</div></div>
+    <div><div class="lab">Reajuste em</div><div class="dat" style="color:${color}">${r.dias} dia${r.dias === 1 ? '' : 's'} <span style="font-weight:400;color:var(--t3);font-size:11px">(${_fmtDataBR(r.reaj)})</span></div></div>
+    <div class="actcell" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+      <span class="rstat" style="background:${bg};color:${color}">${label}</span>
+      <button class="rbtn" onclick="recotarCliente(${c.id})">Recotar</button>
+    </div>`;
+  return el;
 }
 
 async function excluirCliente(){
@@ -1219,7 +1533,7 @@ async function excluirCliente(){
     if (!res.ok){ const d=await res.json().catch(()=>({detail:'Erro'})); showToast(d.detail||'Erro ao excluir'); return; }
     showToast('Cliente excluído');
     closeModal();
-    await loadKanban(currentView);
+    await loadKanban(currentScope);
   } catch { showToast('Erro ao excluir'); }
 }
 
@@ -1640,7 +1954,7 @@ async function salvarNovoCliente(){
     if (!res.ok){ showMsg(data.detail||'Erro ao criar cliente.'); return; }
     closeNovoCliente();
     showToast('Cliente criado!');
-    await loadKanban(currentView);
+    await loadKanban(currentScope);
   } catch { showMsg('Erro de rede.'); }
 }
 function showMsg(msg){

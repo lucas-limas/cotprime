@@ -422,6 +422,10 @@ def _migrations_pg(conn):
         "CREATE INDEX IF NOT EXISTS idx_tarefas_usuario_status_inicio ON tarefas(usuario, status, inicio)",
         # Fase Dashboard 2 — flag de gestor (vê o dashboard agregado da corretora)
         "ALTER TABLE users ADD COLUMN pode_ver_equipe INTEGER DEFAULT 0",
+        # Fase Renovação — início de vigência do contrato (preenchido ao fechar a venda).
+        # A partir dela o front calcula o próximo aniversário/reajuste. NULL = fechado legado
+        # (aparece em Renovação como "vigência não definida").
+        "ALTER TABLE clientes ADD COLUMN data_vigencia TEXT",
     ]
     for sql in safe:
         try:
@@ -794,6 +798,10 @@ def _migrations_sqlite(c):
         "CREATE INDEX IF NOT EXISTS idx_tarefas_usuario_status_inicio ON tarefas(usuario, status, inicio)",
         # Fase Dashboard 2 — flag de gestor (vê o dashboard agregado da corretora)
         "ALTER TABLE users ADD COLUMN pode_ver_equipe INTEGER DEFAULT 0",
+        # Fase Renovação — início de vigência do contrato (preenchido ao fechar a venda).
+        # A partir dela o front calcula o próximo aniversário/reajuste. NULL = fechado legado
+        # (aparece em Renovação como "vigência não definida").
+        "ALTER TABLE clientes ADD COLUMN data_vigencia TEXT",
     ]
     for sql in safe:
         try:

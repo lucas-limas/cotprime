@@ -779,6 +779,7 @@ class UpdateClienteRequest(BaseModel):
     compartilhado: Optional[int] = None
     plano_atual: Optional[str] = None
     operadora_atual: Optional[str] = None
+    data_vigencia: Optional[str] = None   # 'YYYY-MM-DD' — início de vigência (Renovação)
 
 class OportunidadeRequest(BaseModel):
     estagio: Optional[str] = "lead"
@@ -2483,7 +2484,7 @@ def atualizar_cliente(cliente_id: int, body: UpdateClienteRequest, user=Depends(
         conn.close()
         raise
     updates, params = [], []
-    for field in ("nome", "empresa", "cnpj", "telefone", "email", "n_vidas_estimado", "segmento", "origem", "ativo", "compartilhado", "plano_atual", "operadora_atual"):
+    for field in ("nome", "empresa", "cnpj", "telefone", "email", "n_vidas_estimado", "segmento", "origem", "ativo", "compartilhado", "plano_atual", "operadora_atual", "data_vigencia"):
         val = getattr(body, field)
         if val is not None:
             updates.append(f"{field} = ?")
