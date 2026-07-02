@@ -769,6 +769,7 @@ html[data-theme="dark"] .vig-body input{color-scheme:dark}
         <div class="f-field"><label>Telefone</label><input type="text" id="f-telefone" placeholder="(61) 9 0000-0000"></div>
         <div class="f-field"><label>E-mail</label><input type="email" id="f-email" placeholder="contato@empresa.com"></div>
         <div class="f-field"><label>Nº de Vidas Estimado</label><input type="number" id="f-vidas" min="1" placeholder="Ex: 10"></div>
+        <div class="f-field"><label>Valor mensal (R$)</label><input type="number" id="f-valor" min="0" step="0.01" placeholder="Opcional — sem cotar"></div>
         <div class="f-field">
           <label>Segmento</label>
           <select id="f-segmento">
@@ -986,6 +987,19 @@ async function loadValores(){
   } catch(e){ _valorCliente = {}; }   // sem valores → cards/colunas sem soma (não quebra)
 }
 
+// Valor mensal do cliente: o valor MANUAL (digitado no lead) vence; sem manual, cai na
+// mensalidade da cotação (_valorCliente). Fonte única para card, soma da coluna e Renovação.
+function _valorMensal(c){
+  return (c && c.valor_mensal != null) ? Number(c.valor_mensal) : (_valorCliente[c.id] || 0);
+}
+// Normaliza o input do campo "Valor mensal": '' ou inválido → null (cai na cotação); senão Number.
+function _parseValorMensal(raw){
+  const s = (raw == null ? '' : String(raw)).trim();
+  if (s === '') return null;
+  const n = Number(s);
+  return isNaN(n) ? null : n;
+}
+
 function updateDashboard(clientes){
   // O dashboard reflete o FUNIL — clientes fechados vivem na Renovação.
   const funil = clientes.filter(c => (c.estagio_atual || 'lead') !== 'fechado');
@@ -1020,7 +1034,7 @@ function renderKanban(clientes, scope){
     col.dataset.stage = stage;
     col.style.setProperty('--col-accent', STAGE_COLOR[stage]);
     // Soma de mensalidade só na visão "Meus" (na "empresa" os valores são por-usuário → parciais)
-    const soma = cards.reduce((a, c) => a + (_valorCliente[c.id] || 0), 0);
+    const soma = cards.reduce((a, c) => a + _valorMensal(c), 0);
     const somaHtml = (scope !== 'empresa' && soma > 0)
       ? `<span class="col-soma">${_fmtMes(soma)}</span>` : '';
     col.innerHTML = `
@@ -1093,7 +1107,7 @@ function buildCard(c, view){
   let specialistRow = view === 'empresa' && c.corretor_nome
     ? `<div class="k-empresa" style="color:var(--t4)">Esp.: ${c.corretor_nome}</div>` : '';
 
-  const valor = _valorCliente[c.id] || 0;
+  const valor = _valorMensal(c);
   const valorRow = valor > 0 ? `<div class="k-valor">${_fmtMes(valor)}</div>` : '';
 
   el.innerHTML = `
@@ -1232,7 +1246,7 @@ function renderModal(c, interacoes, cotacoes){
   renderCotacoesWrapper(cotacoes);
 }
 
-// Campos da ficha (10) — o whitelist do PATCH /api/clientes/{id} cobre todos.
+// Campos da ficha (11) — o whitelist do PATCH /api/clientes/{id} cobre todos.
 const DADOS_CAMPOS = [
   {key:'nome',label:'Nome',full:false},
   {key:'empresa',label:'Empresa',full:false},
@@ -1244,6 +1258,7 @@ const DADOS_CAMPOS = [
   {key:'origem',label:'Origem',type:'select',opts:['','Indicação','Site','Anúncios','Cotador','Outro'],full:false},
   {key:'plano_atual',label:'Plano Atual',full:false},
   {key:'operadora_atual',label:'Operadora Atual',full:false},
+  {key:'valor_mensal',label:'Valor mensal (R$)',type:'number',money:true,full:false},
 ];
 let _dadosEditMode = false;   // false = leitura; true = seção inteira em edição
 
@@ -1251,6 +1266,10 @@ let _dadosEditMode = false;   // false = leitura; true = seção inteira em edi�
 function _dadosDisplay(campo, raw){
   const s = raw === null || raw === undefined ? '' : String(raw);
   if (s === '') return '—';
+  if (campo.money){
+    const n = Number(s);
+    return isNaN(n) ? '—' : _money0(n);
+  }
   if (campo.type === 'select' && campo.labels){
     const i = (campo.opts || []).indexOf(s);
     if (i >= 0 && campo.labels[i]) return campo.labels[i];
@@ -1290,6 +1309,9 @@ function buildEditInput(campo, val){
     ).join('');
     return `<select id="fi-${campo.key}">${opts}</select>`;
   }
+  if (campo.type === 'number'){
+    return `<input type="number" min="0" step="0.01" id="fi-${campo.key}" value="${esc(val)}">`;
+  }
   // Sem save no Enter: no modo seção, o salvamento é explícito pelo botão.
   return `<input type="text" id="fi-${campo.key}" value="${esc(val)}">`;
 }
@@ -1313,6 +1335,10 @@ async function saveDados(){
   DADOS_CAMPOS.forEach(campo => {
     const el = document.getElementById(`fi-${campo.key}`);
     if (!el) return;
+    if (campo.type === 'number'){
+      body[campo.key] = _parseValorMensal(el.value);   // '' ou inválido → null (cai na cotação)
+      return;
+    }
     const v = typeof el.value === 'string' ? el.value.trim() : el.value;
     body[campo.key] = v === '' ? null : v;   // '' → null (igual ao comportamento anterior)
   });
@@ -1500,7 +1526,7 @@ function renderRenovacao(clientes, scope){
     document.getElementById('kpi-receita').innerHTML = '—';
     if (recCard){ recCard.style.opacity = '.5'; recCard.title = 'Disponível no escopo "Meus" (a mensalidade vem das suas cotações)'; }
   } else {
-    const receita = fechados.reduce((a, c) => a + (_valorCliente[c.id] || 0), 0);
+    const receita = fechados.reduce((a, c) => a + _valorMensal(c), 0);
     document.getElementById('kpi-receita').innerHTML = _money0(receita) + '<small>/mês</small>';
     if (recCard){ recCard.style.opacity = ''; recCard.title = ''; }
   }
@@ -1518,7 +1544,7 @@ function _buildRenCard(r, isEmpresa){
     c.operadora_atual, c.segmento,
     c.n_vidas_estimado ? (c.n_vidas_estimado + ' vidas') : null
   ].filter(Boolean).join(' · ') || (c.empresa || '—'));
-  const valor = _valorCliente[c.id] || 0;
+  const valor = _valorMensal(c);
   const valorTxt = valor > 0 ? _fmtMes(valor) : '—';   // em "Empresa" pode não haver valor (cotação de outro corretor)
 
   if (r.dias === null){
@@ -1959,7 +1985,7 @@ function openNovoCliente(){
 }
 function closeNovoCliente(){
   document.getElementById('form-overlay').classList.add('hidden');
-  ['f-nome','f-empresa','f-cnpj','f-telefone','f-email','f-vidas'].forEach(id=>{
+  ['f-nome','f-empresa','f-cnpj','f-telefone','f-email','f-vidas','f-valor'].forEach(id=>{
     const el = document.getElementById(id); if(el) el.value='';
   });
   document.getElementById('f-segmento').value='';
@@ -1979,6 +2005,7 @@ async function salvarNovoCliente(){
     n_vidas_estimado: parseInt(document.getElementById('f-vidas').value)||null,
     segmento: document.getElementById('f-segmento').value||null,
     origem: document.getElementById('f-origem').value||null,
+    valor_mensal: _parseValorMensal(document.getElementById('f-valor').value),
   };
   try {
     const res = await fetch(`${API}/api/clientes`, {method:'POST', headers:authH(), body:JSON.stringify(body)});

@@ -843,6 +843,7 @@ class ClienteRequest(BaseModel):
     n_vidas_estimado: Optional[int] = None
     segmento: Optional[str] = None
     origem: Optional[str] = None
+    valor_mensal: Optional[float] = None   # valor manual do lead; NULL = usa a cotação
 
 class UpdateClienteRequest(BaseModel):
     nome: Optional[str] = None
@@ -858,6 +859,7 @@ class UpdateClienteRequest(BaseModel):
     plano_atual: Optional[str] = None
     operadora_atual: Optional[str] = None
     data_vigencia: Optional[str] = None   # 'YYYY-MM-DD' — início de vigência (Renovação)
+    valor_mensal: Optional[float] = None   # valor manual do lead; NULL = usa a cotação
 
 class OportunidadeRequest(BaseModel):
     estagio: Optional[str] = "lead"
@@ -1601,8 +1603,9 @@ def dashboard_pessoal(period: Optional[str] = None, user=Depends(require_correto
         # Funil (snapshot) — clientes ativos do corretor; estágio = última oportunidade.
         funil_count = {s: 0 for s in _STAGES}
         estagio_de = {}
+        valor_manual = {}   # cid -> valor_mensal (manual); None = usar a cotação
         for r in conn.execute(
-            "SELECT c.id AS cid, "
+            "SELECT c.id AS cid, c.valor_mensal AS valor_mensal, "
             "COALESCE((SELECT estagio FROM oportunidades WHERE cliente_id = c.id ORDER BY criado_em DESC LIMIT 1), 'lead') AS estagio_atual "
             "FROM clientes c WHERE c.corretor_id = ? AND c.ativo = 1",
             (corretor_id,)
@@ -1610,15 +1613,17 @@ def dashboard_pessoal(period: Optional[str] = None, user=Depends(require_correto
             est = r["estagio_atual"] or "lead"
             funil_count[est] = funil_count.get(est, 0) + 1
             estagio_de[r["cid"]] = est
+            valor_manual[r["cid"]] = r["valor_mensal"]
         funil = [{"etapa": s, "label": _STAGE_LABEL.get(s, s), "count": funil_count.get(s, 0)} for s in _STAGES]
 
         # Conversão = win rate = fechados / (fechados + perdidos) * 100 (snapshot).
         fechados, perdidos = funil_count.get("fechado", 0), funil_count.get("perdido", 0)
         conversao_pct = round(fechados / (fechados + perdidos) * 100, 1) if (fechados + perdidos) else 0
 
-        # Volume fechado = mensalidade da ÚLTIMA cotação de cada cliente 'fechado' (UMA por
-        # cliente — evita contar em dobro quando o cliente foi recotado). criado_em é string
-        # ordenável (UTC), então comparar texto dá a ordem cronológica.
+        # Volume fechado = valor mensal de cada cliente 'fechado' (UMA por cliente — evita
+        # contar em dobro quando o cliente foi recotado). Regra: valor manual vence; sem
+        # manual, usa a mensalidade da ÚLTIMA cotação. criado_em é string ordenável (UTC),
+        # então comparar texto dá a ordem cronológica.
         _ult_cot = {}   # cid -> (criado_em, winnerTotal) da cotação mais recente COM valor
         for (d, cr) in cot:
             cid = d.get("cliente_id")
@@ -1631,7 +1636,21 @@ def dashboard_pessoal(period: Optional[str] = None, user=Depends(require_correto
             prev = _ult_cot.get(cid)
             if prev is None or (cr or "") > (prev[0] or ""):
                 _ult_cot[cid] = (cr, wt)
-        volume_fechado = round(sum(wt for (_, wt) in _ult_cot.values()), 2)
+        volume_fechado = 0.0
+        for cid, est in estagio_de.items():
+            if est != "fechado":
+                continue
+            vm = valor_manual.get(cid)
+            if vm is not None:
+                try:
+                    volume_fechado += float(vm)
+                except Exception:
+                    pass
+            else:
+                prev = _ult_cot.get(cid)
+                if prev is not None:
+                    volume_fechado += prev[1]
+        volume_fechado = round(volume_fechado, 2)
 
         # Tarefas pendentes do usuário (mesma visibilidade do GET /api/tarefas p/ corretor).
         tar = conn.execute(
@@ -1706,9 +1725,10 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
 
         # Clientes da corretora: estágio (última oportunidade) + corretor dono.
         estagio_de, corretor_de = {}, {}
+        valor_manual = {}   # cid -> valor_mensal (manual); None = usar a cotação
         funil_count = {s: 0 for s in _STAGES}
         for r in conn.execute(
-            "SELECT c.id AS cid, c.corretor_id AS corr, "
+            "SELECT c.id AS cid, c.corretor_id AS corr, c.valor_mensal AS valor_mensal, "
             "COALESCE((SELECT estagio FROM oportunidades WHERE cliente_id = c.id ORDER BY criado_em DESC LIMIT 1), 'lead') AS est "
             "FROM clientes c WHERE c.corretora_id = ? AND c.ativo = 1", (corretora_id,)
         ).fetchall():
@@ -1716,6 +1736,7 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
             funil_count[est] = funil_count.get(est, 0) + 1
             estagio_de[r["cid"]] = est
             corretor_de[r["cid"]] = r["corr"]
+            valor_manual[r["cid"]] = r["valor_mensal"]
 
         # Corretores da corretora.
         corretores = []
@@ -1734,8 +1755,9 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
     # KPIs do time (conversão/funil/volume = snapshot; cotações = período).
     fechados, perdidos = funil_count.get("fechado", 0), funil_count.get("perdido", 0)
     conversao_pct = round(fechados / (fechados + perdidos) * 100, 1) if (fechados + perdidos) else 0
-    # Volume = ÚLTIMA cotação de cada cliente 'fechado' (UMA por cliente — mesma convenção do
-    # dashboard pessoal). _ult_cot: cid -> (criado_em, winnerTotal) da cotação mais recente com valor.
+    # Volume = valor mensal de cada cliente 'fechado' (UMA por cliente — mesma convenção do
+    # dashboard pessoal). Regra: valor manual vence; sem manual, usa a última cotação.
+    # _ult_cot: cid -> (criado_em, winnerTotal) da cotação mais recente com valor.
     _ult_cot = {}
     for (u, d, cr) in cot:
         cid = d.get("cliente_id")
@@ -1748,7 +1770,21 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
         prev = _ult_cot.get(cid)
         if prev is None or (cr or "") > (prev[0] or ""):
             _ult_cot[cid] = (cr, wt)
-    volume_fechado = round(sum(wt for (_, wt) in _ult_cot.values()), 2)
+    # valor_fechado_de: cid -> valor final (manual ou cotação) por cliente fechado.
+    valor_fechado_de = {}
+    for cid, est in estagio_de.items():
+        if est != "fechado":
+            continue
+        vm = valor_manual.get(cid)
+        if vm is not None:
+            try:
+                valor_fechado_de[cid] = float(vm)
+            except Exception:
+                valor_fechado_de[cid] = 0.0
+        else:
+            prev = _ult_cot.get(cid)
+            valor_fechado_de[cid] = prev[1] if prev is not None else 0.0
+    volume_fechado = round(sum(valor_fechado_de.values()), 2)
 
     # Mix por operadora (período) — top 5 + Outras.
     op_count = {}
@@ -1781,10 +1817,10 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
             fech_por_corr[corr] = fech_por_corr.get(corr, 0) + 1
         elif est == "perdido":
             perd_por_corr[corr] = perd_por_corr.get(corr, 0) + 1
-    # Volume por corretor = última cotação de cada cliente fechado (1 por cliente), pelo dono do cliente.
-    for cid, (cr, wt) in _ult_cot.items():
+    # Volume por corretor = valor de cada cliente fechado (1 por cliente), pelo dono do cliente.
+    for cid, v in valor_fechado_de.items():
         corr = corretor_de.get(cid)
-        vol_por_corr[corr] = vol_por_corr.get(corr, 0.0) + wt
+        vol_por_corr[corr] = vol_por_corr.get(corr, 0.0) + v
     ranking = []
     for c in corretores:
         if not c["ativo"]:
@@ -2680,12 +2716,12 @@ def criar_cliente(body: ClienteRequest, user=Depends(require_corretor)):
     row = insert_returning(
         conn,
         """INSERT INTO clientes
-           (nome, empresa, cnpj, telefone, email, n_vidas_estimado, segmento, origem, corretor_id, corretora_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (nome, empresa, cnpj, telefone, email, n_vidas_estimado, segmento, origem, valor_mensal, corretor_id, corretora_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             body.nome.strip(), body.empresa, body.cnpj, body.telefone,
             body.email, body.n_vidas_estimado, body.segmento, body.origem,
-            user.get("id"), user.get("corretora_id"),
+            body.valor_mensal, user.get("id"), user.get("corretora_id"),
         ),
         "clientes",
     )
@@ -2719,7 +2755,7 @@ def atualizar_cliente(cliente_id: int, body: UpdateClienteRequest, user=Depends(
         conn.close()
         raise
     updates, params = [], []
-    for field in ("nome", "empresa", "cnpj", "telefone", "email", "n_vidas_estimado", "segmento", "origem", "ativo", "compartilhado", "plano_atual", "operadora_atual", "data_vigencia"):
+    for field in ("nome", "empresa", "cnpj", "telefone", "email", "n_vidas_estimado", "segmento", "origem", "ativo", "compartilhado", "plano_atual", "operadora_atual", "data_vigencia", "valor_mensal"):
         val = getattr(body, field)
         if val is not None:
             updates.append(f"{field} = ?")

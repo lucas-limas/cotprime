@@ -426,6 +426,8 @@ def _migrations_pg(conn):
         # A partir dela o front calcula o próximo aniversário/reajuste. NULL = fechado legado
         # (aparece em Renovação como "vigência não definida").
         "ALTER TABLE clientes ADD COLUMN data_vigencia TEXT",
+        # Valor mensal manual do lead (digitado no CRM). NULL = usa a cotação.
+        "ALTER TABLE clientes ADD COLUMN valor_mensal REAL",
     ]
     for sql in safe:
         try:
@@ -802,6 +804,8 @@ def _migrations_sqlite(c):
         # A partir dela o front calcula o próximo aniversário/reajuste. NULL = fechado legado
         # (aparece em Renovação como "vigência não definida").
         "ALTER TABLE clientes ADD COLUMN data_vigencia TEXT",
+        # Valor mensal manual do lead (digitado no CRM). NULL = usa a cotação.
+        "ALTER TABLE clientes ADD COLUMN valor_mensal REAL",
     ]
     for sql in safe:
         try:
