@@ -255,11 +255,19 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .m-field input:focus,.m-field select:focus,.m-field textarea:focus{border-color:var(--bd3)}
 .m-field select option{background:var(--opt-bg)}
 .m-field textarea{resize:vertical;min-height:56px}
-.edit-pencil{
-  background:none;border:none;color:var(--t4);cursor:pointer;
-  font-size:11px;padding:2px;line-height:1;transition:color .15s;flex-shrink:0;
+/* Dados do Cliente: edição em modo de seção (Editar / Salvar / Cancelar) */
+.m-section-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.m-dados-actions{display:flex;gap:6px}
+.dados-btn{
+  border:1px solid var(--bd2);background:var(--btn-bg);color:var(--t2);
+  border-radius:6px;padding:4px 12px;font-size:11px;font-weight:600;
+  font-family:"Outfit",sans-serif;cursor:pointer;letter-spacing:normal;text-transform:none;
+  transition:all .15s;
 }
-.edit-pencil:hover{color:var(--t2)}
+.dados-btn:hover{color:var(--t1);border-color:var(--bd3)}
+.dados-btn.save{background:var(--t1);color:var(--bg);border-color:var(--t1)}
+.dados-btn.cancel{background:var(--btn-bg);color:var(--t3)}
+.dados-btn.save:hover,.dados-btn.cancel:hover{opacity:.85}
 .save-inline,.cancel-inline{
   border:none;border-radius:5px;padding:3px 10px;
   font-size:11px;font-family:"Outfit",sans-serif;cursor:pointer;transition:opacity .15s;
@@ -609,7 +617,10 @@ html[data-theme="dark"] .vig-body input{color-scheme:dark}
 
       <!-- DADOS -->
       <div class="m-section">
-        <div class="m-section-title">Dados do Cliente</div>
+        <div class="m-section-title m-section-title-row">
+          <span>Dados do Cliente</span>
+          <div class="m-dados-actions" id="dados-actions"></div>
+        </div>
         <div class="m-grid" id="modal-dados"></div>
       </div>
 
@@ -1177,30 +1188,10 @@ function renderModal(c, interacoes, cotacoes){
   const editable = canEdit(c);
   const tel = (c.telefone||'').replace(/\D/g,'');
 
-  // Dados
-  const campos = [
-    {key:'nome',label:'Nome',full:false},
-    {key:'empresa',label:'Empresa',full:false},
-    {key:'cnpj',label:'CNPJ',full:false},
-    {key:'telefone',label:'Telefone',full:false},
-    {key:'email',label:'E-mail',full:false},
-    {key:'n_vidas_estimado',label:'Nº de Vidas',full:false},
-    {key:'segmento',label:'Segmento',type:'select',opts:['','PME','PF','Adesao'],labels:['—','PME','PF','Adesão'],full:false},
-    {key:'origem',label:'Origem',type:'select',opts:['','Indicação','Site','Anúncios','Cotador','Outro'],full:false},
-    {key:'plano_atual',label:'Plano Atual',full:false},
-    {key:'operadora_atual',label:'Operadora Atual',full:false},
-  ];
-
-  const grid = document.getElementById('modal-dados');
-  grid.innerHTML = '';
-  campos.forEach(campo => {
-    const div = document.createElement('div');
-    div.className = 'm-field' + (campo.full ? ' full' : '');
-    div.id = `mf-${campo.key}`;
-    const val = c[campo.key] != null ? c[campo.key] : '';
-    div.innerHTML = buildFieldHtml(campo, val, editable, c.id);
-    grid.appendChild(div);
-  });
+  // Dados — edição em modo de seção (Editar / Salvar / Cancelar)
+  _modalEditable = editable;
+  _dadosEditMode = false;
+  renderDadosSection();
 
   // Funil
   document.querySelectorAll('.funil-stage').forEach(btn => {
@@ -1241,24 +1232,55 @@ function renderModal(c, interacoes, cotacoes){
   renderCotacoesWrapper(cotacoes);
 }
 
-function buildFieldHtml(campo, val, editable, id){
-  const displayVal = val !== '' && val !== null ? String(val) : '—';
-  if (!editable){
-    return `<label>${campo.label}</label><div class="m-field-val">${esc(displayVal)}</div>`;
+// Campos da ficha (10) — o whitelist do PATCH /api/clientes/{id} cobre todos.
+const DADOS_CAMPOS = [
+  {key:'nome',label:'Nome',full:false},
+  {key:'empresa',label:'Empresa',full:false},
+  {key:'cnpj',label:'CNPJ',full:false},
+  {key:'telefone',label:'Telefone',full:false},
+  {key:'email',label:'E-mail',full:false},
+  {key:'n_vidas_estimado',label:'Nº de Vidas',full:false},
+  {key:'segmento',label:'Segmento',type:'select',opts:['','PME','PF','Adesao'],labels:['—','PME','PF','Adesão'],full:false},
+  {key:'origem',label:'Origem',type:'select',opts:['','Indicação','Site','Anúncios','Cotador','Outro'],full:false},
+  {key:'plano_atual',label:'Plano Atual',full:false},
+  {key:'operadora_atual',label:'Operadora Atual',full:false},
+];
+let _dadosEditMode = false;   // false = leitura; true = seção inteira em edição
+
+// Valor exibido no modo leitura (mapeia value→label nos selects; '—' quando vazio).
+function _dadosDisplay(campo, raw){
+  const s = raw === null || raw === undefined ? '' : String(raw);
+  if (s === '') return '—';
+  if (campo.type === 'select' && campo.labels){
+    const i = (campo.opts || []).indexOf(s);
+    if (i >= 0 && campo.labels[i]) return campo.labels[i];
   }
-  return `
-    <label>${campo.label}</label>
-    <div class="m-field-val" id="fv-${campo.key}">
-      <span id="fvt-${campo.key}">${esc(displayVal)}</span>
-      <button class="edit-pencil" onclick="startEdit('${campo.key}')" title="Editar">✏</button>
-    </div>
-    <div style="display:none" id="fe-${campo.key}">
-      ${buildEditInput(campo, val)}
-      <div style="display:flex;gap:6px;margin-top:5px">
-        <button class="save-inline" onclick="saveField('${campo.key}')">Salvar</button>
-        <button class="cancel-inline" onclick="cancelEdit('${campo.key}')">Cancelar</button>
-      </div>
+  return s;
+}
+
+// Renderiza a seção "Dados do Cliente" (leitura ou edição) + os botões de ação.
+function renderDadosSection(){
+  const c = currentCliente;
+  const grid = document.getElementById('modal-dados');
+  const actions = document.getElementById('dados-actions');
+  if (!c || !grid) return;
+  const editMode = _dadosEditMode && _modalEditable;
+  grid.innerHTML = DADOS_CAMPOS.map(campo => {
+    const raw = c[campo.key] != null ? c[campo.key] : '';
+    const inner = editMode
+      ? buildEditInput(campo, raw)
+      : `<div class="m-field-val">${esc(_dadosDisplay(campo, raw))}</div>`;
+    return `<div class="m-field${campo.full ? ' full' : ''}" id="mf-${campo.key}">
+      <label>${campo.label}</label>
+      ${inner}
     </div>`;
+  }).join('');
+  if (!actions) return;
+  if (!_modalEditable){ actions.innerHTML = ''; return; }   // read-only: sem botão "Editar"
+  actions.innerHTML = editMode
+    ? `<button class="dados-btn cancel" onclick="cancelDadosEdit()">Cancelar</button>
+       <button class="dados-btn save" onclick="saveDados()">Salvar</button>`
+    : `<button class="dados-btn" onclick="enterDadosEdit()">Editar</button>`;
 }
 
 function buildEditInput(campo, val){
@@ -1268,36 +1290,46 @@ function buildEditInput(campo, val){
     ).join('');
     return `<select id="fi-${campo.key}">${opts}</select>`;
   }
-  return `<input type="text" id="fi-${campo.key}" value="${esc(val)}" onkeydown="if(event.key==='Enter')saveField('${campo.key}')">`;
+  // Sem save no Enter: no modo seção, o salvamento é explícito pelo botão.
+  return `<input type="text" id="fi-${campo.key}" value="${esc(val)}">`;
 }
 
-function startEdit(key){
-  document.getElementById(`fv-${key}`).style.display = 'none';
-  document.getElementById(`fe-${key}`).style.display = '';
-  const inp = document.getElementById(`fi-${key}`);
-  if (inp) inp.focus();
+function enterDadosEdit(){
+  if (!_modalEditable) return;
+  _dadosEditMode = true;
+  renderDadosSection();
+  const first = document.getElementById(`fi-${DADOS_CAMPOS[0].key}`);
+  if (first) first.focus();
 }
 
-function cancelEdit(key){
-  document.getElementById(`fv-${key}`).style.display = 'flex';
-  document.getElementById(`fe-${key}`).style.display = 'none';
+function cancelDadosEdit(){
+  _dadosEditMode = false;
+  renderDadosSection();   // descarta: re-renderiza os valores de currentCliente
 }
 
-async function saveField(key){
-  if (!currentCliente) return;
-  const inp = document.getElementById(`fi-${key}`);
-  if (!inp) return;
-  const val = inp.value;
+async function saveDados(){
+  if (!currentCliente || !_modalEditable) return;
+  const body = {};
+  DADOS_CAMPOS.forEach(campo => {
+    const el = document.getElementById(`fi-${campo.key}`);
+    if (!el) return;
+    const v = typeof el.value === 'string' ? el.value.trim() : el.value;
+    body[campo.key] = v === '' ? null : v;   // '' → null (igual ao comportamento anterior)
+  });
   try {
     const res = await fetch(`${API}/api/clientes/${currentCliente.id}`, {
-      method:'PATCH', headers:authH(),
-      body:JSON.stringify({[key]: val === '' ? null : val})
+      method:'PATCH', headers:authH(), body:JSON.stringify(body)
     });
-    if (!res.ok){ const d=await res.json(); showToast(d.detail||'Erro ao salvar'); return; }
-    currentCliente[key] = val;
-    document.getElementById(`fvt-${key}`).textContent = val || '—';
-    cancelEdit(key);
+    if (!res.ok){ const d = await res.json().catch(()=>({})); showToast(d.detail||'Erro ao salvar'); return; }
+    // Reflete no estado local (currentCliente + registro em allClientes que o card lê)
+    DADOS_CAMPOS.forEach(campo => { currentCliente[campo.key] = body[campo.key]; });
+    const cliInList = allClientes.find(x => x.id === currentCliente.id);
+    if (cliInList) DADOS_CAMPOS.forEach(campo => { cliInList[campo.key] = body[campo.key]; });
+    _dadosEditMode = false;
+    renderDadosSection();
+    document.getElementById('modal-title').textContent = currentCliente.nome || '';
     showToast('Salvo!');
+    await loadKanban(currentScope);   // card reflete nome/segmento/vidas novos
   } catch { showToast('Erro ao salvar'); }
 }
 
