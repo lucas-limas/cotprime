@@ -320,6 +320,8 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
   outline:none;cursor:pointer;
 }
 .int-tipo:focus{border-color:var(--bd3)}
+html[data-theme="dark"] .int-tipo{color-scheme:dark}
+.int-tipo option{background:var(--opt-bg);color:var(--t1)}
 .int-desc{
   flex:1;min-width:160px;background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;
   padding:7px 10px;color:var(--t1);font-size:12px;font-family:"Outfit",sans-serif;
@@ -343,6 +345,13 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .int-desc-text{font-size:13px;color:var(--t2);line-height:1.4}
 .int-meta{font-size:11px;color:var(--t4);margin-top:3px}
 .int-empty{font-size:13px;color:var(--t4);text-align:center;padding:16px}
+.int-acoes{flex-shrink:0}
+.int-edit{display:flex;flex-direction:column;gap:7px;width:100%}
+.int-edit .int-desc{width:100%;min-height:52px}
+.int-edit-row{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.int-edit-actions{display:flex;gap:6px}
+.int-del-link{background:none;border:none;color:var(--t4);font-size:11px;font-family:"Outfit",sans-serif;font-weight:600;cursor:pointer;padding:4px 2px;transition:color .15s}
+.int-del-link:hover{color:#ef4444}
 
 /* cotações */
 .cot-list{display:flex;flex-direction:column;gap:7px}
@@ -362,7 +371,8 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
   width:100%;background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;
   padding:7px 10px;color:var(--t1);font-size:12px;font-family:"Outfit",sans-serif;outline:none;
 }
-html[data-theme="dark"] .tar-form input{color-scheme:dark}
+html[data-theme="dark"] .tar-form input,html[data-theme="dark"] .tar-form select{color-scheme:dark}
+.tar-form select option{background:var(--opt-bg);color:var(--t1)}
 .tar-form input:focus,.tar-form select:focus{border-color:var(--bd3)}
 .tar-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .tar-item{
@@ -807,6 +817,8 @@ const STAGES = ['lead','contato','proposta','negociacao','fechado','perdido'];
 const STAGE_LABEL = {lead:'Lead',contato:'Contato',proposta:'Proposta',negociacao:'Negociação',fechado:'Fechado',perdido:'Perdido'};
 const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',proposta:'#f59e0b',negociacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
 const INT_ICON = {ligacao:'📞',whatsapp:'💬',email:'📧',reuniao:'👥',nota:'📝'};
+const INT_LABEL = {ligacao:'Ligação',whatsapp:'WhatsApp',email:'E-mail',reuniao:'Reunião',nota:'Nota'};
+const INT_TIPOS = ['ligacao','whatsapp','email','reuniao','nota'];
 const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};
 const TAR_STATUS_LABEL = {pendente:'Pendente',feito:'Concluído',cancelado:'Cancelado'};
 
@@ -1240,6 +1252,7 @@ function renderModal(c, interacoes, cotacoes){
   _modalEditable = editable;
 
   // Interações
+  _editIntId = null;   // abre o modal sempre em leitura (nenhuma edição inline pendente)
   renderInteracoes(interacoes);
 
   // Cotações
@@ -1597,19 +1610,83 @@ async function excluirCliente(){
 
 /* ── INTERAÇÕES ── */
 function renderInteracoes(interacoes){
+  _interacoes = interacoes;   // guarda em memória p/ alternar edição sem re-fetch
   const el = document.getElementById('int-list');
   if (!interacoes.length){
     el.innerHTML = '<div class="int-empty">Nenhuma interação registrada.</div>';
     return;
   }
-  el.innerHTML = interacoes.map(i => `
+  el.innerHTML = interacoes.map(i => {
+    if (_modalEditable && _editIntId === i.id){
+      // Edição inline: tipo (select) + descrição (textarea) + Excluir/Cancelar/Salvar.
+      const opts = INT_TIPOS.map(t =>
+        `<option value="${t}" ${t === i.tipo ? 'selected' : ''}>${INT_ICON[t]} ${INT_LABEL[t]}</option>`
+      ).join('');
+      return `
+    <div class="int-item">
+      <div class="int-icon">${INT_ICON[i.tipo]||'📝'}</div>
+      <div class="int-edit">
+        <select class="int-tipo" id="edit-int-tipo-${i.id}">${opts}</select>
+        <textarea class="int-desc" id="edit-int-desc-${i.id}">${esc(i.descricao||'')}</textarea>
+        <div class="int-edit-row">
+          <button class="int-del-link" onclick="excluirInteracao(${i.id})">Excluir</button>
+          <div class="int-edit-actions">
+            <button class="cancel-inline" onclick="cancelarEdicaoInteracao()">Cancelar</button>
+            <button class="save-inline" onclick="salvarEdicaoInteracao(${i.id})">Salvar</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    }
+    // Leitura: ícone + texto + meta (data · há Xh · tipo); botão "Editar" só quando editável.
+    const acao = _modalEditable
+      ? `<div class="int-acoes"><button class="tar-btn" onclick="editarInteracao(${i.id})">Editar</button></div>`
+      : '';
+    return `
     <div class="int-item">
       <div class="int-icon">${INT_ICON[i.tipo]||'📝'}</div>
       <div class="int-body">
         <div class="int-desc-text">${esc(i.descricao||'')}</div>
-        <div class="int-meta">${fmtDate(i.criado_em)} · ${relativeDate(i.criado_em)}</div>
+        <div class="int-meta">${fmtDate(i.criado_em)} · ${relativeDate(i.criado_em)} · ${esc(INT_LABEL[i.tipo]||i.tipo)}</div>
       </div>
-    </div>`).join('');
+      ${acao}
+    </div>`;
+  }).join('');
+}
+
+function editarInteracao(id){ _editIntId = id; renderInteracoes(_interacoes); }
+function cancelarEdicaoInteracao(){ _editIntId = null; renderInteracoes(_interacoes); }
+
+async function salvarEdicaoInteracao(id){
+  if (!currentCliente || !_modalEditable) return;
+  const tipo = document.getElementById('edit-int-tipo-'+id).value;
+  const descricao = document.getElementById('edit-int-desc-'+id).value.trim();
+  if (!descricao){ showToast('Descreva a interação'); return; }
+  try{
+    const res = await fetch(`${API}/api/interacoes/${id}`, {method:'PATCH', headers:authH(), body:JSON.stringify({tipo, descricao})});
+    if (!res.ok){ const d=await res.json().catch(()=>({})); showToast(d.detail||'Erro ao salvar'); return; }
+    _editIntId = null;
+    await _recarregarInteracoes();
+    showToast('Alterações salvas');
+  } catch { showToast('Erro ao salvar'); }
+}
+
+async function excluirInteracao(id){
+  if (!currentCliente || !_modalEditable) return;
+  if (!confirm('Excluir esta interação da linha do tempo?')) return;
+  try{
+    const res = await fetch(`${API}/api/interacoes/${id}`, {method:'DELETE', headers:authH()});
+    if (!res.ok){ const d=await res.json().catch(()=>({})); showToast(d.detail||'Erro ao excluir'); return; }
+    if (_editIntId === id) _editIntId = null;
+    await _recarregarInteracoes();
+    showToast('Interação excluída');
+  } catch { showToast('Erro ao excluir'); }
+}
+
+async function _recarregarInteracoes(){
+  const iRes = await fetch(`${API}/api/clientes/${currentCliente.id}/interacoes`, {headers:authH()});
+  _interacoes = iRes.ok ? await iRes.json() : [];
+  renderInteracoes(_interacoes);
 }
 
 async function registrarInteracao(){
@@ -1623,9 +1700,8 @@ async function registrarInteracao(){
     });
     if (!res.ok){ const d=await res.json(); showToast(d.detail||'Erro'); return; }
     document.getElementById('int-desc').value = '';
-    const iRes = await fetch(`${API}/api/clientes/${currentCliente.id}/interacoes`, {headers:authH()});
-    const interacoes = iRes.ok ? await iRes.json() : [];
-    renderInteracoes(interacoes);
+    _editIntId = null;   // registrar fecha qualquer edição inline aberta
+    await _recarregarInteracoes();
     showToast('Interação registrada');
     const c = allClientes.find(x => x.id === currentCliente.id);
     if (c) c.ultima_interacao_em = new Date().toISOString();
@@ -1896,6 +1972,8 @@ function _handleGoogleResp(g){
 /* ── COTAÇÕES ── */
 let _crmCotacoes = [];
 let _modalEditable = true;
+let _interacoes = [];    // última lista de interações carregada (p/ alternar edição sem re-fetch)
+let _editIntId = null;   // id da interação em edição inline (null = todas em leitura)
 
 function renderCotacoesWrapper(cotacoes){
   _crmCotacoes = cotacoes;

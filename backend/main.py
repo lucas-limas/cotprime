@@ -2936,6 +2936,33 @@ def deletar_interacao(interacao_id: int, user=Depends(require_corretor)):
     return {"ok": True}
 
 
+@app.patch("/api/interacoes/{interacao_id}")
+def atualizar_interacao(interacao_id: int, body: InteracaoRequest, user=Depends(require_corretor)):
+    conn = get_connection()
+    inter = conn.execute("SELECT * FROM interacoes WHERE id = ?", (interacao_id,)).fetchone()
+    if not inter:
+        conn.close()
+        raise HTTPException(404, "Interação não encontrada")
+    cliente = conn.execute("SELECT * FROM clientes WHERE id = ?", (inter["cliente_id"],)).fetchone()
+    if not cliente:
+        conn.close()
+        raise HTTPException(404, "Cliente não encontrado")
+    try:
+        _check_cliente_acesso(dict(cliente), user, write=True)
+    except HTTPException:
+        conn.close()
+        raise
+    # criado_em preservado: a interação segue no mesmo ponto da timeline (só edita tipo/descrição).
+    conn.execute(
+        "UPDATE interacoes SET tipo = ?, descricao = ? WHERE id = ?",
+        (body.tipo, body.descricao, interacao_id),
+    )
+    conn.commit()
+    updated = conn.execute("SELECT * FROM interacoes WHERE id = ?", (interacao_id,)).fetchone()
+    conn.close()
+    return dict(updated)
+
+
 # ── CRM: Tarefas / Agendamentos (Fase 1 — Google Agenda via link/.ics no front) ──
 
 TIPOS_TAREFA = {"ligacao", "reuniao", "reativar", "whatsapp", "email", "outro"}
