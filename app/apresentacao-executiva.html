@@ -86,13 +86,32 @@ body{font-family:"DM Sans",sans-serif;background:var(--cream);color:var(--ink);f
 .op-vida-row:last-child{border-bottom:none}
 
 /* ── VANTAGENS CHECK ── */
-.vant-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:1rem 1.5rem}
+.vant-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .vant-item{display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px 10px;border-radius:var(--r-sm);border:1.5px solid var(--line);transition:all .15s}
 .vant-item:hover{border-color:var(--line2);background:var(--cream)}
 .vant-item input[type=checkbox]{margin-top:2px;accent-color:var(--navy)}
 .vant-item.checked{border-color:var(--navy);background:var(--unity-bg)}
 .vant-nome{font-size:12px;font-weight:500;color:var(--navy)}
 .vant-desc{font-size:11px;color:var(--ink3)}
+/* seletor de produto (vantagens por proposta) — só os produtos da cotação atual */
+.vant-prod-picker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.vant-prod-picker > label{font-size:11px;font-weight:700;color:var(--ink2);letter-spacing:.04em;text-transform:uppercase}
+.vant-prod-picker select{font-family:"DM Sans",sans-serif;font-size:13px;font-weight:600;color:var(--navy);background:var(--cream);border:1.5px solid var(--line);border-radius:var(--r-sm);padding:8px 11px;min-width:240px;outline:none;cursor:pointer;color-scheme:light}
+.vant-prod-picker select:focus{border-color:var(--navy);background:#fff}
+.vant-prod-picker select option{background:#fff;color:var(--navy)}
+.vant-prod-tip{font-size:11px;color:var(--ink3)}
+.vant-prod-note{font-size:11.5px;color:var(--ink2);background:var(--cream);border:1px solid var(--line);border-radius:8px;padding:6px 11px;margin-bottom:12px}
+.vant-prod-note b{color:var(--navy)}
+.vant-prod-empty{font-size:12px;color:var(--ink3);padding:6px 2px}
+.vant-count{font-size:12px;color:var(--ink2);margin-top:10px}
+.vant-count b{color:var(--navy)}
+/* documento do cliente: um bloco de vantagens por produto */
+.vant-prod-block{margin-top:1.25rem}
+.vant-prod-block:first-child{margin-top:0}
+.vant-prod-block-head{display:flex;align-items:center;gap:.6rem;padding-bottom:.5rem;border-bottom:2px solid var(--navy)}
+.vpb-name{font-size:15px;font-weight:700;color:var(--navy)}
+.vpb-win{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--navy);background:var(--cream);border:1px solid var(--line2);border-radius:5px;padding:2px 7px}
+.vpb-op{font-size:11px;color:var(--ink3);margin-left:auto}
 
 
 /* ── MULTI-OP CARDS (form) ── */
@@ -462,7 +481,7 @@ body{-webkit-overflow-scrolling:touch}
     <div id="ops-single-section" class="card-body">
       <div class="g3">
         <div class="fg"><label>Operadora recomendada</label>
-          <select id="g-op-s" onchange="buildPlanosSel()">
+          <select id="g-op-s" onchange="buildPlanosSel(); buildVantConfig()">
             <option value="unity">Unity Saúde</option>
             <option value="evo">Evo Saúde</option>
             <option value="plenum">Plenum Saúde</option>
@@ -473,7 +492,7 @@ body{-webkit-overflow-scrolling:touch}
             <option value="bradesco">Bradesco Saúde</option>
           </select>
         </div>
-        <div class="fg"><label>Plano recomendado</label><select id="g-plano-s"></select></div>
+        <div class="fg"><label>Plano recomendado</label><select id="g-plano-s" onchange="buildVantConfig()"></select></div>
         <div class="fg"><label>Mês / ano de reajuste</label><input type="text" id="g-reajuste-s" placeholder="Ex: Março/2027"></div>
       </div>
       <div class="g2">
@@ -531,10 +550,19 @@ body{-webkit-overflow-scrolling:touch}
     </div>
   </div>
 
-  <!-- VANTAGENS EXTRAS -->
+  <!-- VANTAGENS EXTRAS (por produto) -->
   <div class="card">
     <div class="card-head">⭐ Vantagens estratégicas do plano</div>
-    <div class="vant-grid" id="vant-checks"></div>
+    <div class="card-body" style="padding:1rem 1.5rem 1.25rem">
+      <div class="vant-prod-picker" id="vant-prod-wrap">
+        <label for="vant-prod-select">Produto:</label>
+        <select id="vant-prod-select" onchange="onVantProdChange()"></select>
+        <span class="vant-prod-tip">← só os produtos desta cotação</span>
+      </div>
+      <div class="vant-prod-note">Ajustando as vantagens de <b id="vant-prod-atual">—</b> · vale só nesta proposta (não altera o cadastro).</div>
+      <div class="vant-grid" id="vant-checks"></div>
+      <div class="vant-count" id="vant-count"></div>
+    </div>
   </div>
 
   <!-- OPÇÕES DE EXIBIÇÃO -->
@@ -617,7 +645,7 @@ fetch('/api/catalogo', {headers: _apTok ? {'Authorization': 'Bearer ' + _apTok} 
   VANTAGENS_LIB = (data.vantagens_lib || []).map(v => ({codigo:v.codigo, icon:v.icone||'', nome:v.nome||'', desc:v.desc||''}));
   PLANO_VANT = {};
   (data.planos || []).forEach(p => { if (p && p.id) PLANO_VANT[p.id] = p.vantagens || []; });
-  buildVantagens();   // re-renderiza os checks agora que a biblioteca chegou
+  buildVantConfig();   // re-renderiza o seletor/checks agora que a biblioteca chegou
 }).catch(()=>{});
 
 const HOSPITAIS_DB = [
@@ -735,8 +763,13 @@ const HOSPITAIS_DB = [
 // [codigosVantagem] associados àquele produto — usado para pré-marcar pelo vencedor.
 // Ambos são populados no fetch de /api/catalogo (mais abaixo).
 let VANTAGENS_LIB = [];        // [{codigo, icon, nome, desc}]
-let PLANO_VANT = {};           // { [codigoPlano]: [codigoVantagem, ...] }
+let PLANO_VANT = {};           // { [codigoPlano]: [codigoVantagem, ...] } — padrão do cadastro
 function _vEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Vantagens POR PRODUTO nesta proposta (efêmero — não grava no catálogo).
+let COT_PRODUTOS = [];         // [{codigo, nome, op, winner}] — só os produtos da cotação atual
+let VANT_POR_PRODUTO = {};     // { [codigoPlano]: Set(codigoVantagem) } — seleção por produto
+let _vantProdAtual = null;     // codigo do produto selecionado no seletor
 
 // ─── ESTADO ────────────────────────────────────────────────────────────
 let vidaCount = 0;
@@ -921,22 +954,90 @@ function buildMultiVidasUI(opsInfo, qtds) {
   });
 }
 
-// ─── VANTAGENS ─────────────────────────────────────────────────────────
-function buildVantagens() {
-  const c = document.getElementById('vant-checks');
-  if (!c) return;
-  if (!VANTAGENS_LIB.length) {
-    c.innerHTML = '<div style="color:var(--ink3);font-size:12px;padding:6px 2px">Nenhuma vantagem cadastrada no catálogo.</div>';
+// ─── VANTAGENS (por produto, nesta proposta) ───────────────────────────
+// Produtos atuais: no fluxo do cotador (multi) usa COT_PRODUTOS; no fluxo manual
+// (single) monta 1 produto a partir dos selects da seção "single".
+function _cotProdutosAtuais() {
+  if (_opsData) return COT_PRODUTOS;
+  const op  = (document.getElementById('g-op-s') || {}).value || '';
+  const cod = (document.getElementById('g-plano-s') || {}).value || '';
+  if (!op || !cod) return [];
+  const pl = ((PLANOS_DB[op] || []).find(p => p.id === cod))
+          || ((window.PLANOS || []).find(p => p.id === cod));
+  return [{codigo: cod, nome: (pl && pl.nome) || cod, op: (OP_META[op] || {}).nome || op, winner: true}];
+}
+
+// Ponto de entrada: (re)monta o seletor de produtos + o checklist do produto atual.
+function buildVantConfig() {
+  const prods = _cotProdutosAtuais();
+  // Garante um Set por produto (default = cadastro), preservando edições já feitas.
+  prods.forEach(p => { if (!VANT_POR_PRODUTO[p.codigo]) VANT_POR_PRODUTO[p.codigo] = new Set(PLANO_VANT[p.codigo] || []); });
+  if (!prods.some(p => p.codigo === _vantProdAtual)) _vantProdAtual = prods.length ? prods[0].codigo : null;
+  renderVantPicker(prods);
+  renderVantChecks();
+}
+
+function renderVantPicker(prods) {
+  const wrap = document.getElementById('vant-prod-wrap');
+  const sel  = document.getElementById('vant-prod-select');
+  const note = document.getElementById('vant-prod-atual');
+  if (!sel) return;
+  if (!prods.length) {
+    if (wrap) wrap.style.display = 'none';
+    if (note) note.textContent = '—';
     return;
   }
-  c.innerHTML = VANTAGENS_LIB.map(v => `
-    <label class="vant-item" onclick="this.classList.toggle('checked')">
-      <input type="checkbox" name="vant" value="${_vEsc(v.codigo)}" style="accent-color:var(--navy)">
+  if (wrap) wrap.style.display = '';
+  sel.innerHTML = prods.map(p =>
+    `<option value="${_vEsc(p.codigo)}"${p.codigo === _vantProdAtual ? ' selected' : ''}>${_vEsc(p.op)} · ${_vEsc(p.nome)}${p.winner ? '  (recomendado)' : ''}</option>`
+  ).join('');
+  const cur = prods.find(p => p.codigo === _vantProdAtual);
+  if (note) note.textContent = cur ? `${cur.op} · ${cur.nome}` : '—';
+}
+
+function onVantProdChange() {
+  _vantProdAtual = document.getElementById('vant-prod-select').value;
+  const cur = _cotProdutosAtuais().find(p => p.codigo === _vantProdAtual);
+  const note = document.getElementById('vant-prod-atual');
+  if (note) note.textContent = cur ? `${cur.op} · ${cur.nome}` : '—';
+  renderVantChecks();
+}
+
+function renderVantChecks() {
+  const c = document.getElementById('vant-checks');
+  if (!c) return;
+  const cnt = document.getElementById('vant-count');
+  if (!VANTAGENS_LIB.length) {
+    c.innerHTML = '<div class="vant-prod-empty">Nenhuma vantagem cadastrada no catálogo.</div>';
+    if (cnt) cnt.innerHTML = '';
+    return;
+  }
+  if (!_vantProdAtual) {
+    c.innerHTML = '<div class="vant-prod-empty">Escolha um produto na cotação para ajustar as vantagens dele.</div>';
+    if (cnt) cnt.innerHTML = '';
+    return;
+  }
+  const set = VANT_POR_PRODUTO[_vantProdAtual] || new Set();
+  c.innerHTML = VANTAGENS_LIB.map(v => {
+    const on = set.has(v.codigo);
+    return `<label class="vant-item${on ? ' checked' : ''}">
+      <input type="checkbox" ${on ? 'checked' : ''} onchange="onVantCheck('${_vEsc(v.codigo)}', this)" style="accent-color:var(--navy)">
       <span>
         <span class="vant-nome">${_vEsc(v.icon)} ${_vEsc(v.nome)}</span>
         <span class="vant-desc">${_vEsc(v.desc)}</span>
       </span>
-    </label>`).join('');
+    </label>`;
+  }).join('');
+  if (cnt) cnt.innerHTML = `<b>${set.size}</b> vantagem(ns) marcada(s) para este produto.`;
+}
+
+function onVantCheck(codigo, cb) {
+  const set = VANT_POR_PRODUTO[_vantProdAtual];
+  if (!set) return;
+  if (cb.checked) set.add(codigo); else set.delete(codigo);
+  cb.closest('.vant-item')?.classList.toggle('checked', cb.checked);
+  const cnt = document.getElementById('vant-count');
+  if (cnt) cnt.innerHTML = `<b>${set.size}</b> vantagem(ns) marcada(s) para este produto.`;
 }
 
 // ─── TEXTOS GPCT + SPIN ────────────────────────────────────────────────
@@ -1379,9 +1480,15 @@ async function gerar() {
     ? HOSPITAIS_DB.filter(h => _redeCols.some(c => h.rede?.[c.op]?.[c.col]))
     : [];
 
-  // Vantagens (marcadas na tela) → itens da biblioteca por codigo
-  const vantSel = [...document.querySelectorAll('input[name="vant"]:checked')]
-    .map(cb => VANTAGENS_LIB.find(v=>v.codigo===cb.value)).filter(Boolean);
+  // Vantagens POR PRODUTO (fonte = VANT_POR_PRODUTO, editado no config; efêmero).
+  // Um bloco por produto (vencedor primeiro); pula produto sem vantagem marcada.
+  const _prodList = _cotProdutosAtuais();
+  const vantProdutos = _prodList.map(p => ({
+    nome: p.nome, op: p.op, winner: p.winner,
+    items: [...(VANT_POR_PRODUTO[p.codigo] || [])]
+      .map(cod => VANTAGENS_LIB.find(v => v.codigo === cod)).filter(Boolean),
+  })).filter(bl => bl.items.length > 0);
+  const anyVant = vantProdutos.length > 0;
 
   // Textos
   const diagnostico = gerarDiagnostico(nome, tipo, dores);
@@ -1458,12 +1565,21 @@ async function gerar() {
 
   const hospHTML = buildRedeTable(hospSel, _redeCols);
 
-  const vantHTML = vantSel.length > 0 ? vantSel.map(v=>`
-    <div class="va-card">
-      <div class="va-icon">${_vEsc(v.icon)}</div>
-      <div class="va-nome">${_vEsc(v.nome)}</div>
-      <div class="va-desc">${_vEsc(v.desc)}</div>
-    </div>`).join('') : '';
+  // Um bloco por produto (com ≥1 vantagem): cabeçalho + grid das vantagens dele.
+  const vantBlocksHTML = vantProdutos.map(bl => `
+    <div class="vant-prod-block">
+      <div class="vant-prod-block-head">
+        <span class="vpb-name">${_vEsc(bl.nome)}</span>
+        ${bl.winner ? '<span class="vpb-win">Recomendado</span>' : ''}
+        <span class="vpb-op">${_vEsc(bl.op)}</span>
+      </div>
+      <div class="vant-apres-grid">${bl.items.map(v=>`
+        <div class="va-card">
+          <div class="va-icon">${_vEsc(v.icon)}</div>
+          <div class="va-nome">${_vEsc(v.nome)}</div>
+          <div class="va-desc">${_vEsc(v.desc)}</div>
+        </div>`).join('')}</div>
+    </div>`).join('');
 
   // Carências por operadora
   const activeOpKeys = isMulti ? [...new Set((_opsData.opsInfo||[]).map(o => o.op))] : [opKey];
@@ -1471,8 +1587,8 @@ async function gerar() {
   const carNum    = '02';
   const redeNum   = '03';
   const vantNum   = hospSel.length > 0 ? '04' : '03';
-  const regrasNum = _p2(3 + (hospSel.length>0?1:0) + (vantSel.length>0?1:0));
-  const fechNum   = _p2(4 + (hospSel.length>0?1:0) + (vantSel.length>0?1:0));
+  const regrasNum = _p2(3 + (hospSel.length>0?1:0) + (anyVant?1:0));
+  const fechNum   = _p2(4 + (hospSel.length>0?1:0) + (anyVant?1:0));
   const carenciasHTML = activeOpKeys.map(ok => {
     const db = CARENCIAS_DB[ok]; if (!db) return '';
     const m = OP_META[ok];
@@ -1519,7 +1635,7 @@ async function gerar() {
         <li>${isMulti ? 'Comparativo de valores entre operadoras' : 'Raio-X financeiro do seu plano'}</li>
         <li>Prazos de carência por operadora</li>
         ${hospSel.length > 0 ? '<li>Rede credenciada e hospitais</li>' : ''}
-        ${vantSel.length > 0 ? '<li>Vantagens e benefícios estratégicos</li>' : ''}
+        ${anyVant ? '<li>Vantagens e benefícios estratégicos</li>' : ''}
         <li>Regras técnicas simplificadas</li>
         <li>Próximos passos para contratação</li>
       </ul>
@@ -1608,13 +1724,13 @@ async function gerar() {
     </div>
   </div>` : ''}
 
-  <!-- PACOTE ROBUSTO -->
-  ${vantSel.length > 0 ? `
+  <!-- PACOTE ROBUSTO — um bloco por produto -->
+  ${anyVant ? `
   <div class="sec">
     <div class="sec-eyebrow">${vantNum} — Vantagens Estratégicas</div>
-    <h2 class="sec-title">O pacote vai além da saúde</h2>
-    <p class="sec-intro">Além da cobertura médica, o plano entrega um conjunto de benefícios que <strong>amplificam o retorno do seu investimento</strong>. Estes diferenciais raramente constam nas tabelas de preço — mas fazem toda a diferença no dia a dia.</p>
-    <div class="vant-apres-grid">${vantHTML}</div>
+    <h2 class="sec-title">O que cada plano entrega além da saúde</h2>
+    <p class="sec-intro">Cada opção abaixo carrega seus <strong>próprios diferenciais</strong> — o que muda de um plano para o outro fica explícito, não escondido num bloco genérico. Estes benefícios raramente constam nas tabelas de preço, mas fazem toda a diferença no dia a dia.</p>
+    ${vantBlocksHTML}
   </div>` : ''}
 
   <!-- REGRAS -->
@@ -1809,20 +1925,33 @@ function receiveFromCotador(data) {
     if (!qtds.some(q => q > 0)) addVida();
   }
 
-  buildVantagens();
-
-  // Pré-marca as vantagens DO PRODUTO: começa pelo vencedor e une os conjuntos dos
-  // planos selecionados (o corretor ajusta pontualmente nesta proposta — não grava).
-  const _preCodigos = new Set(PLANO_VANT[winnerPid] || []);
-  if (selPlanos) {
-    Object.keys(activeOps || {}).filter(k => activeOps[k]).forEach(op => {
-      (PLANO_VANT[selPlanos[op]] || []).forEach(cod => _preCodigos.add(cod));
+  // Produtos DESTA cotação — cada um com seu conjunto de vantagens, pré-marcado pelo
+  // PADRÃO DO CADASTRO (PLANO_VANT). Efêmero: ajustar aqui não grava no catálogo.
+  // Fonte = opsInfo (um item por PLANO, então dois planos da MESMA operadora — ex.:
+  // Prestige e Clássico — aparecem separados); fallback = selPlanos (1 por operadora).
+  // Reset a cada cotação (consistente com a Fase C, que reseta a config ao padrão).
+  const _plById = cod => (window.PLANOS || []).find(p => p.id === cod) || null;
+  COT_PRODUTOS = [];
+  VANT_POR_PRODUTO = {};
+  const _addProduto = (op, cod) => {
+    if (!op || !cod || VANT_POR_PRODUTO[cod]) return;   // ignora vazio / duplicado
+    const pl = _plById(cod);
+    COT_PRODUTOS.push({
+      codigo: cod,
+      nome: (pl && pl.nome) || cod,
+      op: (OP_META[op] && OP_META[op].nome) || op,
+      winner: cod === winnerPid,
     });
+    VANT_POR_PRODUTO[cod] = new Set(PLANO_VANT[cod] || []);
+  };
+  if (_ops.length) {
+    _ops.forEach(o => _addProduto(o.op, o.pid));
+  } else if (selPlanos) {
+    Object.keys(activeOps || {}).filter(k => activeOps[k]).forEach(op => _addProduto(op, selPlanos[op]));
   }
-  _preCodigos.forEach(cod => {
-    const cb = document.querySelector(`input[name="vant"][value="${_vEsc(cod)}"]`);
-    if (cb) { cb.checked = true; cb.closest('.vant-item')?.classList.add('checked'); }
-  });
+  COT_PRODUTOS.sort((a, b) => (b.winner ? 1 : 0) - (a.winner ? 1 : 0));   // vencedor primeiro
+  _vantProdAtual = COT_PRODUTOS.length ? COT_PRODUTOS[0].codigo : null;
+  buildVantConfig();
 
   showTab('gerador', document.getElementById('tbn-gerador'));
   document.getElementById('btn-back').style.display = 'none';
@@ -1831,7 +1960,7 @@ function receiveFromCotador(data) {
 
 // ─── INIT ─────────────────────────────────────────────────────────────
 buildPlanosSel();
-buildVantagens();   // vazio até o catálogo chegar; re-renderiza no fetch de /api/catalogo
+buildVantConfig();   // vazio até o catálogo chegar; re-renderiza no fetch de /api/catalogo
 addVida(); // linha inicial
 // Default validade = 30 dias
 const d = new Date(); d.setDate(d.getDate()+30);
