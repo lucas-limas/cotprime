@@ -6,7 +6,7 @@ import os
 import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -283,6 +283,68 @@ def startup():
         conn.commit()
     conn.close()
     seed_catalogo()
+    seed_vantagens()
+
+
+# Biblioteca inicial (as 8 vantagens que eram hardcoded no front) + operadoras de origem
+# de cada uma — ponto de partida da associação por plano.
+# (codigo, icone, nome, descricao, ordem, [op_chaves])
+_VANTAGENS_SEED = [
+    ("v1", "🦷", "Plano Odontológico", "Incluído sem custo adicional (ODONTOGROUP — 229 procedimentos)", 1, ["evo"]),
+    ("v2", "📱", "Telemedicina 24h", "Consultas online com médicos e especialistas a qualquer hora", 2, ["unity", "evo", "plenum"]),
+    ("v3", "✈️", "Seguro Viagem Nacional", "Cobertura AIG para emergências médicas em todo o Brasil", 3, ["plenum"]),
+    ("v4", "🚑", "UTI Móvel 24h", "3 bases operacionais no DF — suporte avançado de vida", 4, ["plenum"]),
+    ("v5", "🎁", "Clube de Vantagens", "Descontos em farmácias, exames e serviços parceiros", 5, ["plenum", "unity"]),
+    ("v6", "💊", "Desconto em Farmácias", "Rede de farmácias parceiras com desconto para beneficiários", 6, ["unity"]),
+    ("v7", "🏥", "Concierge de Saúde", "Agendamento de consultas e orientação médica personalizada", 7, ["evo", "unity"]),
+    ("v8", "🔬", "Lab. Sabin na Rede", "Sabin Medicina Diagnóstica credenciado (referência nacional)", 8, ["evo", "unity"]),
+]
+
+
+def seed_vantagens():
+    """Idempotente. (1) garante as 8 vantagens da biblioteca por codigo — não sobrescreve
+    edições do superadmin; (2) na PRIMEIRA vez desta feature (tabela de ligação vazia)
+    associa cada uma aos planos das operadoras de origem, preservando o comportamento
+    atual sem tela em branco. Depois disso o superadmin controla as associações — o seed
+    não as reescreve (evita ressuscitar associações removidas a cada boot)."""
+    conn = get_connection()
+    try:
+        existentes = {r["codigo"] for r in conn.execute("SELECT codigo FROM vantagens").fetchall()}
+        for codigo, icone, nome, desc, ordem, _ops in _VANTAGENS_SEED:
+            if codigo not in existentes:
+                conn.execute(
+                    "INSERT INTO vantagens (codigo, icone, nome, descricao, ativo, ordem) VALUES (?, ?, ?, ?, 1, ?)",
+                    (codigo, icone, nome, desc, ordem),
+                )
+        conn.commit()
+
+        ja_tem = conn.execute("SELECT COUNT(*) AS c FROM plano_vantagens").fetchone()
+        if (ja_tem["c"] if ja_tem else 0) == 0:
+            vids = {r["codigo"]: r["id"] for r in conn.execute("SELECT id, codigo FROM vantagens").fetchall()}
+            planos_por_op = {}
+            for r in conn.execute(
+                "SELECT p.id AS pid, o.chave AS chave FROM planos p JOIN operadoras o ON p.operadora_id = o.id"
+            ).fetchall():
+                planos_por_op.setdefault(r["chave"], []).append(r["pid"])
+            for codigo, _ic, _nm, _ds, _ord, ops in _VANTAGENS_SEED:
+                vid = vids.get(codigo)
+                if not vid:
+                    continue
+                for op in ops:
+                    for pid in planos_por_op.get(op, []):
+                        conn.execute(
+                            "INSERT INTO plano_vantagens (plano_id, vantagem_id, ordem) VALUES (?, ?, 0)",
+                            (pid, vid),
+                        )
+            conn.commit()
+    except Exception as e:
+        logger.error(f"seed_vantagens falhou: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        conn.close()
 
 
 def seed_catalogo():
@@ -724,6 +786,22 @@ class UpdatePlanoRequest(BaseModel):
     precos: Optional[list] = None
     ativo: Optional[int] = None
     ordem: Optional[int] = None
+
+
+class VantagemRequest(BaseModel):
+    icone: Optional[str] = None
+    nome: str
+    descricao: Optional[str] = None
+
+class UpdateVantagemRequest(BaseModel):
+    icone: Optional[str] = None
+    nome: Optional[str] = None
+    descricao: Optional[str] = None
+    ativo: Optional[int] = None
+    ordem: Optional[int] = None
+
+class PlanoVantagensRequest(BaseModel):
+    vantagem_ids: List[int] = []
 
 
 class RedeItemRequest(BaseModel):
@@ -1747,7 +1825,7 @@ def catalogo_publico(user=Depends(require_corretor)):
         "SELECT id, chave, nome, info, cor, rede_adm, rede_rodape FROM operadoras WHERE ativo = 1 ORDER BY ordem, id"
     ).fetchall()
     planos_rows = conn.execute(
-        """SELECT p.codigo, o.chave as op, p.nome, p.acomodacao as aco, p.tipo,
+        """SELECT p.id as plano_id, p.codigo, o.chave as op, p.nome, p.acomodacao as aco, p.tipo,
                   p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.rede_chave, p.precos
            FROM planos p JOIN operadoras o ON p.operadora_id = o.id
            WHERE p.ativo = 1 AND o.ativo = 1
@@ -1759,7 +1837,24 @@ def catalogo_publico(user=Depends(require_corretor)):
            WHERE rc.ativo = 1 AND o.ativo = 1
            ORDER BY o.ordem, rc.grupo_ordem, rc.ordem, rc.id"""
     ).fetchall()
+    # Vantagens: biblioteca ativa + associações por plano (1 query cada — sem N+1).
+    vant_rows = conn.execute(
+        "SELECT codigo, icone, nome, descricao FROM vantagens WHERE ativo = 1 ORDER BY ordem, id"
+    ).fetchall()
+    plano_vant_rows = conn.execute(
+        """SELECT pv.plano_id, v.codigo
+           FROM plano_vantagens pv JOIN vantagens v ON v.id = pv.vantagem_id
+           WHERE v.ativo = 1
+           ORDER BY pv.ordem, pv.vantagem_id"""
+    ).fetchall()
     conn.close()
+    vant_por_plano = {}
+    for r in plano_vant_rows:
+        vant_por_plano.setdefault(r["plano_id"], []).append(r["codigo"])
+    vantagens_lib = [
+        {"codigo": r["codigo"], "icone": r["icone"] or "", "nome": r["nome"], "desc": r["descricao"] or ""}
+        for r in vant_rows
+    ]
     operadoras = {r["chave"]: {"nome": r["nome"], "info": r["info"] or "", "cor": r["cor"] or ""} for r in ops_rows}
     planos = []
     for r in planos_rows:
@@ -1770,6 +1865,7 @@ def catalogo_publico(user=Depends(require_corretor)):
             "aco":    r["aco"],
             "tipo":   r["tipo"] or "adesao",
             "precos": json.loads(r["precos"]),
+            "vantagens": vant_por_plano.get(r["plano_id"], []),
         }
         if r["fvidas"]:     p["fvidas"] = r["fvidas"]
         if r["mod"]:        p["mod"] = r["mod"]
@@ -1801,7 +1897,7 @@ def catalogo_publico(user=Depends(require_corretor)):
             if r["obs"]:       item["obs"] = r["obs"]
             if r["tag_extra"]: item["tagExtra"] = json.loads(r["tag_extra"])
             existing["itens"].append(item)
-    return {"faixas": FAIXAS, "operadoras": operadoras, "planos": planos, "rede": rede}
+    return {"faixas": FAIXAS, "operadoras": operadoras, "planos": planos, "rede": rede, "vantagens_lib": vantagens_lib}
 
 
 # ── Superadmin: Catálogo — Operadoras ─────────────────────────────────────────
@@ -1935,11 +2031,150 @@ def deletar_plano(plano_id: int, admin=Depends(require_superadmin)):
     if not row:
         conn.close()
         raise HTTPException(404, "Plano não encontrado")
+    # SQLite não força FK: limpa associações do plano antes de removê-lo.
+    conn.execute("DELETE FROM plano_vantagens WHERE plano_id = ?", (plano_id,))
     conn.execute("DELETE FROM planos WHERE id = ?", (plano_id,))
     conn.commit()
     conn.close()
     log_action(admin["sub"], "deletar_plano", f"Plano {row['codigo']} removido")
     return {"ok": True}
+
+
+# ── Superadmin: Vantagens estratégicas (biblioteca + associação por plano) ─────
+
+def _slug_vantagem(nome: str) -> str:
+    import re, unicodedata
+    base = unicodedata.normalize("NFKD", nome or "").encode("ascii", "ignore").decode("ascii").lower()
+    base = re.sub(r"[^a-z0-9]+", "-", base).strip("-") or "vantagem"
+    return base[:40]
+
+
+@app.get("/api/superadmin/catalogo/vantagens")
+def listar_vantagens(admin=Depends(require_superadmin)):
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT v.id, v.codigo, v.icone, v.nome, v.descricao, v.ativo, v.ordem,
+                  (SELECT COUNT(*) FROM plano_vantagens pv WHERE pv.vantagem_id = v.id) AS uso
+           FROM vantagens v
+           ORDER BY v.ordem, v.id"""
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/superadmin/catalogo/vantagens")
+def criar_vantagem(body: VantagemRequest, admin=Depends(require_superadmin)):
+    nome = (body.nome or "").strip()
+    if not nome:
+        raise HTTPException(400, "Informe o nome da vantagem")
+    conn = get_connection()
+    # Gera um codigo slug único (base + sufixo incremental se colidir).
+    base = _slug_vantagem(nome)
+    existentes = {r["codigo"] for r in conn.execute("SELECT codigo FROM vantagens").fetchall()}
+    codigo = base
+    i = 2
+    while codigo in existentes:
+        codigo = f"{base}-{i}"
+        i += 1
+    prox = conn.execute("SELECT COALESCE(MAX(ordem), 0) + 1 AS n FROM vantagens").fetchone()
+    ordem = prox["n"] if prox else 0
+    row = insert_returning(
+        conn,
+        "INSERT INTO vantagens (codigo, icone, nome, descricao, ativo, ordem) VALUES (?, ?, ?, ?, 1, ?)",
+        (codigo, (body.icone or "").strip() or None, nome, (body.descricao or "").strip() or None, ordem),
+        "vantagens",
+    )
+    conn.close()
+    log_action(admin["sub"], "criar_vantagem", f"Vantagem {codigo} — {nome}")
+    return dict(row)
+
+
+@app.patch("/api/superadmin/catalogo/vantagens/{vantagem_id}")
+def atualizar_vantagem(vantagem_id: int, body: UpdateVantagemRequest, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM vantagens WHERE id = ?", (vantagem_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Vantagem não encontrada")
+    updates, params = [], []
+    for field in ("icone", "nome", "descricao", "ativo", "ordem"):
+        val = getattr(body, field)
+        if val is not None:
+            updates.append(f"{field} = ?")
+            params.append(val.strip() if isinstance(val, str) else val)
+    if updates:
+        params.append(vantagem_id)
+        conn.execute(f"UPDATE vantagens SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.delete("/api/superadmin/catalogo/vantagens/{vantagem_id}")
+def deletar_vantagem(vantagem_id: int, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    row = conn.execute("SELECT codigo, nome FROM vantagens WHERE id = ?", (vantagem_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Vantagem não encontrada")
+    uso = conn.execute(
+        "SELECT COUNT(*) AS c FROM plano_vantagens WHERE vantagem_id = ?", (vantagem_id,)
+    ).fetchone()
+    n = uso["c"] if uso else 0
+    if n > 0:
+        conn.close()
+        raise HTTPException(400, f"Vantagem em uso em {n} plano(s). Desative-a ou remova a associação antes de excluir.")
+    conn.execute("DELETE FROM vantagens WHERE id = ?", (vantagem_id,))
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "deletar_vantagem", f"Vantagem {row['codigo']} removida")
+    return {"ok": True}
+
+
+@app.get("/api/superadmin/catalogo/planos/{plano_id}/vantagens")
+def listar_vantagens_do_plano(plano_id: int, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM planos WHERE id = ?", (plano_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Plano não encontrado")
+    rows = conn.execute(
+        "SELECT vantagem_id FROM plano_vantagens WHERE plano_id = ? ORDER BY ordem", (plano_id,)
+    ).fetchall()
+    conn.close()
+    return {"vantagem_ids": [r["vantagem_id"] for r in rows]}
+
+
+@app.put("/api/superadmin/catalogo/planos/{plano_id}/vantagens")
+def definir_vantagens_do_plano(plano_id: int, body: PlanoVantagensRequest, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM planos WHERE id = ?", (plano_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Plano não encontrado")
+    # Só aceita ids de vantagens existentes (ignora ids inválidos silenciosamente).
+    validos = {r["id"] for r in conn.execute("SELECT id FROM vantagens").fetchall()}
+    ids, vistos = [], set()
+    for vid in (body.vantagem_ids or []):
+        if vid in validos and vid not in vistos:
+            vistos.add(vid)
+            ids.append(vid)
+    try:
+        # Substitui o conjunto do plano numa transação (DELETE + INSERT com ordem=índice).
+        conn.execute("DELETE FROM plano_vantagens WHERE plano_id = ?", (plano_id,))
+        for ordem, vid in enumerate(ids):
+            conn.execute(
+                "INSERT INTO plano_vantagens (plano_id, vantagem_id, ordem) VALUES (?, ?, ?)",
+                (plano_id, vid, ordem),
+            )
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        conn.close()
+        raise HTTPException(500, "Erro ao salvar as vantagens do plano")
+    conn.close()
+    log_action(admin["sub"], "definir_vantagens_plano", f"Plano {plano_id}: {len(ids)} vantagem(ns)")
+    return {"ok": True, "count": len(ids)}
 
 
 # ── Superadmin: Importação de preços (CSV, preview + aplicar tudo-ou-nada) ─────

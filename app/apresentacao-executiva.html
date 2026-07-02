@@ -613,6 +613,11 @@ fetch('/api/catalogo', {headers: _apTok ? {'Authorization': 'Bearer ' + _apTok} 
     if (OP_META[k]) { if (v&&v.nome) OP_META[k].nome = v.nome; if (cor) OP_META[k].cor = cor; }
     else OP_META[k] = {nome:(v&&v.nome)||k, cor:cor||'#555555'};
   });
+  // Vantagens: biblioteca ativa + associação por plano (icone→icon p/ casar com o resto do arquivo)
+  VANTAGENS_LIB = (data.vantagens_lib || []).map(v => ({codigo:v.codigo, icon:v.icone||'', nome:v.nome||'', desc:v.desc||''}));
+  PLANO_VANT = {};
+  (data.planos || []).forEach(p => { if (p && p.id) PLANO_VANT[p.id] = p.vantagens || []; });
+  buildVantagens();   // re-renderiza os checks agora que a biblioteca chegou
 }).catch(()=>{});
 
 const HOSPITAIS_DB = [
@@ -725,16 +730,13 @@ const HOSPITAIS_DB = [
  rede:{amil:{BRONZE:0,PRATA:0,OURO:0,OURO_II:0,PLATINUM:0,PLATINUM_MAIS:0,S380:0,S450:0,S750:0,BLACK_I:0,S2500:0,BLACK_II:0,BLACK_S6500:0},unity:{LIFE_VITAL:0,UNITY_VIDA:0,VIDA:0},portosaude:{BRONZE_BSB_PRO:0,PRATA_BSB_PRO:0,OURO_BSB_PRO:0,P220:0,P320:0,P420:0,P520:0,BRONZE_BR:0,PRATA_MAIS:0,OURO_MAIS:0,DIAMANTE_MAIS:0},bradesco:{EFETIVO:0,EFETIVO_PLUS:0,FLEX:0,IDEAL:0,NACIONAL:0,NACIONAL_PLUS:0,PREMIUM:0},sulamerica:{DIRETO_NAC:0,EXATO:0,CLASSICO:0,ESPECIAL_RC:0,ESPECIAL100:0,EXECUTIVO:0,PRESTIGE:0},evo:{ONE:0,NOW:0},plenum:{DELTA:0,OMEGA:0,BETA:0,SIGMA:0},segurosunimed:{ESSENCIAL:0,EFETIVO_ADESAO:1,COMPACTO:0,EFETIVO:0,COMPLETO:0,SUPERIOR:0,SUPERIOR_PLUS:0,SENIOR:0}}},
 ];
 
-const VANTAGENS_DB = [
-  {id:'v1',icon:'🦷',nome:'Plano Odontológico',desc:'Incluído sem custo adicional (ODONTOGROUP — 229 procedimentos)',ops:['evo']},
-  {id:'v2',icon:'📱',nome:'Telemedicina 24h',desc:'Consultas online com médicos e especialistas a qualquer hora',ops:['unity','evo','plenum']},
-  {id:'v3',icon:'✈️',nome:'Seguro Viagem Nacional',desc:'Cobertura AIG para emergências médicas em todo o Brasil',ops:['plenum']},
-  {id:'v4',icon:'🚑',nome:'UTI Móvel 24h',desc:'3 bases operacionais no DF — suporte avançado de vida',ops:['plenum']},
-  {id:'v5',icon:'🎁',nome:'Clube de Vantagens',desc:'Descontos em farmácias, exames e serviços parceiros',ops:['plenum','unity']},
-  {id:'v6',icon:'💊',nome:'Desconto em Farmácias',desc:'Rede de farmácias parceiras com desconto para beneficiários',ops:['unity']},
-  {id:'v7',icon:'🏥',nome:'Concierge de Saúde',desc:'Agendamento de consultas e orientação médica personalizada',ops:['evo','unity']},
-  {id:'v8',icon:'🔬',nome:'Lab. Sabin na Rede',desc:'Sabin Medicina Diagnóstica credenciado (referência nacional)',ops:['evo','unity']},
-];
+// Vantagens agora vêm do catálogo (banco), por plano. VANTAGENS_LIB = biblioteca ativa
+// inteira (o corretor pode marcar qualquer uma na proposta). PLANO_VANT[codigoPlano] =
+// [codigosVantagem] associados àquele produto — usado para pré-marcar pelo vencedor.
+// Ambos são populados no fetch de /api/catalogo (mais abaixo).
+let VANTAGENS_LIB = [];        // [{codigo, icon, nome, desc}]
+let PLANO_VANT = {};           // { [codigoPlano]: [codigoVantagem, ...] }
+function _vEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ─── ESTADO ────────────────────────────────────────────────────────────
 let vidaCount = 0;
@@ -922,12 +924,17 @@ function buildMultiVidasUI(opsInfo, qtds) {
 // ─── VANTAGENS ─────────────────────────────────────────────────────────
 function buildVantagens() {
   const c = document.getElementById('vant-checks');
-  c.innerHTML = VANTAGENS_DB.map(v => `
+  if (!c) return;
+  if (!VANTAGENS_LIB.length) {
+    c.innerHTML = '<div style="color:var(--ink3);font-size:12px;padding:6px 2px">Nenhuma vantagem cadastrada no catálogo.</div>';
+    return;
+  }
+  c.innerHTML = VANTAGENS_LIB.map(v => `
     <label class="vant-item" onclick="this.classList.toggle('checked')">
-      <input type="checkbox" name="vant" value="${v.id}" style="accent-color:var(--navy)">
+      <input type="checkbox" name="vant" value="${_vEsc(v.codigo)}" style="accent-color:var(--navy)">
       <span>
-        <span class="vant-nome">${v.icon} ${v.nome}</span>
-        <span class="vant-desc">${v.desc}</span>
+        <span class="vant-nome">${_vEsc(v.icon)} ${_vEsc(v.nome)}</span>
+        <span class="vant-desc">${_vEsc(v.desc)}</span>
       </span>
     </label>`).join('');
 }
@@ -1372,9 +1379,9 @@ async function gerar() {
     ? HOSPITAIS_DB.filter(h => _redeCols.some(c => h.rede?.[c.op]?.[c.col]))
     : [];
 
-  // Vantagens
+  // Vantagens (marcadas na tela) → itens da biblioteca por codigo
   const vantSel = [...document.querySelectorAll('input[name="vant"]:checked')]
-    .map(cb => VANTAGENS_DB.find(v=>v.id===cb.value)).filter(Boolean);
+    .map(cb => VANTAGENS_LIB.find(v=>v.codigo===cb.value)).filter(Boolean);
 
   // Textos
   const diagnostico = gerarDiagnostico(nome, tipo, dores);
@@ -1453,9 +1460,9 @@ async function gerar() {
 
   const vantHTML = vantSel.length > 0 ? vantSel.map(v=>`
     <div class="va-card">
-      <div class="va-icon">${v.icon}</div>
-      <div class="va-nome">${v.nome}</div>
-      <div class="va-desc">${v.desc}</div>
+      <div class="va-icon">${_vEsc(v.icon)}</div>
+      <div class="va-nome">${_vEsc(v.nome)}</div>
+      <div class="va-desc">${_vEsc(v.desc)}</div>
     </div>`).join('') : '';
 
   // Carências por operadora
@@ -1804,13 +1811,17 @@ function receiveFromCotador(data) {
 
   buildVantagens();
 
-  // Pré-seleciona vantagens de TODAS as operadoras ativas
-  const activeOpKeys = Object.keys(activeOps).filter(k => activeOps[k]);
-  VANTAGENS_DB.forEach(v => {
-    if (v.ops.some(o => activeOpKeys.includes(o))) {
-      const cb = document.querySelector(`input[name="vant"][value="${v.id}"]`);
-      if (cb) { cb.checked = true; cb.closest('.vant-item')?.classList.add('checked'); }
-    }
+  // Pré-marca as vantagens DO PRODUTO: começa pelo vencedor e une os conjuntos dos
+  // planos selecionados (o corretor ajusta pontualmente nesta proposta — não grava).
+  const _preCodigos = new Set(PLANO_VANT[winnerPid] || []);
+  if (selPlanos) {
+    Object.keys(activeOps || {}).filter(k => activeOps[k]).forEach(op => {
+      (PLANO_VANT[selPlanos[op]] || []).forEach(cod => _preCodigos.add(cod));
+    });
+  }
+  _preCodigos.forEach(cod => {
+    const cb = document.querySelector(`input[name="vant"][value="${_vEsc(cod)}"]`);
+    if (cb) { cb.checked = true; cb.closest('.vant-item')?.classList.add('checked'); }
   });
 
   showTab('gerador', document.getElementById('tbn-gerador'));
@@ -1820,16 +1831,13 @@ function receiveFromCotador(data) {
 
 // ─── INIT ─────────────────────────────────────────────────────────────
 buildPlanosSel();
-buildVantagens();
+buildVantagens();   // vazio até o catálogo chegar; re-renderiza no fetch de /api/catalogo
 addVida(); // linha inicial
 // Default validade = 30 dias
 const d = new Date(); d.setDate(d.getDate()+30);
 document.getElementById('g-validade').value = d.toISOString().split('T')[0];
-// Pré-selecionar vantagens comuns
-['v2','v7'].forEach(id => {
-  const cb = document.querySelector(`input[name="vant"][value="${id}"]`);
-  if(cb){cb.checked=true;cb.closest('.vant-item')?.classList.add('checked');}
-});
+// (Sem pré-seleção fixa: as vantagens são pré-marcadas pelo produto vencedor ao receber
+//  a cotação do cotador — ver receiveFromCotador.)
 
 // ─── EXPORTAR PDF ─────────────────────────────────────────────────────
 async function exportarPDF(btn) {

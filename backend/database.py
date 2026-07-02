@@ -971,6 +971,27 @@ def init_db():
                 atualizado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')
             )
         """)
+        # Vantagens estratégicas: biblioteca editável + associação por plano (N:N).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vantagens (
+                id SERIAL PRIMARY KEY,
+                codigo TEXT UNIQUE,
+                icone TEXT,
+                nome TEXT NOT NULL,
+                descricao TEXT,
+                ativo INTEGER DEFAULT 1,
+                ordem INTEGER DEFAULT 0,
+                criado_em TEXT DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS plano_vantagens (
+                plano_id INTEGER NOT NULL REFERENCES planos(id) ON DELETE CASCADE,
+                vantagem_id INTEGER NOT NULL REFERENCES vantagens(id) ON DELETE CASCADE,
+                ordem INTEGER DEFAULT 0,
+                PRIMARY KEY (plano_id, vantagem_id)
+            )
+        """)
         conn.commit()
         _migrations_pg(conn)
     else:
@@ -1130,6 +1151,27 @@ def init_db():
                 escopo TEXT,
                 criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
                 atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Vantagens estratégicas: biblioteca editável + associação por plano (N:N).
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS vantagens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT UNIQUE,
+                icone TEXT,
+                nome TEXT NOT NULL,
+                descricao TEXT,
+                ativo INTEGER DEFAULT 1,
+                ordem INTEGER DEFAULT 0,
+                criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS plano_vantagens (
+                plano_id INTEGER NOT NULL REFERENCES planos(id) ON DELETE CASCADE,
+                vantagem_id INTEGER NOT NULL REFERENCES vantagens(id) ON DELETE CASCADE,
+                ordem INTEGER DEFAULT 0,
+                PRIMARY KEY (plano_id, vantagem_id)
             )
         """)
         _migrations_sqlite(c)

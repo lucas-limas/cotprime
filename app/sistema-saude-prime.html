@@ -261,6 +261,16 @@ html[data-theme="light"] .painel-logo{filter:brightness(0) opacity(.75)}
 .badge-status{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600}
 .badge-status.ativo{background:rgba(134,239,172,.12);color:#86efac}
 .badge-status.inativo{background:rgba(255,107,107,.12);color:#ff6b6b}
+/* associação de vantagens (checklist no formulário do plano) */
+.vant-assoc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vant-chip{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid var(--bd1);border-radius:8px;background:var(--card);cursor:pointer;transition:.12s}
+.vant-chip:hover{border-color:var(--bd3)}
+.vant-chip.on{border-color:rgba(125,211,252,.5);background:rgba(125,211,252,.08)}
+.vant-chip input{margin-top:2px;accent-color:#7dd3fc;flex-shrink:0}
+.vant-chip .vic{font-size:15px;line-height:1.2}
+.vant-chip .vtx .vnm{font-weight:600;font-size:12.5px;color:var(--t1)}
+.vant-chip .vtx .vds{color:var(--t3);font-size:11px}
+@media(max-width:720px){.vant-assoc-grid{grid-template-columns:1fr}}
 .badge-expira{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;background:rgba(251,191,36,.12);color:#fbbf24}
 /* botões ação */
 .btn-toggle,.btn-del,.btn-edit{
@@ -426,6 +436,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <button class="cat-tab active" onclick="catTab('operadoras',this)">Operadoras</button>
         <button class="cat-tab" onclick="catTab('planos',this)">Planos</button>
+        <button class="cat-tab" onclick="catTab('vantagens',this)">Vantagens</button>
         <button class="cat-tab" onclick="catTab('precos',this)">Preços (CSV)</button>
         <button class="cat-tab" onclick="catTab('rede',this)">Rede</button>
         <button class="cat-tab" onclick="catTab('importar',this)" style="margin-left:auto;background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.3);color:#fbbf24">⬆ Importar dados.js</button>
@@ -514,6 +525,12 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
             <div class="form-field"><label>54 a 58</label><input type="number" step="0.01" class="preco-input" data-idx="8" placeholder="0.00"></div>
             <div class="form-field"><label>59 ou mais</label><input type="number" step="0.01" class="preco-input" data-idx="9" placeholder="0.00"></div>
           </div>
+          <!-- Vantagens deste plano (só na edição — o plano precisa existir para associar) -->
+          <div id="cat-pl-vant-section" style="display:none">
+            <div class="section-bar" style="margin:14px 0 8px"><h3>Vantagens deste plano</h3></div>
+            <p style="color:var(--t3);font-size:12px;margin:-2px 0 10px">Marque os diferenciais que <strong>este produto</strong> entrega. Cada plano tem a sua lista — inclusive planos diferentes da mesma operadora.</p>
+            <div id="cat-pl-vant-grid" class="vant-assoc-grid"><div class="admin-loading">Carregando…</div></div>
+          </div>
           <div class="form-actions">
             <button class="btn-novo" id="cat-pl-btn" onclick="salvarPlano()">Criar Plano</button>
             <button class="btn-toggle" id="cat-pl-cancel" style="display:none" onclick="cancelarPlanoEdit()">Cancelar</button>
@@ -557,6 +574,27 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
         </div>
 
         <div id="sa-planos-body"><div class="admin-loading">Carregando...</div></div>
+      </div>
+
+      <!-- BIBLIOTECA DE VANTAGENS -->
+      <div id="cat-sub-vantagens" style="display:none">
+        <div class="form-card">
+          <h3 id="cat-vt-form-title">Nova Vantagem</h3>
+          <input type="hidden" id="cat-vt-id">
+          <div class="form-grid">
+            <div class="form-field" style="max-width:90px"><label>Ícone</label><input type="text" id="cat-vt-icone" maxlength="4" placeholder="⭐"></div>
+            <div class="form-field"><label>Nome *</label><input type="text" id="cat-vt-nome" placeholder="Ex: Reembolso livre escolha"></div>
+            <div class="form-field" style="grid-column:span 2"><label>Descrição</label><input type="text" id="cat-vt-desc" placeholder="Ex: Reembolso de consultas/exames fora da rede"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-novo" id="cat-vt-btn" onclick="salvarVantagem()">Adicionar à biblioteca</button>
+            <button class="btn-toggle" id="cat-vt-cancel" style="display:none" onclick="cancelarVantEdit()">Cancelar</button>
+            <span class="form-msg" id="cat-vt-msg"></span>
+          </div>
+        </div>
+        <div class="section-bar"><h3>Biblioteca de vantagens</h3><span id="vt-count" style="color:var(--t4);font-size:12px;font-weight:400"></span></div>
+        <p style="color:var(--t3);font-size:12px;margin:-8px 0 12px">O número em <strong>Produtos</strong> mostra em quantos planos cada vantagem está associada. Associe/desassocie no formulário de cada plano (aba <strong>Planos → Editar</strong>).</p>
+        <div id="sa-vantagens-body"><div class="admin-loading">Carregando...</div></div>
       </div>
 
       <!-- REDE CREDENCIADA -->
@@ -1141,15 +1179,17 @@ async function deletarColaborador(id, btn) {
 let _cat_ops = [], _cat_planos = [], _catPlanosListeners = false;
 
 function catTab(tab, btn) {
-  document.getElementById('cat-sub-ops').style.display      = tab === 'operadoras' ? '' : 'none';
-  document.getElementById('cat-sub-planos').style.display   = tab === 'planos'     ? '' : 'none';
-  document.getElementById('cat-sub-rede').style.display     = tab === 'rede'       ? '' : 'none';
-  document.getElementById('cat-sub-importar').style.display = tab === 'importar'   ? '' : 'none';
-  document.getElementById('cat-sub-precos').style.display   = tab === 'precos'     ? '' : 'none';
+  document.getElementById('cat-sub-ops').style.display       = tab === 'operadoras' ? '' : 'none';
+  document.getElementById('cat-sub-planos').style.display    = tab === 'planos'     ? '' : 'none';
+  document.getElementById('cat-sub-vantagens').style.display = tab === 'vantagens'  ? '' : 'none';
+  document.getElementById('cat-sub-rede').style.display      = tab === 'rede'       ? '' : 'none';
+  document.getElementById('cat-sub-importar').style.display  = tab === 'importar'   ? '' : 'none';
+  document.getElementById('cat-sub-precos').style.display    = tab === 'precos'     ? '' : 'none';
   document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (tab === 'operadoras') loadOpsCat();
   else if (tab === 'planos') loadPlanosCat();
+  else if (tab === 'vantagens') loadVantagensCat();
   else if (tab === 'rede') { _populateRedeOpSelects(); loadRede(); }
 }
 
@@ -1774,6 +1814,14 @@ async function salvarPlano() {
   const res = await fetch(url, {method, headers: authH(), body: JSON.stringify(body)});
   const data = await res.json();
   if (!res.ok) { msg.className='form-msg error'; msg.textContent = data.detail||'Erro.'; return; }
+  // Em edição, persiste também o conjunto de vantagens do plano (substitui tudo).
+  if (isEdit) {
+    const vantIds = _getSelectedVantIds();
+    const vres = await fetch(`${API}/api/superadmin/catalogo/planos/${id}/vantagens`, {
+      method: 'PUT', headers: authH(), body: JSON.stringify({vantagem_ids: vantIds}),
+    });
+    if (!vres.ok) { msg.className='form-msg error'; msg.textContent = 'Plano salvo, mas houve erro ao salvar as vantagens.'; return; }
+  }
   msg.className='form-msg success'; msg.textContent = isEdit ? 'Plano atualizado!' : 'Plano criado!';
   cancelarPlanoEdit();
   await loadPlanosCat();
@@ -1798,6 +1846,9 @@ function editPlano(id) {
   document.getElementById('cat-pl-form-title').textContent = 'Editar Plano';
   document.getElementById('cat-pl-btn').textContent = 'Salvar Alterações';
   document.getElementById('cat-pl-cancel').style.display = '';
+  // Vantagens deste plano (só existe para plano já criado)
+  document.getElementById('cat-pl-vant-section').style.display = '';
+  loadPlanoVantagens(p.id);
   document.getElementById('cat-sub-planos').scrollIntoView({behavior:'smooth'});
 }
 
@@ -1814,6 +1865,8 @@ function cancelarPlanoEdit() {
   document.getElementById('cat-pl-btn').textContent = 'Criar Plano';
   document.getElementById('cat-pl-cancel').style.display = 'none';
   document.getElementById('cat-pl-msg').textContent = '';
+  document.getElementById('cat-pl-vant-section').style.display = 'none';
+  document.getElementById('cat-pl-vant-grid').innerHTML = '';
 }
 
 async function togglePlano(id, btn) {
@@ -1828,6 +1881,145 @@ async function deletarPlano(id, btn) {
   btn.disabled = true;
   const res = await fetch(`${API}/api/superadmin/catalogo/planos/${id}`, {method:'DELETE', headers: authH()});
   if (res.ok) await loadPlanosCat(); else btn.disabled = false;
+}
+
+/* ══ BIBLIOTECA DE VANTAGENS + ASSOCIAÇÃO POR PLANO ══════════════════════════ */
+let _vantLib = [];   // biblioteca completa (com contagem de uso), compartilhada com o form do plano
+
+async function loadVantagensCat() {
+  const el = document.getElementById('sa-vantagens-body');
+  el.innerHTML = '<div class="admin-loading">Carregando...</div>';
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/vantagens`, {headers: authH()});
+    _vantLib = res.ok ? await res.json() : [];
+  } catch (e) { _vantLib = []; }
+  renderVantagensTable();
+}
+
+function renderVantagensTable() {
+  const el = document.getElementById('sa-vantagens-body');
+  document.getElementById('vt-count').textContent = `${_vantLib.length} vantagens`;
+  if (!_vantLib.length) { el.innerHTML = '<div class="admin-loading">Nenhuma vantagem cadastrada.</div>'; return; }
+  el.innerHTML = `<table class="admin-table">
+    <thead><tr><th style="width:44px"></th><th>Nome</th><th>Descrição</th><th style="width:110px">Produtos</th><th style="width:90px">Status</th><th style="width:210px">Ações</th></tr></thead>
+    <tbody>${_vantLib.map(v => `<tr${v.ativo ? '' : ' style="opacity:.55"'}>
+      <td style="font-size:18px;text-align:center">${_escP(v.icone || '⭐')}</td>
+      <td style="color:var(--t1);font-weight:600">${_escP(v.nome)}</td>
+      <td style="color:var(--t3);font-size:12px">${_escP(v.descricao || '—')}</td>
+      <td><span class="badge-role"${v.uso ? '' : ' style="background:var(--card);color:var(--t4)"'}>${v.uso} produto${v.uso === 1 ? '' : 's'}</span></td>
+      <td><span class="badge-status ${v.ativo ? 'ativo' : 'inativo'}">${v.ativo ? 'Ativa' : 'Oculta'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-toggle" onclick="editVantagem(${v.id})">Editar</button>
+        <button class="btn-toggle" onclick="toggleVantagem(${v.id},${v.ativo ? 0 : 1},this)">${v.ativo ? 'Ocultar' : 'Ativar'}</button>
+        <button class="btn-del" onclick="deletarVantagem(${v.id},this)">Excluir</button>
+      </td></tr>`).join('')}</tbody></table>`;
+}
+
+async function salvarVantagem() {
+  const id    = document.getElementById('cat-vt-id').value;
+  const icone = document.getElementById('cat-vt-icone').value.trim();
+  const nome  = document.getElementById('cat-vt-nome').value.trim();
+  const desc  = document.getElementById('cat-vt-desc').value.trim();
+  const msg   = document.getElementById('cat-vt-msg');
+  if (!nome) { msg.className = 'form-msg error'; msg.textContent = 'Informe o nome da vantagem.'; return; }
+  msg.className = 'form-msg'; msg.textContent = '';
+  const isEdit = !!id;
+  const url    = isEdit ? `${API}/api/superadmin/catalogo/vantagens/${id}` : `${API}/api/superadmin/catalogo/vantagens`;
+  const res = await fetch(url, {
+    method: isEdit ? 'PATCH' : 'POST', headers: authH(),
+    body: JSON.stringify({icone, nome, descricao: desc}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { msg.className = 'form-msg error'; msg.textContent = data.detail || 'Erro.'; return; }
+  msg.className = 'form-msg success'; msg.textContent = isEdit ? 'Vantagem atualizada!' : 'Vantagem adicionada!';
+  cancelarVantEdit();
+  await loadVantagensCat();
+}
+
+function editVantagem(id) {
+  const v = _vantLib.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('cat-vt-id').value    = v.id;
+  document.getElementById('cat-vt-icone').value = v.icone || '';
+  document.getElementById('cat-vt-nome').value  = v.nome || '';
+  document.getElementById('cat-vt-desc').value  = v.descricao || '';
+  document.getElementById('cat-vt-form-title').textContent = 'Editar Vantagem';
+  document.getElementById('cat-vt-btn').textContent = 'Salvar Alterações';
+  document.getElementById('cat-vt-cancel').style.display = '';
+  document.getElementById('cat-vt-msg').textContent = '';
+  document.getElementById('cat-vt-nome').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+function cancelarVantEdit() {
+  ['cat-vt-id', 'cat-vt-icone', 'cat-vt-nome', 'cat-vt-desc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cat-vt-form-title').textContent = 'Nova Vantagem';
+  document.getElementById('cat-vt-btn').textContent = 'Adicionar à biblioteca';
+  document.getElementById('cat-vt-cancel').style.display = 'none';
+  document.getElementById('cat-vt-msg').textContent = '';
+}
+
+async function toggleVantagem(id, novo, btn) {
+  btn.disabled = true;
+  const res = await fetch(`${API}/api/superadmin/catalogo/vantagens/${id}`, {
+    method: 'PATCH', headers: authH(), body: JSON.stringify({ativo: novo}),
+  });
+  if (res.ok) await loadVantagensCat(); else btn.disabled = false;
+}
+
+async function deletarVantagem(id, btn) {
+  const v = _vantLib.find(x => x.id === id);
+  if (!confirm(`Excluir a vantagem "${v ? v.nome : ''}" da biblioteca?`)) return;
+  btn.disabled = true;
+  const res = await fetch(`${API}/api/superadmin/catalogo/vantagens/${id}`, {method: 'DELETE', headers: authH()});
+  if (res.ok) { await loadVantagensCat(); return; }
+  const d = await res.json().catch(() => ({}));
+  btn.disabled = false;
+  const msg = document.getElementById('cat-vt-msg');
+  msg.className = 'form-msg error';
+  msg.textContent = d.detail || 'Não foi possível excluir.';   // ex.: "em uso em N plano(s)"
+}
+
+/* associação por plano (dentro do form de editar plano) */
+async function _ensureVantLib() {
+  if (_vantLib.length) return;
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/vantagens`, {headers: authH()});
+    _vantLib = res.ok ? await res.json() : [];
+  } catch (e) { _vantLib = []; }
+}
+
+async function loadPlanoVantagens(planoId) {
+  const grid = document.getElementById('cat-pl-vant-grid');
+  grid.innerHTML = '<div class="admin-loading">Carregando…</div>';
+  await _ensureVantLib();
+  let selected = [];
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/planos/${planoId}/vantagens`, {headers: authH()});
+    if (res.ok) { const d = await res.json(); selected = d.vantagem_ids || []; }
+  } catch (e) {}
+  renderVantChips(new Set(selected));
+}
+
+function renderVantChips(selSet) {
+  const grid = document.getElementById('cat-pl-vant-grid');
+  const ativas = _vantLib.filter(v => v.ativo);
+  if (!ativas.length) {
+    grid.innerHTML = '<p style="color:var(--t4);font-size:12px">Nenhuma vantagem na biblioteca. Cadastre na aba <strong>Vantagens</strong>.</p>';
+    return;
+  }
+  grid.innerHTML = ativas.map(v => {
+    const on = selSet.has(v.id);
+    return `<label class="vant-chip${on ? ' on' : ''}">
+      <input type="checkbox" value="${v.id}" ${on ? 'checked' : ''} onchange="this.closest('.vant-chip').classList.toggle('on',this.checked)">
+      <span class="vic">${_escP(v.icone || '⭐')}</span>
+      <span class="vtx"><span class="vnm">${_escP(v.nome)}</span><br><span class="vds">${_escP(v.descricao || '')}</span></span>
+    </label>`;
+  }).join('');
+}
+
+function _getSelectedVantIds() {
+  return [...document.querySelectorAll('#cat-pl-vant-grid input[type=checkbox]:checked')]
+    .map(cb => parseInt(cb.value, 10)).filter(Number.isFinite);
 }
 
 /* ── Navegação cotador ── */
