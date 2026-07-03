@@ -428,6 +428,9 @@ def _migrations_pg(conn):
         "ALTER TABLE clientes ADD COLUMN data_vigencia TEXT",
         # Valor mensal manual do lead (digitado no CRM). NULL = usa a cotação.
         "ALTER TABLE clientes ADD COLUMN valor_mensal REAL",
+        # Fechamento: operadora (chave do catálogo) e produto contratados. NULL até fechar.
+        "ALTER TABLE clientes ADD COLUMN operadora_fechada TEXT",
+        "ALTER TABLE clientes ADD COLUMN produto_fechado TEXT",
     ]
     for sql in safe:
         try:
@@ -806,6 +809,9 @@ def _migrations_sqlite(c):
         "ALTER TABLE clientes ADD COLUMN data_vigencia TEXT",
         # Valor mensal manual do lead (digitado no CRM). NULL = usa a cotação.
         "ALTER TABLE clientes ADD COLUMN valor_mensal REAL",
+        # Fechamento: operadora (chave do catálogo) e produto contratados. NULL até fechar.
+        "ALTER TABLE clientes ADD COLUMN operadora_fechada TEXT",
+        "ALTER TABLE clientes ADD COLUMN produto_fechado TEXT",
     ]
     for sql in safe:
         try:

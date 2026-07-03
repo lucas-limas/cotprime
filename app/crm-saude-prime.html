@@ -522,11 +522,16 @@ html[data-theme="light"] .vig-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .vig-body{padding:18px;display:flex;flex-direction:column;gap:6px}
 .vig-body label{font-size:10px;color:var(--t4);font-weight:500;letter-spacing:.05em;text-transform:uppercase}
 .vig-body p{font-size:12px;color:var(--t3);line-height:1.4;margin-top:2px}
-.vig-body input{
+.vig-body input,.vig-body select{
   background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:8px 11px;
   color:var(--t1);font-size:13px;font-family:"Outfit",sans-serif;outline:none;
 }
-html[data-theme="dark"] .vig-body input{color-scheme:dark}
+.vig-body input:focus,.vig-body select:focus{border-color:var(--bd3)}
+html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select{color-scheme:dark}
+.vig-body select option{background:var(--opt-bg);color:var(--t1)}
+.vig-field{display:flex;flex-direction:column;gap:4px;margin-bottom:2px}
+.vig-field.err input,.vig-field.err select{border-color:#ef4444}
+.vig-body label .req{color:#ef4444;margin-left:2px}
 .vig-actions{display:flex;gap:8px;justify-content:flex-end;padding:0 18px 18px}
 .btn-ghost{background:var(--btn-bg);border:1px solid var(--bd2);color:var(--t3);border-radius:7px;padding:8px 14px;font-family:"Outfit",sans-serif;font-size:13px;cursor:pointer}
 .btn-ghost:hover{color:var(--t1)}
@@ -753,8 +758,18 @@ html[data-theme="dark"] .vig-body input{color-scheme:dark}
   <div class="vig-box">
     <div class="vig-hdr"><h3>Fechar venda — <span id="vig-nome"></span></h3></div>
     <div class="vig-body">
-      <label>Início de vigência</label>
-      <input type="date" id="vig-data">
+      <div class="vig-field" id="fld-vig-data">
+        <label>Início de vigência <span class="req">*</span></label>
+        <input type="date" id="vig-data">
+      </div>
+      <div class="vig-field" id="fld-vig-op">
+        <label>Operadora contratada <span class="req">*</span></label>
+        <select id="vig-op"><option value="">Selecione a operadora…</option></select>
+      </div>
+      <div class="vig-field" id="fld-vig-prod">
+        <label>Produto contratado <span class="req">*</span></label>
+        <input type="text" id="vig-prod" placeholder="Ex.: Prestige Nacional Enf. — PME" autocomplete="off">
+      </div>
       <p>O reajuste será calculado para <b id="vig-reaj">—</b> (próximo aniversário da vigência). O cliente sai do funil e passa a aparecer em <b>Renovação</b>.</p>
     </div>
     <div class="vig-actions">
@@ -972,6 +987,7 @@ async function loadKanban(scope){
     const [res] = await Promise.all([
       fetch(url, {headers:{Authorization:`Bearer ${token()}`}}),
       loadValores(),
+      _ensureOperadoras(),   // cacheado: Renovação resolve chave→nome já no 1º paint
     ]);
     if (!res.ok) throw new Error('Erro ao carregar');
     allClientes = await res.json();
@@ -1454,7 +1470,25 @@ function cotarParaCliente(){
    Único caminho para "fechar": drop na coluna Fechado, botão "→" saindo de
    Negociação, ou botão "Fechado" na ficha — todos abrem este modal. Também é o
    modal de "Definir vigência" para fechados legados (sem data_vigencia). */
-function abrirVigencia(clienteId, opId){
+let _operadoras = null;   // [{chave, nome}] — catálogo do cotador, cacheado
+async function _ensureOperadoras(){
+  if (_operadoras) return _operadoras;
+  try{
+    const res = await fetch(`${API}/api/catalogo`, {headers:authH()});
+    const data = res.ok ? await res.json() : null;
+    _operadoras = (data && data.operadoras)
+      ? Object.entries(data.operadoras).map(([chave, o]) => ({chave, nome:(o && o.nome) || chave}))
+      : [];
+  } catch { _operadoras = []; }
+  return _operadoras;
+}
+function _nomeOperadora(chave){
+  if (!chave) return '';
+  const o = (_operadoras || []).find(x => x.chave === chave);
+  return o ? o.nome : chave;   // fallback: mostra a chave se ainda não carregou
+}
+
+async function abrirVigencia(clienteId, opId){
   const cli = allClientes.find(x => x.id === clienteId)
     || (currentCliente && currentCliente.id === clienteId ? currentCliente : null);
   const nome = cli ? (cli.nome || '') : '';
@@ -1464,8 +1498,21 @@ function abrirVigencia(clienteId, opId){
   document.getElementById('vig-nome').textContent = nome;
   const inp = document.getElementById('vig-data');
   inp.value = vigAtual || _hojeISO();   // pré-preenche com hoje (ou a vigência existente)
-  inp.oninput = _updateVigReaj;
+  inp.oninput = () => { _updateVigReaj(); document.getElementById('fld-vig-data').classList.remove('err'); };
   _updateVigReaj();
+  // Operadora contratada: popula do catálogo (cacheado) e pré-seleciona o que já foi fechado.
+  await _ensureOperadoras();
+  const sel = document.getElementById('vig-op');
+  sel.innerHTML = '<option value="">Selecione a operadora…</option>' +
+    (_operadoras || []).map(o => `<option value="${esc(o.chave)}">${esc(o.nome)}</option>`).join('');
+  sel.value = (cli && cli.operadora_fechada) ? cli.operadora_fechada : '';
+  sel.onchange = () => document.getElementById('fld-vig-op').classList.remove('err');
+  const prod = document.getElementById('vig-prod');
+  prod.value = (cli && cli.produto_fechado) ? cli.produto_fechado : '';
+  prod.oninput = () => document.getElementById('fld-vig-prod').classList.remove('err');
+  ['fld-vig-data','fld-vig-op','fld-vig-prod'].forEach(id => {
+    const f = document.getElementById(id); if (f) f.classList.remove('err');
+  });
   document.getElementById('vig-confirm-btn').textContent = jaFechado ? 'Salvar vigência' : 'Marcar como Fechado';
   document.querySelector('#vig-modal .vig-hdr h3').firstChild.textContent =
     jaFechado ? 'Definir vigência — ' : 'Fechar venda — ';
@@ -1481,22 +1528,28 @@ function cancelVig(){ _vigCtx = null; document.getElementById('vig-modal').class
 function vigOverlayClick(e){ if (e.target === document.getElementById('vig-modal')) cancelVig(); }
 async function confirmVig(){
   if (!_vigCtx) return;
-  const v = document.getElementById('vig-data').value;
-  if (!v){ showToast('Informe a data de vigência'); return; }
+  const v    = document.getElementById('vig-data').value;
+  const op   = document.getElementById('vig-op').value;
+  const prod = document.getElementById('vig-prod').value.trim();
+  if (!v){    document.getElementById('fld-vig-data').classList.add('err'); showToast('Informe a data de vigência'); return; }
+  if (!op){   document.getElementById('fld-vig-op').classList.add('err');   showToast('Selecione a operadora contratada'); return; }
+  if (!prod){ document.getElementById('fld-vig-prod').classList.add('err'); showToast('Informe o produto contratado'); return; }
   const { clienteId, opId, jaFechado } = _vigCtx;
   try {
-    // 1) grava a vigência
+    // 1) grava a vigência + operadora/produto contratados
     const r1 = await fetch(`${API}/api/clientes/${clienteId}`, {
-      method:'PATCH', headers:authH(), body:JSON.stringify({data_vigencia: v})
+      method:'PATCH', headers:authH(), body:JSON.stringify({data_vigencia: v, operadora_fechada: op, produto_fechado: prod})
     });
     if (!r1.ok){ const d = await r1.json().catch(()=>({})); showToast(d.detail || 'Erro ao salvar vigência'); return; }
     // 2) garante o estágio "fechado" (idempotente para quem já era fechado)
     await patchStage(clienteId, opId, 'fechado', null);
     // reflete no estado local
     const cli = allClientes.find(x => x.id === clienteId);
-    if (cli){ cli.data_vigencia = v; cli.estagio_atual = 'fechado'; }
+    if (cli){ cli.data_vigencia = v; cli.estagio_atual = 'fechado'; cli.operadora_fechada = op; cli.produto_fechado = prod; }
     if (currentCliente && currentCliente.id === clienteId){
       currentCliente.data_vigencia = v;
+      currentCliente.operadora_fechada = op;
+      currentCliente.produto_fechado = prod;
       document.querySelectorAll('.funil-stage').forEach(btn => btn.classList.toggle('active', btn.dataset.s === 'fechado'));
     }
     _vigCtx = null;
@@ -1554,7 +1607,9 @@ function _buildRenCard(r, isEmpresa){
   el.className = 'rcard';
   const nome = esc(c.nome || '');
   const sub = esc([
-    c.operadora_atual, c.segmento,
+    _nomeOperadora(c.operadora_fechada) || c.operadora_atual,
+    c.produto_fechado,
+    c.segmento,
     c.n_vidas_estimado ? (c.n_vidas_estimado + ' vidas') : null
   ].filter(Boolean).join(' · ') || (c.empresa || '—'));
   const valor = _valorMensal(c);
