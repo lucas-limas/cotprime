@@ -722,6 +722,10 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class TrocarSenhaRequest(BaseModel):
+    senha_atual: str
+    nova_senha: str
+
 class CorretoraRequest(BaseModel):
     nome: str
     limite_usuarios: int = 5
@@ -1022,6 +1026,28 @@ def logout(user=Depends(get_current_user)):
     conn.commit()
     conn.close()
     log_action(user["sub"], "logout", "Sessão encerrada")
+    return {"ok": True}
+
+
+@app.post("/api/me/senha")
+def trocar_minha_senha(body: TrocarSenhaRequest, user=Depends(get_current_user)):
+    validate_password(body.nova_senha)   # 400 se fraca — ANTES de abrir a conn (não vaza conexão)
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT hashed_password FROM users WHERE username = ?", (user["sub"],)).fetchone()
+        if not row:
+            raise HTTPException(404, "Usuário não encontrado")
+        if not verify_password(body.senha_atual, row["hashed_password"]):
+            raise HTTPException(400, "Senha atual incorreta")
+        if verify_password(body.nova_senha, row["hashed_password"]):
+            raise HTTPException(400, "A nova senha deve ser diferente da atual")
+        conn.execute("UPDATE users SET hashed_password = ? WHERE username = ?",
+                     (hash_password(body.nova_senha), user["sub"]))
+        conn.commit()
+    finally:
+        conn.close()
+    # session_token intacto: a sessão atual continua válida (exigir senha_atual barra token roubado).
+    log_action(user["sub"], "trocar_senha", "Senha alterada pelo próprio usuário")
     return {"ok": True}
 
 
