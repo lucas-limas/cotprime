@@ -60,13 +60,68 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
 .sw-btn svg{width:13px;height:13px;flex-shrink:0;opacity:.85}
 .user-info{margin-left:auto;display:flex;align-items:center;gap:10px;font-family:"Outfit",sans-serif;font-size:12px;color:var(--t3)}
 .user-nome{color:var(--t2);font-weight:500}
-.btn-sair,.btn-voltar{
+.btn-sair{
   background:var(--btn-bg);border:1px solid var(--bd3);
   color:var(--t3);border-radius:5px;
   padding:4px 12px;font-size:11px;font-family:"Outfit",sans-serif;
   cursor:pointer;transition:background .15s;white-space:nowrap;
 }
-.btn-sair:hover,.btn-voltar:hover{background:var(--tab-active);color:var(--t1)}
+.btn-sair:hover{background:var(--tab-active);color:var(--t1)}
+
+/* Drawer (menu lateral ☰) — paridade com o shell */
+.hamburger{
+  width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;color:var(--t2);cursor:pointer;
+  border-radius:8px;transition:background .15s,color .15s;
+  margin-left:-8px;margin-right:2px;
+}
+.hamburger:hover{background:var(--tab-active);color:var(--t1)}
+.hamburger svg{width:22px;height:22px}
+
+.drawer-scrim{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  opacity:0;visibility:hidden;transition:opacity .2s ease;z-index:400;
+}
+.drawer-scrim.open{opacity:1;visibility:visible}
+
+.drawer{
+  position:fixed;top:0;left:0;height:100%;width:min(300px,82vw);
+  background:var(--surface2);border-right:1px solid var(--bd2);
+  box-shadow:2px 0 24px rgba(0,0,0,.3);
+  transform:translateX(-100%);transition:transform .2s ease;
+  z-index:401;display:flex;flex-direction:column;overflow-y:auto;
+}
+.drawer.open{transform:translateX(0)}
+.drawer-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1rem 1.1rem;border-bottom:1px solid var(--bd1);
+}
+.drawer-title{font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--t1)}
+.drawer-close{
+  width:32px;height:32px;border:none;background:transparent;color:var(--t3);
+  font-size:15px;cursor:pointer;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.drawer-close:hover{background:var(--tab-active);color:var(--t1)}
+.drawer-body{flex:1;padding:.5rem .6rem 1rem;display:flex;flex-direction:column}
+.drawer-section{padding:.45rem 0;border-bottom:1px solid var(--bd1)}
+.drawer-section:last-child{border-bottom:none}
+.drawer-cap{
+  font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--t4);padding:6px 12px 5px;
+}
+.drawer-item{
+  display:flex;align-items:center;gap:11px;width:100%;min-height:44px;
+  padding:0 12px;border:none;background:transparent;color:var(--t2);
+  font-family:"Outfit",system-ui,sans-serif;font-size:14px;font-weight:500;
+  cursor:pointer;border-radius:8px;text-align:left;transition:background .15s,color .15s;
+}
+.drawer-item:hover{background:var(--tab-active);color:var(--t1)}
+.drawer-item svg{width:17px;height:17px;flex-shrink:0;opacity:.8}
+.drawer-item.active{background:var(--tab-active);color:var(--t1);font-weight:600}
+.drawer-item.active svg{opacity:1}
+.drawer-user{font-size:13px;font-weight:600;color:var(--t1);padding:6px 12px 3px}
+.drawer-logout{color:var(--t3)}
 .btn-theme{
   background:var(--btn-bg);border:1px solid var(--bd2);
   color:var(--t3);border-radius:5px;width:32px;height:28px;
@@ -423,8 +478,15 @@ html[data-theme="dark"] .tar-form input,html[data-theme="dark"] .tar-form select
 .tar-cta-txt b{color:var(--t1)}
 
 /* dashboard: minhas tarefas pendentes */
-.tarefas-panel{margin:0 16px 12px;padding:11px 14px;background:var(--card);border:1px solid var(--bd1);border-radius:10px}
-.tarefas-panel-title{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:8px}
+.tarefas-panel{margin:0 16px 12px;background:var(--card);border:1px solid var(--bd1);border-radius:10px;overflow:hidden}
+.tarefas-toggle{width:100%;display:flex;align-items:center;gap:9px;padding:11px 14px;background:none;border:none;cursor:pointer;color:var(--t3);font-family:"Outfit",sans-serif;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;transition:color .15s}
+.tarefas-toggle:hover{color:var(--t1)}
+.tarefas-count{font-size:11px;font-weight:600;background:var(--card);border:1px solid var(--bd2);color:var(--t2);border-radius:20px;padding:1px 9px;letter-spacing:normal;text-transform:none}
+.tarefas-count.tem-atraso{color:#f97316;border-color:rgba(249,115,22,.5)}
+.tarefas-chevron{margin-left:auto;width:16px;height:16px;transition:transform .2s;opacity:.7}
+.tarefas-panel.open .tarefas-chevron{transform:rotate(180deg)}
+.tarefas-list{display:none;padding:0 14px 8px}
+.tarefas-panel.open .tarefas-list{display:block}
 .tp-item{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--bd1);cursor:pointer}
 .tp-item:first-of-type{border-top:none}
 .tp-item:hover .tp-titulo{color:var(--t1)}
@@ -543,15 +605,13 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
 
 <!-- NAVBAR -->
 <nav class="switcher">
+  <button class="hamburger" aria-label="Menu" aria-haspopup="true" aria-expanded="false" onclick="openDrawerCRM()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
   <div class="logo-wrap">
     <svg viewBox="0 0 128 52" xmlns="http://www.w3.org/2000/svg" style="height:30px;width:auto"><rect x="0.75" y="0.75" width="33" height="50.5" rx="6.5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.72)" stroke-width="1.2"/><rect x="4" y="7.5" width="26" height="11.5" rx="2.5" fill="rgba(255,255,255,.92)"/><polyline points="6.5,17.5 10.5,14 15.5,16 20,12.5 24.5,14.5 28.5,11.5" stroke="rgba(20,30,45,.7)" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="23" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="15" y="23" width="6.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="23.5" y="23" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.52)"/><rect x="4" y="29.5" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="15" y="29.5" width="6.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="23.5" y="29.5" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.52)"/><rect x="4" y="36" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="15" y="36" width="6.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.3)"/><rect x="23.5" y="36" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.52)"/><rect x="4" y="42.5" width="15.5" height="4.5" rx="1.3" fill="rgba(255,255,255,.23)"/><rect x="23.5" y="42.5" width="9" height="4.5" rx="1.3" fill="rgba(255,255,255,.88)"/><text x="43" y="22" font-family="Outfit,system-ui,sans-serif" font-size="10" font-weight="200" letter-spacing="5" fill="rgba(255,255,255,.5)">COT</text><line x1="43" y1="27.5" x2="122" y2="27.5" stroke="rgba(255,255,255,.17)" stroke-width="0.6"/><text x="43" y="46" font-family="Outfit,system-ui,sans-serif" font-size="21" font-weight="700" letter-spacing="0.5" fill="rgba(255,255,255,.96)">PRIME</text></svg>
     <span class="logo-title">CRM — Saúde Prime</span>
   </div>
-  <div class="sep"></div>
-  <button class="sw-btn btn-voltar" onclick="window.location.href='sistema-saude-prime.html'">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg>
-    Voltar
-  </button>
   <div class="user-info">
     <span class="g-conn" id="google-conn"></span>
     <span class="user-nome" id="user-nome-bar"></span>
@@ -560,6 +620,48 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
     </button>
   </div>
 </nav>
+
+<!-- DRAWER (menu lateral ☰) -->
+<div class="drawer-scrim" id="crm-scrim" onclick="closeDrawerCRM()"></div>
+<aside class="drawer" id="crm-drawer" role="dialog" aria-modal="true" aria-label="Menu de navegação" aria-hidden="true">
+  <div class="drawer-head">
+    <span class="drawer-title">Menu</span>
+    <button class="drawer-close" aria-label="Fechar menu" onclick="closeDrawerCRM()">✕</button>
+  </div>
+  <nav class="drawer-body">
+    <div class="drawer-section">
+      <div class="drawer-cap">Navegar</div>
+      <button class="drawer-item" onclick="irParaTela('inicio')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+        Início
+      </button>
+      <button class="drawer-item" onclick="irParaTela('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Dashboard
+      </button>
+      <button class="drawer-item" onclick="irParaTela('cotador')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="13" y2="14"/></svg>
+        Cotação
+      </button>
+      <button class="drawer-item" onclick="irParaTela('historico')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+        Histórico
+      </button>
+      <button class="drawer-item active" aria-current="page" onclick="closeDrawerCRM()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        CRM
+      </button>
+    </div>
+    <div class="drawer-section">
+      <div class="drawer-cap">Conta</div>
+      <div class="drawer-user" id="crm-drawer-nome"></div>
+      <button class="drawer-item drawer-logout" onclick="sairCRM()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sair
+      </button>
+    </div>
+  </nav>
+</aside>
 
 <!-- TABS (área) + escopo (Meus / Empresa) -->
 <div class="crm-tabs">
@@ -594,10 +696,14 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
     <button class="btn-novo-cliente" id="btn-novo" onclick="openNovoCliente()">＋ Novo Cliente</button>
   </div>
 
-  <!-- MINHAS TAREFAS PRÓXIMAS -->
+  <!-- MINHAS TAREFAS PRÓXIMAS (recolhível — recolhido por padrão) -->
   <div class="tarefas-panel" id="tarefas-panel" style="display:none">
-    <div class="tarefas-panel-title">📅 Minhas tarefas próximas</div>
-    <div id="tarefas-panel-list"></div>
+    <button class="tarefas-toggle" onclick="toggleTarefas()">
+      📅 Minhas tarefas próximas
+      <span class="tarefas-count" id="tarefas-count"></span>
+      <svg class="tarefas-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="tarefas-list"><div id="tarefas-panel-list"></div></div>
   </div>
 
   <!-- KANBAN -->
@@ -1960,14 +2066,58 @@ async function loadTarefasPendentes(){
     renderTarefasPanel(r.ok ? await r.json() : []);
   } catch { renderTarefasPanel([]); }
 }
+/* ── DRAWER (menu lateral ☰) — paridade com o shell ── */
+let _crmDrawerPrevFocus = null;
+function openDrawerCRM(){
+  const d = document.getElementById('crm-drawer'), s = document.getElementById('crm-scrim');
+  _crmDrawerPrevFocus = document.activeElement;
+  const du = document.getElementById('crm-drawer-nome');
+  if (du) du.textContent = sessionStorage.getItem('sp_nome') || '';
+  d.classList.add('open'); s.classList.add('open'); d.setAttribute('aria-hidden','false');
+  document.addEventListener('keydown', _crmDrawerKey, true);
+  const first = d.querySelector('.drawer-close'); if (first) first.focus();
+}
+function closeDrawerCRM(){
+  const d = document.getElementById('crm-drawer'), s = document.getElementById('crm-scrim');
+  d.classList.remove('open'); s.classList.remove('open'); d.setAttribute('aria-hidden','true');
+  document.removeEventListener('keydown', _crmDrawerKey, true);
+  if (_crmDrawerPrevFocus && _crmDrawerPrevFocus.focus) _crmDrawerPrevFocus.focus();
+}
+function _crmDrawerKey(e){
+  if (e.key === 'Escape'){ e.preventDefault(); closeDrawerCRM(); return; }
+  if (e.key !== 'Tab') return;
+  const d = document.getElementById('crm-drawer');
+  const items = [...d.querySelectorAll('button:not([disabled])')].filter(el => el.offsetParent !== null);
+  if (!items.length) return;
+  const f = items[0], l = items[items.length-1];
+  if (e.shiftKey && document.activeElement === f){ e.preventDefault(); l.focus(); }
+  else if (!e.shiftKey && document.activeElement === l){ e.preventDefault(); f.focus(); }
+}
+function irParaTela(hash){ closeDrawerCRM(); window.location.href = 'sistema-saude-prime.html#' + hash; }
+function sairCRM(){
+  closeDrawerCRM();
+  if (token()) fetch(`${API}/api/logout`, {method:'POST', headers:authH()}).catch(()=>{});
+  sessionStorage.clear();
+  window.location.href = 'sistema-saude-prime.html';
+}
+
+function toggleTarefas(){ document.getElementById('tarefas-panel').classList.toggle('open'); }
+
 function renderTarefasPanel(list){
   const countEl = document.getElementById('dash-tarefas');
   if (countEl) countEl.textContent = list.length;
   const panel = document.getElementById('tarefas-panel');
   const el = document.getElementById('tarefas-panel-list');
+  // NÃO mexe na classe .open: o estado recolhido/expandido persiste entre re-renders.
   if (!list.length){ if (panel) panel.style.display = 'none'; return; }
   if (panel) panel.style.display = '';
   const now = new Date();
+  const atrasadas = list.filter(t => _tarStartEnd(t)[0] < now).length;
+  const countEl2 = document.getElementById('tarefas-count');
+  if (countEl2){
+    countEl2.textContent = list.length + (atrasadas > 0 ? ` · ${atrasadas} atrasadas` : '');
+    countEl2.classList.toggle('tem-atraso', atrasadas > 0);
+  }
   el.innerHTML = list.slice(0, 6).map(t => {
     const [start] = _tarStartEnd(t);
     const atrasada = start < now;

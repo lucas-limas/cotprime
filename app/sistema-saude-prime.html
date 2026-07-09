@@ -887,7 +887,7 @@ function routeByRole(role, nome) {
     document.body.classList.add('nav-visible');
     document.querySelector('.frames').style.display = '';
     _setThemeIcon(document.documentElement.getAttribute('data-theme') || 'dark');
-    showInicio();   // tela default pós-login (já seta _activeScreen='inicio' + refresh)
+    if (!_abrirTelaDoHash()) showInicio();   // respeita #hash vindo do CRM; senão Início (default)
   }
 }
 
@@ -2061,6 +2061,17 @@ function showHistorico() {
   f.classList.add('visible');
   if (f.contentWindow && f.contentWindow.refreshHistorico) f.contentWindow.refreshHistorico();
   _activeScreen = 'historico';
+}
+
+// Abre a tela indicada por um #hash (vinda do CRM). Retorna false se não houver hash válido.
+function _abrirTelaDoHash() {
+  const h = (location.hash || '').replace(/^#/, '');
+  const map = { inicio: showInicio, dashboard: showDashboard, cotador: showCotador, historico: showHistorico };
+  const fn = map[h];
+  if (!fn) return false;
+  if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); // limpa o hash
+  fn();
+  return true;
 }
 
 function syncApres(data) {
