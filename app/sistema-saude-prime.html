@@ -381,7 +381,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
 
     <!-- LOGIN -->
     <div class="auth-form" id="form-login">
-      <label>Usuário<input type="text" id="lg-user" autocomplete="username" placeholder="seu usuário"></label>
+      <label>E-mail<input type="text" id="lg-user" autocomplete="username email" placeholder="seu@email.com"></label>
       <label>Senha<input type="password" id="lg-pass" autocomplete="current-password" placeholder="••••••••"></label>
       <div class="auth-msg error" id="lg-err"></div>
       <button class="auth-btn" id="lg-btn" onclick="doLogin()">Entrar</button>
@@ -435,6 +435,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
         <div class="form-grid">
           <div class="form-field"><label>Nome completo</label><input type="text" id="sa-u-nome" placeholder="Ex: João Silva"></div>
           <div class="form-field"><label>Usuário (login)</label><input type="text" id="sa-u-user" placeholder="sem espaços"></div>
+          <div class="form-field"><label>E-mail</label><input type="email" id="sa-u-email" placeholder="corretor@email.com"></div>
           <div class="form-field"><label>Senha</label><input type="password" id="sa-u-pass" placeholder="mín. 8 car., 1 maiúscula, 1 número"></div>
           <div class="form-field"><label>Perfil</label>
             <select id="sa-u-role"><option value="admin">Admin de Corretora</option><option value="corretor">Colaborador</option></select>
@@ -736,6 +737,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
       <div class="form-grid">
         <div class="form-field"><label>Nome completo</label><input type="text" id="adm-u-nome" placeholder="Ex: Ana Lima"></div>
         <div class="form-field"><label>Usuário (login)</label><input type="text" id="adm-u-user" placeholder="sem espaços"></div>
+        <div class="form-field"><label>E-mail</label><input type="email" id="adm-u-email" placeholder="colaborador@email.com"></div>
         <div class="form-field"><label>Senha</label><input type="password" id="adm-u-pass" placeholder="mín. 8 car., 1 maiúscula, 1 número"></div>
       </div>
       <div class="form-actions">
@@ -1089,6 +1091,7 @@ async function loadUsuariosSA() {
 async function criarUsuarioSA() {
   const nome = document.getElementById('sa-u-nome').value.trim();
   const username = document.getElementById('sa-u-user').value.trim();
+  const email = document.getElementById('sa-u-email').value.trim();
   const password = document.getElementById('sa-u-pass').value;
   const role = document.getElementById('sa-u-role').value;
   const corretora_id = document.getElementById('sa-u-corretora').value || null;
@@ -1097,12 +1100,12 @@ async function criarUsuarioSA() {
   msg.textContent = ''; msg.className = 'form-msg';
   const res = await fetch(`${API}/api/superadmin/users`, {
     method:'POST', headers: authH(),
-    body: JSON.stringify({nome, username, password, role, corretora_id: corretora_id ? parseInt(corretora_id) : null})
+    body: JSON.stringify({nome, username, email, password, role, corretora_id: corretora_id ? parseInt(corretora_id) : null})
   });
   const data = await res.json();
   if (!res.ok) { msg.className='form-msg error'; msg.textContent = data.detail || 'Erro.'; return; }
   msg.className='form-msg success'; msg.textContent = 'Usuário criado!';
-  ['sa-u-nome','sa-u-user','sa-u-pass'].forEach(id => document.getElementById(id).value = '');
+  ['sa-u-nome','sa-u-user','sa-u-email','sa-u-pass'].forEach(id => document.getElementById(id).value = '');
   await loadUsuariosSA();
 }
 
@@ -1186,18 +1189,19 @@ async function toggleGestor(id, atual, btn) {
 async function criarColaborador() {
   const nome = document.getElementById('adm-u-nome').value.trim();
   const username = document.getElementById('adm-u-user').value.trim();
+  const email = document.getElementById('adm-u-email').value.trim();
   const password = document.getElementById('adm-u-pass').value;
   const msg = document.getElementById('adm-u-msg');
   if (!nome || !username || !password) { msg.className='form-msg error'; msg.textContent='Preencha todos os campos.'; return; }
   msg.textContent = ''; msg.className = 'form-msg';
   const res = await fetch(`${API}/api/admin/users`, {
     method:'POST', headers: authH(),
-    body: JSON.stringify({nome, username, password})
+    body: JSON.stringify({nome, username, email, password})
   });
   const data = await res.json();
   if (!res.ok) { msg.className='form-msg error'; msg.textContent = data.detail || 'Erro.'; return; }
   msg.className='form-msg success'; msg.textContent = 'Colaborador adicionado!';
-  ['adm-u-nome','adm-u-user','adm-u-pass'].forEach(id => document.getElementById(id).value = '');
+  ['adm-u-nome','adm-u-user','adm-u-email','adm-u-pass'].forEach(id => document.getElementById(id).value = '');
   await loadColaboradores();
 }
 

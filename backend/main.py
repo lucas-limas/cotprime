@@ -160,6 +160,15 @@ def validate_password(password: str):
         raise HTTPException(400, "Senha muito comum ou previsível. Escolha outra.")
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+def normalizar_email(raw):
+    e = (raw or "").strip().lower()
+    if not e or not _EMAIL_RE.match(e):
+        raise HTTPException(400, "E-mail inválido ou ausente.")
+    return e
+
+
 def log_action(usuario: str, acao: str, detalhes: str, ip: str = "", usuario_id: Optional[int] = None):
     try:
         conn = get_connection()
@@ -911,17 +920,27 @@ class TarefaUpdate(BaseModel):
 def login(req: LoginRequest, request: Request):
     ip = request.client.host if request.client else ""
     conn = get_connection()
+    ident = req.username.strip()
 
+    # Login aceita e-mail OU username: tenta username primeiro (determinístico),
+    # e-mail como fallback. A identidade interna (uname) segue sendo o username.
     row = conn.execute(
-        """SELECT id, hashed_password, nome, ativo, role, corretora_id,
+        """SELECT id, username, hashed_password, nome, ativo, role, corretora_id,
                   tentativas_login, bloqueado_ate, pode_ver_equipe
            FROM users WHERE username = ?""",
-        (req.username.strip(),),
+        (ident,),
     ).fetchone()
-
+    if not row:
+        row = conn.execute(
+            """SELECT id, username, hashed_password, nome, ativo, role, corretora_id,
+                      tentativas_login, bloqueado_ate, pode_ver_equipe
+               FROM users WHERE lower(email) = lower(?)""",
+            (ident,),
+        ).fetchone()
     if not row:
         conn.close()
-        raise HTTPException(401, "Usuário ou senha incorretos")
+        raise HTTPException(401, "E-mail/usuário ou senha incorretos")
+    uname = row["username"]
 
     # Verifica bloqueio temporário
     if row["bloqueado_ate"]:
@@ -950,7 +969,7 @@ def login(req: LoginRequest, request: Request):
             tentativas = 0
         conn.execute(
             "UPDATE users SET tentativas_login = ?, bloqueado_ate = ? WHERE username = ?",
-            (tentativas, bloqueado_ate, req.username.strip()),
+            (tentativas, bloqueado_ate, uname),
         )
         conn.commit()
         conn.close()
@@ -983,15 +1002,15 @@ def login(req: LoginRequest, request: Request):
     session_tok = secrets.token_hex(32)
     conn.execute(
         "UPDATE users SET tentativas_login = 0, bloqueado_ate = NULL, session_token = ? WHERE username = ?",
-        (session_tok, req.username.strip()),
+        (session_tok, uname),
     )
     conn.commit()
     conn.close()
 
-    log_action(req.username, "login", "Login bem-sucedido", ip)
+    log_action(uname, "login", "Login bem-sucedido", ip)
 
     token = create_access_token({
-        "sub": req.username.strip(),
+        "sub": uname,
         "nome": row["nome"],
         "role": row["role"],
         "corretora_id": row["corretora_id"],
@@ -1203,13 +1222,17 @@ def criar_usuario_superadmin(body: CreateUserRequest, admin=Depends(require_supe
         raise HTTPException(400, "Role inválida. Use 'admin' ou 'corretor'.")
     if body.role == "admin" and not body.corretora_id:
         raise HTTPException(400, "Administrador deve pertencer a uma corretora.")
+    email = normalizar_email(body.email)   # 400 se inválido/ausente — antes de abrir a conn
     conn = get_connection()
     if conn.execute("SELECT id FROM users WHERE username = ?", (body.username.strip(),)).fetchone():
         conn.close()
         raise HTTPException(409, "Nome de usuário já cadastrado.")
+    if conn.execute("SELECT id FROM users WHERE lower(email) = lower(?)", (email,)).fetchone():
+        conn.close()
+        raise HTTPException(409, "E-mail já cadastrado.")
     conn.execute(
         "INSERT INTO users (username, email, hashed_password, nome, role, corretora_id) VALUES (?, ?, ?, ?, ?, ?)",
-        (body.username.strip(), body.email, hash_password(body.password), body.nome.strip(), body.role, body.corretora_id),
+        (body.username.strip(), email, hash_password(body.password), body.nome.strip(), body.role, body.corretora_id),
     )
     conn.commit()
     conn.close()
@@ -1301,6 +1324,7 @@ def listar_usuarios_corretora(admin=Depends(require_admin)):
 def criar_usuario_corretora(body: CreateUserRequest, admin=Depends(require_admin)):
     corretora_id = admin.get("corretora_id")
     validate_password(body.password)
+    email = normalizar_email(body.email)   # 400 se inválido/ausente — antes de abrir a conn
     conn = get_connection()
     corretora = conn.execute(
         "SELECT limite_usuarios FROM corretoras WHERE id = ?", (corretora_id,)
@@ -1318,9 +1342,12 @@ def criar_usuario_corretora(body: CreateUserRequest, admin=Depends(require_admin
     if conn.execute("SELECT id FROM users WHERE username = ?", (body.username.strip(),)).fetchone():
         conn.close()
         raise HTTPException(409, "Nome de usuário já cadastrado.")
+    if conn.execute("SELECT id FROM users WHERE lower(email) = lower(?)", (email,)).fetchone():
+        conn.close()
+        raise HTTPException(409, "E-mail já cadastrado.")
     conn.execute(
         "INSERT INTO users (username, email, hashed_password, nome, role, corretora_id) VALUES (?, ?, ?, ?, 'corretor', ?)",
-        (body.username.strip(), body.email, hash_password(body.password), body.nome.strip(), corretora_id),
+        (body.username.strip(), email, hash_password(body.password), body.nome.strip(), corretora_id),
     )
     conn.commit()
     conn.close()
