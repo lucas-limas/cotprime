@@ -836,6 +836,20 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
   </div>
 </div>
 
+<!-- MINI-MODAL: Definir/editar e-mail (backfill) -->
+<div class="senha-overlay hidden" id="email-modal">
+  <div class="senha-box">
+    <div class="senha-hdr"><h3>Definir e-mail — <span id="eml-user"></span></h3></div>
+    <div class="senha-body">
+      <div class="sfld"><label>E-mail</label><input type="email" id="eml-input" autocomplete="email" placeholder="corretor@email.com"><div class="s-hint" id="eml-hint"></div></div>
+    </div>
+    <div class="senha-actions">
+      <button class="btn-ghost" onclick="fecharDefinirEmail()">Cancelar</button>
+      <button class="btn-solid" onclick="salvarDefinirEmail()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="frames">
   <iframe id="inicio"    src="inicio.html" class="visible"></iframe>
   <iframe id="dashboard" src="dashboard.html"></iframe>
@@ -1071,16 +1085,19 @@ async function loadUsuariosSA() {
   el.innerHTML = '<div class="admin-loading">Carregando...</div>';
   const res = await fetch(`${API}/api/superadmin/users`, {headers: authH()});
   const users = await res.json();
+  _usuariosSA = users;   // cache p/ o mini-modal de e-mail (evita interpolar dados no onclick)
   if (!users.length) { el.innerHTML = '<div class="admin-loading">Nenhum usuário cadastrado.</div>'; return; }
   el.innerHTML = `<table class="admin-table">
-    <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Corretora</th><th>Status</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Usuário</th><th>E-mail</th><th>Perfil</th><th>Corretora</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>${users.map(u => `<tr>
       <td>${u.nome||'—'}</td>
       <td style="color:rgba(255,255,255,.5)">${u.username}</td>
+      <td>${u.email||'—'}</td>
       <td><span class="badge-role ${u.role}">${u.role}</span></td>
       <td>${u.corretora_nome||'—'}</td>
       <td><span class="badge-status ${u.ativo?'ativo':'inativo'}">${u.ativo?'Ativo':'Inativo'}</span></td>
       <td style="white-space:nowrap">
+        <button class="btn-toggle" onclick="abrirDefinirEmail(${u.id},'sa')">E-mail</button>
         <button class="btn-toggle" onclick="toggleUsuarioSA(${u.id},this)">${u.ativo?'Suspender':'Ativar'}</button>
         <button class="btn-del" onclick="deletarUsuarioSA(${u.id},this)">Remover</button>
       </td>
@@ -1162,15 +1179,18 @@ async function loadColaboradores() {
     bar.innerHTML = `<span>Colaboradores: <strong>${data.total}/${data.limite}</strong></span>
       <span class="vagas-bar ${cheio ? 'cheio' : ''}">${cheio ? 'Limite atingido' : `${data.limite - data.total} vaga(s) disponível(is)`}</span>`;
   }
+  _colaboradores = data.usuarios;   // cache p/ o mini-modal de e-mail
   if (!data.usuarios.length) { el.innerHTML = '<div class="admin-loading">Nenhum colaborador cadastrado ainda.</div>'; return; }
   el.innerHTML = `<table class="admin-table">
-    <thead><tr><th>Nome</th><th>Usuário</th><th>Status</th><th>Gestor</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Nome</th><th>Usuário</th><th>E-mail</th><th>Status</th><th>Gestor</th><th>Ações</th></tr></thead>
     <tbody>${data.usuarios.map(u => `<tr>
       <td>${u.nome||'—'}</td>
       <td style="color:rgba(255,255,255,.5)">${u.username}</td>
+      <td>${u.email||'—'}</td>
       <td><span class="badge-status ${u.ativo?'ativo':'inativo'}">${u.ativo?'Ativo':'Inativo'}</span></td>
       <td><button class="btn-toggle ${u.pode_ver_equipe?'on':''}" onclick="toggleGestor(${u.id},${u.pode_ver_equipe?1:0},this)" title="Vê o dashboard agregado da equipe">${u.pode_ver_equipe?'✓ Gestor':'Tornar gestor'}</button></td>
       <td style="white-space:nowrap">
+        <button class="btn-toggle" onclick="abrirDefinirEmail(${u.id},'adm')">E-mail</button>
         <button class="btn-toggle" onclick="toggleColaborador(${u.id},this)">${u.ativo?'Suspender':'Ativar'}</button>
         <button class="btn-del" onclick="deletarColaborador(${u.id},this)">Remover</button>
       </td>
@@ -2277,6 +2297,32 @@ async function salvarTrocarSenha(){
   }catch{ document.getElementById('s-hint').textContent='Erro de conexão'; }
 }
 ['s-atual','s-nova','s-conf'].forEach(id=>document.getElementById(id).addEventListener('input',_validaSenha));
+
+/* ── Definir/editar e-mail de usuário existente (backfill — Fase 2b) ── */
+let _usuariosSA = [], _colaboradores = [], _emlCtx = null;
+function abrirDefinirEmail(id, scope){
+  const lista = scope==='sa' ? _usuariosSA : _colaboradores;
+  const u = lista.find(x => x.id === id); if (!u) return;
+  _emlCtx = { id, scope };
+  document.getElementById('eml-user').textContent = u.nome || u.username || '';
+  document.getElementById('eml-input').value = u.email || '';
+  document.getElementById('eml-hint').textContent = '';
+  document.getElementById('email-modal').classList.remove('hidden');
+  document.getElementById('eml-input').focus();
+}
+function fecharDefinirEmail(){ document.getElementById('email-modal').classList.add('hidden'); _emlCtx = null; }
+async function salvarDefinirEmail(){
+  if (!_emlCtx) return;
+  const email = document.getElementById('eml-input').value.trim();
+  const base = _emlCtx.scope==='sa' ? 'superadmin' : 'admin';
+  try{
+    const r = await fetch(`${API}/api/${base}/users/${_emlCtx.id}/email`, {method:'PATCH', headers: authH(), body: JSON.stringify({email})});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); document.getElementById('eml-hint').textContent = d.detail || 'Erro ao salvar'; return; }
+    const scope = _emlCtx.scope; fecharDefinirEmail();
+    (scope==='sa' ? loadUsuariosSA : loadColaboradores)();
+    showToast('E-mail atualizado ✓');
+  }catch{ document.getElementById('eml-hint').textContent = 'Erro de conexão'; }
+}
 </script>
 
 </body>

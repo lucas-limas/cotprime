@@ -746,6 +746,9 @@ class UpdateCorretoraRequest(BaseModel):
     data_expiracao: Optional[str] = None
     ativo: Optional[int] = None
 
+class UpdateEmailRequest(BaseModel):
+    email: str
+
 class CreateUserRequest(BaseModel):
     nome: str
     username: str
@@ -1261,6 +1264,23 @@ def toggle_usuario_superadmin(user_id: int, admin=Depends(require_superadmin)):
     return {"ativo": new_status}
 
 
+@app.patch("/api/superadmin/users/{user_id}/email")
+def definir_email_superadmin(user_id: int, body: UpdateEmailRequest, admin=Depends(require_superadmin)):
+    email = normalizar_email(body.email)   # 400 se inválido — antes de abrir a conn
+    conn = get_connection()
+    try:
+        if not conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone():
+            raise HTTPException(404, "Usuário não encontrado")
+        if conn.execute("SELECT id FROM users WHERE lower(email) = lower(?) AND id != ?", (email, user_id)).fetchone():
+            raise HTTPException(409, "E-mail já cadastrado.")
+        conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    log_action(admin["sub"], "definir_email", f"E-mail do usuário {user_id} definido")
+    return {"ok": True}
+
+
 @app.delete("/api/superadmin/users/{user_id}")
 def deletar_usuario_superadmin(user_id: int, admin=Depends(require_superadmin)):
     conn = get_connection()
@@ -1403,6 +1423,28 @@ def toggle_gestor(user_id: int, body: GestorRequest, admin=Depends(require_admin
     conn.close()
     log_action(admin["sub"], "toggle_gestor", f"Corretor id={user_id} pode_ver_equipe={novo}")
     return {"pode_ver_equipe": novo}
+
+
+@app.patch("/api/admin/users/{user_id}/email")
+def definir_email_corretora(user_id: int, body: UpdateEmailRequest, admin=Depends(require_admin)):
+    """Admin define/edita o e-mail de um corretor DA PRÓPRIA corretora."""
+    corretora_id = admin.get("corretora_id")
+    email = normalizar_email(body.email)
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT corretora_id FROM users WHERE id = ? AND role = 'corretor'", (user_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Usuário não encontrado")
+        if corretora_id and row["corretora_id"] != corretora_id:
+            raise HTTPException(403, "Sem permissão para gerenciar este usuário")
+        if conn.execute("SELECT id FROM users WHERE lower(email) = lower(?) AND id != ?", (email, user_id)).fetchone():
+            raise HTTPException(409, "E-mail já cadastrado.")
+        conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
+        conn.commit()
+    finally:
+        conn.close()
+    log_action(admin["sub"], "definir_email", f"E-mail do corretor {user_id} definido")
+    return {"ok": True}
 
 
 @app.delete("/api/admin/users/{user_id}")
