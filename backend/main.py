@@ -731,6 +731,9 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+class SsoFinishRequest(BaseModel):
+    handoff: str
+
 class TrocarSenhaRequest(BaseModel):
     senha_atual: str
     nova_senha: str
@@ -3438,13 +3441,29 @@ def google_connect(request: Request, user=Depends(require_corretor)):
     return {"url": url}
 
 
+# ── "Entrar com o Google" (login) — reaproveita o mesmo OAuth/callback do connect ──
+@app.get("/api/auth/google/start")
+def google_login_start(request: Request):
+    login_dest = "/app/sistema-saude-prime.html"
+    if not google_sync.is_enabled():
+        return RedirectResponse(login_dest + "#sso_erro=indisponivel")
+    try:
+        state = create_state_token({"flow": "login"})   # flow=login → callback ramifica p/ login
+        url = google_sync.build_auth_url(state, _google_redirect_uri(request))
+    except Exception as e:
+        logger.warning("google login start falhou: %s", e)
+        return RedirectResponse(login_dest + "#sso_erro=erro")
+    return RedirectResponse(url)
+
+
 @app.get("/api/google/callback")
 def google_callback(request: Request, code: str = None, state: str = None, error: str = None):
+    data = decode_state_token(state) if state else None
+    if data and data.get("flow") == "login":
+        return _google_callback_login(request, code, error)
+    # ── fluxo CONNECT (existente, INALTERADO) ──
     destino = "/app/crm-saude-prime.html"
-    if not google_sync.is_enabled() or error or not code or not state:
-        return RedirectResponse(destino + "?google=erro")
-    data = decode_state_token(state)
-    if not data or not data.get("sub"):
+    if not google_sync.is_enabled() or error or not code or not data or not data.get("sub"):
         return RedirectResponse(destino + "?google=erro")
     usuario = data["sub"]
     try:
@@ -3457,6 +3476,79 @@ def google_callback(request: Request, code: str = None, state: str = None, error
     except Exception as e:
         logger.warning("Google callback falhou p/ %s: %s", usuario, e)
         return RedirectResponse(destino + "?google=erro")
+
+
+def _google_callback_login(request: Request, code, error):
+    dest = "/app/sistema-saude-prime.html"
+    ip = request.client.host if request.client else ""
+    if not google_sync.is_enabled() or error or not code:
+        return RedirectResponse(dest + "#sso_erro=erro")
+    try:
+        refresh_token, email, escopo = google_sync.exchange_code(code, _google_redirect_uri(request))
+    except Exception as e:
+        logger.warning("Google login exchange falhou: %s", e)
+        return RedirectResponse(dest + "#sso_erro=erro")
+    if not email:
+        return RedirectResponse(dest + "#sso_erro=erro")
+    email = email.strip().lower()
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT username, ativo, role, corretora_id FROM users WHERE lower(email) = lower(?)",
+            (email,),
+        ).fetchone()
+        if not row:
+            return RedirectResponse(dest + "#sso_erro=naoencontrado")   # SEM auto-cadastro
+        if not row["ativo"]:
+            return RedirectResponse(dest + "#sso_erro=inativo")
+        if row["role"] != "superadmin" and row["corretora_id"]:
+            cor = conn.execute("SELECT ativo, data_expiracao FROM corretoras WHERE id = ?",
+                               (row["corretora_id"],)).fetchone()
+            if cor and (not cor["ativo"] or str(cor["data_expiracao"]) < date.today().isoformat()):
+                return RedirectResponse(dest + "#sso_erro=assinatura")
+        uname = row["username"]
+        # conecta a agenda no mesmo passo (best-effort — NÃO derruba o login)
+        if refresh_token:
+            try:
+                _google_save(uname, google_sync.encrypt_token(refresh_token), email, escopo)
+            except Exception as e:
+                logger.warning("Falha ao salvar token Google no login de %s: %s", uname, e)
+        # cria sessão (rotaciona session_token — igual ao sucesso do /api/login)
+        session_tok = secrets.token_hex(32)
+        conn.execute("UPDATE users SET tentativas_login = 0, bloqueado_ate = NULL, session_token = ? WHERE username = ?",
+                     (session_tok, uname))
+        conn.commit()
+    finally:
+        conn.close()
+    log_action(uname, "login_google", "Login via Google", ip)
+    handoff = create_state_token({"flow": "login_handoff", "sub": uname}, minutes=2)
+    return RedirectResponse(dest + "#sso=" + handoff)
+
+
+@app.post("/api/auth/google/finish")
+def google_login_finish(body: SsoFinishRequest):
+    data = decode_state_token(body.handoff)
+    if not data or data.get("flow") != "login_handoff" or not data.get("sub"):
+        raise HTTPException(401, "Sessão inválida ou expirada. Tente novamente.")
+    uname = data["sub"]
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT nome, email, ativo, role, corretora_id, session_token, pode_ver_equipe "
+            "FROM users WHERE username = ?", (uname,),
+        ).fetchone()
+        if not row or not row["ativo"] or not row["session_token"]:
+            raise HTTPException(401, "Sessão inválida.")
+    finally:
+        conn.close()
+    token = create_access_token({
+        "sub": uname, "nome": row["nome"], "role": row["role"],
+        "corretora_id": row["corretora_id"], "session_token": row["session_token"],
+    })
+    return {"access_token": token, "token_type": "bearer", "nome": row["nome"],
+            "role": row["role"], "corretora_id": row["corretora_id"],
+            "pode_ver_equipe": 1 if row["pode_ver_equipe"] else 0,
+            "precisa_email": 0 if (row["email"] and str(row["email"]).strip()) else 1}
 
 
 @app.post("/api/google/disconnect")

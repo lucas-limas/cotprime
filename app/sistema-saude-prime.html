@@ -224,6 +224,11 @@ html[data-theme="light"] .auth-box{box-shadow:0 8px 40px rgba(0,0,0,.12)}
 }
 .auth-btn:hover{opacity:.88}
 .auth-btn:disabled{opacity:.4;cursor:not-allowed}
+.auth-or{display:flex;align-items:center;gap:12px;color:var(--t4);font-size:12px;margin:16px 0}
+.auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--bd1)}
+.gbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#1f1f1f;border:1px solid #dadce0;border-radius:8px;padding:10px;font-family:"Roboto",system-ui,sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s,box-shadow .15s}
+.gbtn:hover{background:#f7f8f8;box-shadow:0 1px 2px rgba(60,64,67,.3)}
+.gbtn svg{width:18px;height:18px;flex-shrink:0}
 .auth-msg{font-size:12px;text-align:center;display:none}
 .auth-msg.error{color:#ff6b6b}
 .auth-msg.success{color:#86efac}
@@ -385,6 +390,16 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
       <label>Senha<input type="password" id="lg-pass" autocomplete="current-password" placeholder="••••••••"></label>
       <div class="auth-msg error" id="lg-err"></div>
       <button class="auth-btn" id="lg-btn" onclick="doLogin()">Entrar</button>
+      <div class="auth-or">ou</div>
+      <button class="gbtn" type="button" onclick="entrarComGoogle()">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Fazer login com o Google
+      </button>
     </div>
   </div>
 </div>
@@ -2255,17 +2270,48 @@ document.getElementById('lg-pass').addEventListener('keydown', e => { if (e.key=
 /* ── Esconde cotador até autenticar ── */
 document.querySelector('.frames').style.display = 'none';
 
-/* ── Verifica sessão ao carregar ── */
-(async function checkSession() {
+/* ── "Entrar com o Google" (login) ── */
+function entrarComGoogle(){ window.location.href = `${API}/api/auth/google/start`; }
+
+async function _tratarSsoGoogle(){
+  const h = location.hash || '';
+  const erro = h.match(/[#&]sso_erro=([a-z]+)/);
+  const tok  = h.match(/[#&]sso=([^&]+)/);
+  if (!erro && !tok) return false;
+  history.replaceState(null, '', location.pathname + location.search);   // limpa o fragment JÁ
+  const el = document.getElementById('lg-err');
+  if (erro){
+    const msgs = {naoencontrado:'Conta não encontrada. Fale com o suporte.',
+      inativo:'Usuário inativo. Contate o administrador.',
+      assinatura:'Assinatura da corretora inativa ou expirada.',
+      indisponivel:'Login com Google indisponível no momento.',
+      erro:'Não foi possível entrar com o Google. Tente novamente.'};
+    el.textContent = msgs[erro[1]] || msgs.erro; el.style.display = 'block';
+    return false;
+  }
+  try{
+    const r = await fetch(`${API}/api/auth/google/finish`, {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({handoff: decodeURIComponent(tok[1])})});
+    const d = await r.json();
+    if (!r.ok){ el.textContent = d.detail || 'Não foi possível concluir o login.'; el.style.display='block'; return false; }
+    onAuthSuccess(d);   // MESMO caminho do login por senha (guarda token, routeByRole, e já chama _gateVincularEmail)
+    return true;
+  }catch{ el.textContent = 'Erro de conexão.'; el.style.display='block'; return false; }
+}
+
+/* ── Init: trata o retorno do "Entrar com Google" e, senão, verifica sessão ── */
+(async function initAuth(){
+  if (await _tratarSsoGoogle()) return;   // voltou do "Entrar com Google" → pronto
   const tk = token();
   if (!tk) return;
   try {
     const res = await fetch(`${API}/api/me`, {headers:{Authorization:`Bearer ${tk}`}});
-    if (res.ok) {
+    if (res.ok){
       const data = await res.json();
       document.getElementById('auth-overlay').classList.add('hidden');
       routeByRole(data.role, data.nome);
-      _gateVincularEmail(data);   // reload/sessão existente: mesma trava (via /api/me)
+      _gateVincularEmail(data);   // ⚠️ PRESERVA a trava de e-mail (f9bbfae) — NÃO remover
     } else {
       // token inválido/usuário inativo/corretora inativa → derruba para o login
       forcarLogout();
