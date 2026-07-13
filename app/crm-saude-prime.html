@@ -838,7 +838,8 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
             <input type="text" id="tar-desc" placeholder="Detalhes do agendamento...">
           </div>
           <div class="full">
-            <button class="btn-registrar" onclick="agendarTarefa()">📅 Agendar</button>
+            <button class="btn-registrar" id="tar-add-btn" onclick="agendarTarefa()">📅 Agendar</button>
+            <button class="btn-registrar" id="tar-cancel-btn" onclick="cancelarEdicaoTarefa()" style="display:none;background:var(--btn-bg);color:var(--t2)">Cancelar</button>
           </div>
         </div>
         <div class="tar-cta" id="tar-cta">
@@ -1373,6 +1374,9 @@ function renderModal(c, interacoes, cotacoes){
   if (tarForm) tarForm.style.display = editable ? '' : 'none';
   _modalEditable = editable;
 
+  // Agendamentos: abre sempre em modo criar (não herda edição/campos de outra ficha)
+  _editTarId = null; _limparTarForm(); _setTarEditUI(false);
+
   // Interações
   _editIntId = null;   // abre o modal sempre em leitura (nenhuma edição inline pendente)
   renderInteracoes(interacoes);
@@ -1872,6 +1876,31 @@ async function registrarInteracao(){
 /* ── TAREFAS / AGENDAMENTOS ── */
 let _tarefas = [];
 let _lastTarefaId = null;
+let _editTarId = null;   // id da tarefa em edição (null = modo criar)
+
+function _setTarEditUI(editing){
+  const b = document.getElementById('tar-add-btn');   if (b) b.textContent = editing ? '💾 Salvar edição' : '📅 Agendar';
+  const c = document.getElementById('tar-cancel-btn'); if (c) c.style.display = editing ? '' : 'none';
+}
+function editarTarefa(id){
+  const t = (_tarefas || []).find(x => x.id === id); if (!t) return;
+  _editTarId = id;
+  document.getElementById('tar-tipo').value  = t.tipo || 'ligacao';
+  document.getElementById('tar-dur').value   = t.duracao_min || 30;
+  document.getElementById('tar-titulo').value= t.titulo || '';
+  const [d, h] = String(t.inicio || '').split(' ');   // "YYYY-MM-DD HH:MM"
+  document.getElementById('tar-data').value  = d || '';
+  document.getElementById('tar-hora').value  = (h || '').slice(0,5);
+  document.getElementById('tar-desc').value  = t.descricao || '';
+  _setTarEditUI(true);
+  document.getElementById('tar-titulo').focus();
+  document.getElementById('tar-form').scrollIntoView({block:'nearest'});
+}
+function _limparTarForm(){
+  ['tar-titulo','tar-data','tar-hora','tar-desc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('tar-dur').value = 30;
+}
+function cancelarEdicaoTarefa(){ _editTarId = null; _limparTarForm(); _setTarEditUI(false); }
 
 function _fmtTarInicio(inicio){
   if (!inicio) return '';
@@ -1950,6 +1979,7 @@ function renderTarefas(tarefas){
     const st = t.status || 'pendente';
     const acoes = [];
     if (_modalEditable && st === 'pendente'){
+      acoes.push(`<button class="tar-btn" onclick="editarTarefa(${t.id})">Editar</button>`);
       acoes.push(`<button class="tar-btn" onclick="concluirTarefa(${t.id})">✓ Concluir</button>`);
       acoes.push(`<button class="tar-btn" onclick="cancelarTarefa(${t.id})">✕ Cancelar</button>`);
     }
@@ -2011,6 +2041,15 @@ async function agendarTarefa(){
   if (!titulo){ showToast('Informe o título do agendamento'); return; }
   if (!data || !hora){ showToast('Informe data e hora'); return; }
   const inicio = `${data} ${hora}`;
+  if (_editTarId){
+    const d = await _patchTarefa(_editTarId, {tipo, titulo, inicio, duracao_min: dur, descricao: desc || null});
+    if (!d) return;                     // _patchTarefa já mostra o erro
+    const id = _editTarId; _editTarId = null; _setTarEditUI(false); _limparTarForm();
+    _lastTarefaId = id;
+    await reloadTarefas(); _handleGoogleResp(d._google); loadTarefasPendentes();
+    showToast(d._google === 'synced' ? 'Agendamento atualizado e sincronizado ✓' : 'Agendamento atualizado');
+    return;
+  }
   try {
     const res = await fetch(`${API}/api/clientes/${currentCliente.id}/tarefas`, {
       method: 'POST', headers: authH(),
