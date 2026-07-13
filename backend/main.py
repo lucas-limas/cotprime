@@ -10,7 +10,7 @@ from typing import Optional, List
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+from fastapi.responses import RedirectResponse, JSONResponse, Response, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -3515,6 +3515,13 @@ async def _r_apresentacao():
 @app.get("/dados.js")
 async def _r_dados():
     return RedirectResponse("/app/dados.js", status_code=301)
+
+
+# Política de Privacidade — página PÚBLICA (sem auth); URL limpa /privacidade, sem redirect.
+# Pré-requisito da verificação do OAuth do Google (a tela de consentimento linka essa URL).
+@app.get("/privacidade", include_in_schema=False)
+def privacidade():
+    return FileResponse(os.path.join(PROJECT_DIR, "app", "privacidade.html"))
 
 
 # ── Static (deve ficar DEPOIS de todas as rotas /api) ─────────────────────────
