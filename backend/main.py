@@ -735,6 +735,9 @@ class TrocarSenhaRequest(BaseModel):
     senha_atual: str
     nova_senha: str
 
+class MeuEmailRequest(BaseModel):
+    email: str
+
 class CorretoraRequest(BaseModel):
     nome: str
     limite_usuarios: int = 5
@@ -928,14 +931,14 @@ def login(req: LoginRequest, request: Request):
     # Login aceita e-mail OU username: tenta username primeiro (determinístico),
     # e-mail como fallback. A identidade interna (uname) segue sendo o username.
     row = conn.execute(
-        """SELECT id, username, hashed_password, nome, ativo, role, corretora_id,
+        """SELECT id, username, email, hashed_password, nome, ativo, role, corretora_id,
                   tentativas_login, bloqueado_ate, pode_ver_equipe
            FROM users WHERE username = ?""",
         (ident,),
     ).fetchone()
     if not row:
         row = conn.execute(
-            """SELECT id, username, hashed_password, nome, ativo, role, corretora_id,
+            """SELECT id, username, email, hashed_password, nome, ativo, role, corretora_id,
                       tentativas_login, bloqueado_ate, pode_ver_equipe
                FROM users WHERE lower(email) = lower(?)""",
             (ident,),
@@ -1026,18 +1029,24 @@ def login(req: LoginRequest, request: Request):
         "role": row["role"],
         "corretora_id": row["corretora_id"],
         "pode_ver_equipe": 1 if row["pode_ver_equipe"] else 0,
+        "precisa_email": 0 if (row["email"] and str(row["email"]).strip()) else 1,
     }
 
 
 @app.get("/api/me")
 def me(user=Depends(require_corretor)):
     # require_corretor já exige usuário ATIVO + corretora ativa (403 se inativo) e seta user["id"]
+    conn = get_connection()
+    row = conn.execute("SELECT email FROM users WHERE username = ?", (user["sub"],)).fetchone()
+    conn.close()
+    _email = row["email"] if row else None
     return {
         "id": user.get("id"),
         "username": user["sub"],
         "nome": user.get("nome"),
         "role": user.get("role"),
         "corretora_id": user.get("corretora_id"),
+        "precisa_email": 0 if (_email and str(_email).strip()) else 1,
     }
 
 
@@ -1070,6 +1079,24 @@ def trocar_minha_senha(body: TrocarSenhaRequest, user=Depends(get_current_user))
         conn.close()
     # session_token intacto: a sessão atual continua válida (exigir senha_atual barra token roubado).
     log_action(user["sub"], "trocar_senha", "Senha alterada pelo próprio usuário")
+    return {"ok": True}
+
+
+@app.post("/api/me/email")
+def vincular_meu_email(body: MeuEmailRequest, user=Depends(get_current_user)):
+    email = normalizar_email(body.email)   # 400 se inválido — antes de abrir a conn
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE username = ?", (user["sub"],)).fetchone()
+        if not row:
+            raise HTTPException(404, "Usuário não encontrado")
+        if conn.execute("SELECT id FROM users WHERE lower(email) = lower(?) AND id != ?", (email, row["id"])).fetchone():
+            raise HTTPException(409, "E-mail já cadastrado em outra conta.")
+        conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, row["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    log_action(user["sub"], "vincular_email", "E-mail vinculado pelo próprio usuário")
     return {"ok": True}
 
 

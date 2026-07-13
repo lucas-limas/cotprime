@@ -850,6 +850,20 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
   </div>
 </div>
 
+<!-- MODAL OBRIGATÓRIO: vincular e-mail (usuário legado sem e-mail) — sem Cancelar/ESC/overlay-close -->
+<div class="senha-overlay hidden" id="vincemail-modal">
+  <div class="senha-box">
+    <div class="senha-hdr"><h3>Vincule seu e-mail</h3></div>
+    <div class="senha-body">
+      <p style="font-size:13px;color:var(--t3);line-height:1.5">Para continuar, informe um e-mail para a sua conta. <b>Dica:</b> use o e-mail da sua conta Google se quiser entrar com o Google depois.</p>
+      <div class="sfld"><label>E-mail</label><input type="email" id="ve-input" autocomplete="email" placeholder="seu@email.com"><div class="s-hint" id="ve-hint"></div></div>
+    </div>
+    <div class="senha-actions">
+      <button class="btn-solid" id="ve-salvar" onclick="salvarVincularEmail()">Salvar e continuar</button>
+    </div>
+  </div>
+</div>
+
 <div class="frames">
   <iframe id="inicio"    src="inicio.html" class="visible"></iframe>
   <iframe id="dashboard" src="dashboard.html"></iframe>
@@ -923,6 +937,7 @@ function onAuthSuccess(data) {
   ['cotador', 'apres'].forEach(id => { const f = document.getElementById(id); if (f) f.src = f.src; });
   document.getElementById('auth-overlay').classList.add('hidden');
   routeByRole(data.role, data.nome);
+  _gateVincularEmail(data);   // usuário legado sem e-mail → trava até vincular
 }
 
 function routeByRole(role, nome) {
@@ -2250,6 +2265,7 @@ document.querySelector('.frames').style.display = 'none';
       const data = await res.json();
       document.getElementById('auth-overlay').classList.add('hidden');
       routeByRole(data.role, data.nome);
+      _gateVincularEmail(data);   // reload/sessão existente: mesma trava (via /api/me)
     } else {
       // token inválido/usuário inativo/corretora inativa → derruba para o login
       forcarLogout();
@@ -2323,6 +2339,28 @@ async function salvarDefinirEmail(){
     showToast('E-mail atualizado ✓');
   }catch{ document.getElementById('eml-hint').textContent = 'Erro de conexão'; }
 }
+
+/* ── Vincular e-mail obrigatório (usuário legado sem e-mail) — trava de UX ── */
+function abrirVincularEmail(){
+  document.getElementById('ve-input').value = '';
+  document.getElementById('ve-hint').textContent = '';
+  document.getElementById('vincemail-modal').classList.remove('hidden');
+  document.getElementById('ve-input').focus();
+}
+async function salvarVincularEmail(){
+  const email = document.getElementById('ve-input').value.trim();
+  const hint = document.getElementById('ve-hint');
+  if (!email){ hint.textContent = 'Informe um e-mail.'; return; }
+  const btn = document.getElementById('ve-salvar'); btn.disabled = true;
+  try{
+    const r = await fetch(`${API}/api/me/email`, {method:'POST', headers:authH(), body:JSON.stringify({email})});
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok){ hint.textContent = d.detail || 'Não foi possível salvar.'; btn.disabled = false; return; }
+    document.getElementById('vincemail-modal').classList.add('hidden');
+    showToast('E-mail vinculado ✓');
+  }catch{ hint.textContent = 'Erro de conexão.'; btn.disabled = false; }
+}
+function _gateVincularEmail(data){ if (data && data.precisa_email) abrirVincularEmail(); }
 </script>
 
 </body>
