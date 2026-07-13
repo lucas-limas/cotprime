@@ -3524,5 +3524,11 @@ def privacidade():
     return FileResponse(os.path.join(PROJECT_DIR, "app", "privacidade.html"))
 
 
+# Landing PÚBLICA (sem auth) — a home de marca do Google não pode ficar atrás de login.
+@app.get("/home", include_in_schema=False)
+def home_publica():
+    return FileResponse(os.path.join(PROJECT_DIR, "app", "home.html"))
+
+
 # ── Static (deve ficar DEPOIS de todas as rotas /api) ─────────────────────────
 app.mount("/", StaticFiles(directory=PROJECT_DIR, html=True), name="static")
