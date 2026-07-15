@@ -234,6 +234,27 @@ body{font-family:"DM Sans",sans-serif;background:var(--cream);color:var(--ink);f
 .imp-desc{font-size:12px;color:var(--ink2);line-height:1.55}
 .imp-acento{font-size:14px;font-weight:600;display:block;margin-bottom:3px}
 
+/* tabela comparativa (faixa etária + carências) */
+.comp-tbl-wrap{overflow-x:auto;border-radius:var(--r);box-shadow:var(--sh);margin-top:1rem}
+.comp-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.comp-tbl thead th{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#fff;padding:9px 12px;text-align:right;white-space:nowrap;line-height:1.25}
+.comp-tbl thead th.th-first{text-align:left;background:var(--navy)}
+.comp-tbl thead th.th-mid{text-align:right;background:var(--navy2);color:rgba(255,255,255,.72)}
+.comp-tbl thead th.th-center{text-align:center;background:var(--navy)}
+.comp-tbl tbody td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;font-size:12px;vertical-align:middle}
+.comp-tbl tbody td.td-first{text-align:left;color:var(--ink);font-weight:500}
+.comp-tbl tbody td.td-center{text-align:center;color:var(--ink2)}
+.comp-tbl tbody td.td-mid{color:var(--ink3)}
+.comp-tbl tbody tr:nth-child(even){background:#fafafa}
+.comp-tbl .col-win{background:rgba(201,162,39,.06)}
+.comp-tbl tbody tr.row-total td{background:var(--navy);color:#fff;font-weight:700;border-bottom:none;font-size:13px}
+.comp-tbl tbody tr.row-total td.td-first{color:#fff;text-transform:uppercase;letter-spacing:.05em;font-size:11px}
+.comp-tbl tbody tr.row-total td.col-win{background:#000}
+.comp-tbl tbody tr.row-media td{background:var(--navy2);color:rgba(255,255,255,.82);font-size:11px;border-bottom:none}
+.comp-tbl tbody tr.row-media td.td-first{text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.6)}
+/* cvc-g/y/r/na já existem. impacto: 3 colunas */
+.impacto-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+
 /* OPORTUNIDADE STRIP */
 .oport-strip{background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #f59e0b;border-radius:var(--r-sm);padding:1rem 1.25rem;margin-top:1rem;display:flex;align-items:flex-start;gap:.875rem}
 .os-icon{font-size:1.5rem;flex-shrink:0}
@@ -353,7 +374,7 @@ body{-webkit-overflow-scrolling:touch}
   /* Comparativo PDF */
   .comp-ops-grid{grid-template-columns:1fr 1fr}
   /* Grids da apresentação gerada */
-  .impacto-grid,.steps-row,.vant-apres-grid{grid-template-columns:1fr}
+  .impacto-grid,.impacto-grid.cols-3,.steps-row,.vant-apres-grid{grid-template-columns:1fr}
   .rxf-head,.rxf-row{grid-template-columns:1fr 60px 80px 90px}
   .sec{padding:1.5rem 1.25rem}
   .capa{padding:1.75rem 1.25rem}
@@ -576,6 +597,19 @@ body{-webkit-overflow-scrolling:touch}
           <span class="vant-desc">Mostra o card com o valor total em 12 meses. Oculte quando o valor puder gerar resistência no cliente.</span>
         </span>
       </label>
+      <label class="vant-item checked" style="max-width:480px;margin-top:8px" onclick="this.classList.toggle('checked')">
+        <input type="checkbox" id="g-mostrar-economia" style="accent-color:var(--navy)"
+               onchange="document.getElementById('g-economia-wrap').style.display=this.checked?'block':'none'">
+        <span>
+          <span class="vant-nome">📉 Comparar com o plano atual do cliente</span>
+          <span class="vant-desc">Na troca, mostra quanto o cliente economiza vs. o plano que ele já tem — em vez do gasto anual cheio.</span>
+        </span>
+      </label>
+      <div id="g-economia-wrap" style="display:none;margin-top:8px;max-width:280px">
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px">Valor do plano atual (R$/mês)</label>
+        <input type="number" id="g-valor-atual" min="0" step="0.01" placeholder="ex: 12500"
+               style="width:100%;font-family:'DM Sans';font-size:13px;color:var(--ink);background:var(--cream);border:1.5px solid var(--line);border-radius:var(--r-sm);padding:8px 11px;outline:none">
+      </div>
     </div>
   </div>
 
@@ -1090,6 +1124,33 @@ function mesesAteReajuste(reajusteStr) {
 }
 
 // ─── DADOS DE CARÊNCIAS ────────────────────────────────────────────────
+// FRENTE A: tabela comparativa única (melhor cenário de aproveitamento, fixo por op).
+const CAR_PROCS = [
+  'Urgência, Emergência e Acidente Pessoal',
+  'Consultas Médicas',
+  'Exames Simples (RX, laboratório, ECG)',
+  'Exames e Procedimentos Complexos',
+  'Fisioterapia e demais terapias',
+  'Alta Complexidade (RNM, tomografia, quimio)',
+  'Internações Clínicas, Cirúrgicas e UTI',
+  'Parto a termo',
+  'Doenças e Lesões Preexistentes (CPT)',
+];
+const CAR_PADRAO = ['24h','30 dias','30 dias','180 dias','180 dias','180 dias','180 dias','300 dias','24 meses'];
+// melhor caso por operadora — formato 'cls|valor' (cls: g=verde, y=âmbar, r=vermelho), ordem = CAR_PROCS
+// ⚠️ RASCUNHO — valores a validar pelo corretor (ver observações no chat do analista).
+const CARENCIAS_COMP = {
+  bradesco:      ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  sulamerica:    ['g|24h','g|24h','r|30 dias','y|120 dias','y|90 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  amil:          ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  unity:         ['g|Início vig.','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  evo:           ['g|24h','g|Zero','g|Zero','y|15 dias','r|180 dias','y|15 dias','y|30 dias','r|300 dias','r|24 meses'],
+  plenum:        ['g|24h','g|24h','g|24h','g|24h','y|60 dias','y|60 dias','y|120 dias','r|300 dias','r|24 meses'],
+  segurosunimed: ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  portosaude:    ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  medsenior:     ['g|24h','g|24h','g|24h','y|90 dias','y|90 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  bestsenior:    ['g|24h','r|30 dias','r|30 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+};
 const CARENCIAS_DB = {
   unity: {
     model:'ARC 400 / ARC 500',
@@ -1409,6 +1470,8 @@ async function gerar() {
   const p2 = sanitize(document.getElementById('g-p2').value);
   const p3 = sanitize(document.getElementById('g-p3').value);
   const mostrarImpacto = document.getElementById('g-mostrar-impacto').checked;
+  const mostrarEconomia = document.getElementById('g-mostrar-economia').checked;
+  const valorAtual = parseFloat(document.getElementById('g-valor-atual').value) || 0;
   const planoInfo = (PLANOS_DB[opKey]||[]).find(p=>p.id===planoId) || (PLANOS_DB[opKey]||[])[0] || {};
   const opMeta = OP_META[opKey] || {nome: opKey, cor: '#555555'};
   // Vencedor/recomendado é por PLANO (pid) no modo multi. effectiveWinnerOp deriva
@@ -1539,17 +1602,6 @@ async function gerar() {
       const isW = pid === effectiveWinnerPid;
       const opTotal = total > 0 ? total : (precos ? qtdsArr.reduce((a,q,i) => a + q*(precos[i]||0), 0) : 0);
       if (isW) { winnerTotalMulti = opTotal; winnerReajuste = pi.reajuste || reajuste; }
-      const vidasRows = (precos && qtdsArr.some(q=>q>0)) ? qtdsArr.map((q,i) => {
-        if (q <= 0) return '';
-        const unit = precos[i] || 0;
-        return `<div class="coc-vida-row">
-          <span class="coc-vida-lbl">${FL_COMP[i]}</span>
-          <span style="white-space:nowrap">${q}× R$ ${fm(unit)}</span>
-          <span style="white-space:nowrap">R$ ${fm(q*unit)}</span>
-        </div>`;
-      }).filter(Boolean).join('') + `<div class="coc-vida-row" style="border-top:1.5px solid var(--line2);margin-top:2px;padding-top:4px">
-          <span>Total</span><span></span><span style="color:${meta.cor}">R$ ${fm(opTotal)}</span>
-        </div>` : '';
       return `<div class="comp-op-col${isW?' is-winner':''}">
         <div class="coc-head" style="border-top:4px solid ${meta.cor}">
           ${isW ? '<div class="coc-badge">★ RECOMENDADO</div>' : ''}
@@ -1558,10 +1610,47 @@ async function gerar() {
           <div class="coc-total" style="color:${meta.cor}">R$ ${fm(opTotal)}</div>
           <div class="coc-meta">/mês · ${pi.aco||aco} · Reajuste ${pi.reajuste||'—'}</div>
         </div>
-        ${vidasRows ? `<div class="coc-vidas">${vidasRows}</div>` : ''}
       </div>`;
     }).join('');
   }
+
+  // ── FRENTE B: composição por faixa etária (comparativo, só multi) ──
+  const faixaShown = isMulti && vidas.length > 0 && _opsData.opsInfo && _opsData.opsInfo.length;
+  let faixaTblHTML = '';
+  if (faixaShown) {
+    const ops = _opsData.opsInfo, qs = _opsData.qtds || [];
+    const totalVidas = qs.reduce((a,q)=>a+(q||0),0);
+    const opTotal = o => (o.total>0) ? o.total : (o.precos||[]).reduce((a,p,i)=>a+(qs[i]||0)*(p||0),0);
+    const ths = ops.map(o=>{
+      const m=OP_META[o.op]||{nome:o.op,cor:'#555'};
+      const pi=(PLANOS_DB[o.op]||[]).find(p=>p.id===o.pid)||{};
+      const w=o.pid===effectiveWinnerPid;
+      return `<th class="${w?'col-win':''}" style="background:${m.cor}">${m.nome}${pi.nome?`<br><span style="font-weight:400;opacity:.85">${_vEsc(pi.nome)}</span>`:''}</th>`;
+    }).join('');
+    const rows = FL_COMP.map((f,i)=> (qs[i]||0)<=0 ? '' :
+      `<tr><td class="td-first">${f}</td><td class="td-center">${qs[i]}</td>`+
+      ops.map(o=>`<td class="${o.pid===effectiveWinnerPid?'col-win':''}">R$ ${fm((o.precos&&o.precos[i])||0)}</td>`).join('')+`</tr>`
+    ).join('');
+    const totTds = ops.map(o=>`<td class="${o.pid===effectiveWinnerPid?'col-win':''}">R$ ${fm(opTotal(o))}</td>`).join('');
+    const medTds = ops.map(o=>`<td class="${o.pid===effectiveWinnerPid?'col-win':''}">R$ ${fm(totalVidas>0?opTotal(o)/totalVidas:0)}</td>`).join('');
+    faixaTblHTML = `<div class="comp-tbl-wrap"><table class="comp-tbl">
+      <thead><tr><th class="th-first">Faixa etária</th><th class="th-center">Vidas</th>${ths}</tr></thead>
+      <tbody>${rows}
+        <tr class="row-total"><td class="td-first">Total mensal</td><td class="td-center">${totalVidas}</td>${totTds}</tr>
+        <tr class="row-media"><td class="td-first">Média por vida</td><td class="td-center"></td>${medTds}</tr>
+      </tbody></table></div>`;
+  }
+
+  // ── FRENTE C: economia vs. plano atual (aditivo) ──
+  const winnerMonthly = isMulti ? winnerTotalMulti : totalMensal;
+  const economiaMes = valorAtual - winnerMonthly;
+  const mostrarCardEcon = mostrarEconomia && valorAtual > 0 && economiaMes > 0;  // oculta se aumentar
+  const econCardHTML = mostrarCardEcon ? `
+    <div class="imp-card imp-econ">
+      <span class="imp-tag it-green">💰 Economia vs. plano atual</span>
+      <div class="imp-val iv-green">R$ ${fm(economiaMes)}<span style="font-size:15px;color:var(--ink2);font-family:'DM Sans',sans-serif"> /mês</span></div>
+      <div class="imp-desc"><span class="imp-acento">R$ ${fm(economiaMes*12)} de economia por ano</span> em relação ao plano atual (R$ ${fm(valorAtual)}/mês) — mais proteção, menos custo.</div>
+    </div>` : '';
 
   const hospHTML = buildRedeTable(hospSel, _redeCols);
 
@@ -1583,34 +1672,33 @@ async function gerar() {
 
   // Carências por operadora
   const activeOpKeys = isMulti ? [...new Set((_opsData.opsInfo||[]).map(o => o.op))] : [opKey];
+  // Numeração sequencial das seções — nextNum() SÓ quando a seção renderiza.
   const _p2 = n => n < 10 ? '0'+n : ''+n;
-  const carNum    = '02';
-  const redeNum   = '03';
-  const vantNum   = hospSel.length > 0 ? '04' : '03';
-  const regrasNum = _p2(3 + (hospSel.length>0?1:0) + (anyVant?1:0));
-  const fechNum   = _p2(4 + (hospSel.length>0?1:0) + (anyVant?1:0));
-  const carenciasHTML = activeOpKeys.map(ok => {
-    const db = CARENCIAS_DB[ok]; if (!db) return '';
-    const m = OP_META[ok];
-    const ths = db.cols.map((c,i) => `<th style="${i===0?'text-align:left':'text-align:center'}">${c}</th>`).join('');
-    const trs = db.rows.map(row => `<tr>${row.map((cell,i) => {
-      if (i===0) return `<td>${cell}</td>`;
-      const [cls,val] = cell.split('|');
-      return `<td class="cvc-${cls}">${val}</td>`;
-    }).join('')}</tr>`).join('');
-    return `<div class="car-apres-op">
-      <div class="car-apres-op-hd">
-        <div class="car-apres-dot" style="background:${m.cor}"></div>
-        <div class="car-apres-name" style="color:${m.cor}">${m.nome}</div>
-        <div style="font-size:10px;color:var(--ink3);margin-left:auto;font-style:italic">${db.model}</div>
-      </div>
-      <table class="car-apres-tbl">
-        <thead><tr style="background:${m.cor}">${ths}</tr></thead>
-        <tbody>${trs}</tbody>
-      </table>
-      ${db.note ? `<div class="car-apres-note">ⓘ ${db.note}</div>` : ''}
-    </div>`;
+  let _sn = 0; const nextNum = () => _p2(++_sn);
+  const compNum   = nextNum();                       // 01
+  const faixaNum  = faixaShown ? nextNum() : '';     // 02 (multi)
+  const carNum    = nextNum();                       // 02 single / 03 multi
+  const redeNum   = hospSel.length > 0 ? nextNum() : '';
+  const vantNum   = anyVant ? nextNum() : '';
+  const regrasNum = nextNum();
+  const fechNum   = nextNum();
+
+  // FRENTE A: uma tabela comparativa (Procedimento | Sem aprov. | Op1..N), melhor caso fixo.
+  const carLabels = activeOpKeys.filter(ok => CARENCIAS_COMP[ok]);   // só ops com dado
+  const carThs = carLabels.map(ok=>{
+    const m=OP_META[ok]||{nome:ok,cor:'#555'};
+    return `<th class="${ok===effectiveWinnerOp?'col-win':''}" style="background:${m.cor}">${m.nome}</th>`;
   }).join('');
+  const carRows = CAR_PROCS.map((proc,i)=>{
+    const tds = carLabels.map(ok=>{
+      const [cls,val] = (CARENCIAS_COMP[ok][i]||'na|—').split('|');
+      return `<td class="${ok===effectiveWinnerOp?'col-win ':''}cvc-${cls}">${val}</td>`;
+    }).join('');
+    return `<tr><td class="td-first">${proc}</td><td class="td-mid cvc-na">${CAR_PADRAO[i]}</td>${tds}</tr>`;
+  }).join('');
+  const carenciasHTML = carLabels.length ? `<div class="comp-tbl-wrap"><table class="comp-tbl">
+    <thead><tr><th class="th-first">Procedimento</th><th class="th-mid">Sem aprov.</th>${carThs}</tr></thead>
+    <tbody>${carRows}</tbody></table></div>` : '';
 
   // Monta HTML
   const apresHTML = `
@@ -1651,25 +1739,26 @@ async function gerar() {
   <!-- SEÇÃO 01: COMPARATIVO (multi) ou RAIO-X (single) -->
   <div class="sec">
     ${isMulti ? `
-    <div class="sec-eyebrow">01 — Comparativo de Planos</div>
+    <div class="sec-eyebrow">${compNum} — Comparativo de Planos</div>
     <h2 class="sec-title">Análise lado a lado das suas opções</h2>
     <div class="comp-ops-grid">${compOpsHTML}</div>
-    ${winnerTotalMulti > 0 && mostrarImpacto ? `
-    <div class="impacto-grid" style="margin-top:1.25rem">
+    ${winnerTotalMulti > 0 && (mostrarImpacto || mostrarCardEcon) ? `
+    <div class="impacto-grid${(mostrarImpacto && mostrarCardEcon) ? ' cols-3' : ''}" style="margin-top:1.25rem">
       <div class="imp-card imp-rec">
         <span class="imp-tag it-gold">⭐ Melhor opção</span>
         <div class="imp-val iv-gold">R$ ${fm(winnerTotalMulti)}</div>
         <div class="imp-desc"><strong>por mês</strong> — ${abrang} · ${aco} · ${(OP_META[effectiveWinnerOp]||{nome:effectiveWinnerOp}).nome}</div>
         ${mesesAteReajuste(winnerReajuste) > 0 ? `<div style="margin-top:.75rem;font-size:12px;color:var(--amber);background:#fffbeb;border-radius:var(--r-sm);padding:8px 10px">🔒 Valor <strong>congelado</strong> por aprox. <strong>${mesesAteReajuste(winnerReajuste)} ${mesesAteReajuste(winnerReajuste)===1?'mês':'meses'}</strong> — reajuste em ${winnerReajuste}.</div>` : ''}
       </div>
-      <div class="imp-card imp-econ">
+      ${mostrarImpacto ? `<div class="imp-card imp-econ">
         <span class="imp-tag it-green">💰 Impacto anual</span>
         <div class="imp-val iv-green">R$ ${fm(winnerTotalMulti * 12)}</div>
         <div class="imp-desc"><span class="imp-acento">Investimento total em 12 meses com o plano recomendado.</span> Planejamento inteligente que protege a saúde sem comprometer o orçamento.</div>
-      </div>
+      </div>` : ''}
+      ${econCardHTML}
     </div>` : ''}
     ` : `
-    <div class="sec-eyebrow">01 — Raio-X Financeiro</div>
+    <div class="sec-eyebrow">${compNum} — Raio-X Financeiro</div>
     <h2 class="sec-title">Seu investimento, detalhado</h2>
     <div class="rxf-grid">
       <div class="rxf-head">
@@ -1678,18 +1767,19 @@ async function gerar() {
       ${rxRows}
     </div>
     ${totalMensal > 0 ? `
-    ${mostrarImpacto ? `<div class="impacto-grid">
+    ${(mostrarImpacto || mostrarCardEcon) ? `<div class="impacto-grid${(mostrarImpacto && mostrarCardEcon) ? ' cols-3' : ''}">
       <div class="imp-card imp-rec">
         <span class="imp-tag it-gold">⭐ Plano recomendado</span>
         <div class="imp-val iv-gold">R$ ${fm(totalMensal)}</div>
         <div class="imp-desc"><strong>por mês</strong> — ${abrang} · ${aco} · ${opMeta.nome}</div>
         ${meses > 0 ? `<div style="margin-top:.75rem;font-size:12px;color:var(--amber);background:#fffbeb;border-radius:var(--r-sm);padding:8px 10px">🔒 Valor <strong>congelado</strong> por aproximadamente <strong>${meses} ${meses===1?'mês':'meses'}</strong> — reajuste previsto apenas em ${reajuste}.</div>` : ''}
       </div>
-      <div class="imp-card imp-econ">
+      ${mostrarImpacto ? `<div class="imp-card imp-econ">
         <span class="imp-tag it-green">💰 Impacto anual</span>
         <div class="imp-val iv-green">R$ ${fm(econAnual)}</div>
         <div class="imp-desc"><span class="imp-acento">Este é o valor total do seu investimento em 12 meses.</span> Um planejamento inteligente que protege a saúde sem comprometer o orçamento.</div>
-      </div>
+      </div>` : ''}
+      ${econCardHTML}
     </div>` : ''}
     ${meses > 0 ? `
     <div class="oport-strip">
@@ -1701,11 +1791,21 @@ async function gerar() {
     </div>` : ''}` : ''}`}
   </div>
 
-  <!-- CARÊNCIAS POR OPERADORA -->
+  <!-- COMPOSIÇÃO POR FAIXA ETÁRIA (só multi) -->
+  ${faixaShown ? `
+  <div class="sec">
+    <div class="sec-eyebrow">${faixaNum} — Composição por Faixa Etária</div>
+    <h2 class="sec-title">De onde vem o custo de cada plano</h2>
+    <p class="sec-intro">O valor mensal é a soma das 10 faixas etárias da ANS aplicadas à sua equipe. A coluna <strong>Vidas</strong> é o censo; os demais valores são <strong>por vida/mês</strong>. A coluna do plano recomendado aparece destacada.</p>
+    ${faixaTblHTML}
+    <p style="margin-top:.75rem;font-size:10px;color:var(--ink3)">Reajuste por faixa etária conforme regras da ANS · valores por vida/mês, sujeitos a alteração pela operadora. Última faixa (59+) limitada a 6× o valor da primeira.</p>
+  </div>` : ''}
+
+  <!-- CARÊNCIAS COMPARADAS -->
   <div class="sec">
     <div class="sec-eyebrow">${carNum} — Carências por Operadora</div>
-    <h2 class="sec-title">Prazos de carência detalhados</h2>
-    <p class="sec-intro">Cada operadora possui seu próprio modelo de carência. Confira abaixo os prazos exatos — incluindo as condições de aproveitamento quando aplicável.</p>
+    <h2 class="sec-title">Carências comparadas, operadora a operadora</h2>
+    <p class="sec-intro">Mostramos o <strong>melhor cenário de aproveitamento</strong> de cada operadora para quem vem de um plano vigente (ou cancelado há pouco). A coluna <strong>Sem aprov.</strong> é o prazo padrão da ANS, para referência.</p>
     ${carenciasHTML}
     <div style="margin-top:.875rem;padding:.75rem 1rem;background:var(--navy);border-radius:var(--r-sm);font-size:11.5px;color:rgba(255,255,255,.85)">
       🚨 <strong style="color:#fff">Regra inegociável da ANS:</strong> urgências e emergências têm acesso garantido em <strong>24 horas</strong> a partir da data de vigência — independente de qualquer carência.
