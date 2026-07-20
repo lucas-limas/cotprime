@@ -431,6 +431,27 @@ def _migrations_pg(conn):
         # Fechamento: operadora (chave do catálogo) e produto contratados. NULL até fechar.
         "ALTER TABLE clientes ADD COLUMN operadora_fechada TEXT",
         "ALTER TABLE clientes ADD COLUMN produto_fechado TEXT",
+        # ── Porto Saúde série P — produtos SEM tabela de preço fixa (valor personalizado) ──
+        # Placeholder R$ 500 uniforme nas 10 faixas (NUNCA 0 = "não cobre a faixa"); o valor real
+        # é cotado no sistema da Porto e digitado na apresentação. Ficam fora do "✓ mais barato".
+        "ALTER TABLE planos ADD COLUMN personalizado INTEGER DEFAULT 0",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_9', id, 'Sem copart — P220', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 9 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_10', id, 'Com copart — P220', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 10 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_11', id, 'Sem copart — P320', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 11 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_12', id, 'Com copart — P320', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 12 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_13', id, 'Sem copart — P420 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 13 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_14', id, 'Com copart — P420 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 14 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_15', id, 'Sem copart — P520 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 15 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_16', id, 'Com copart — P520 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 16 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_17', id, 'Sem copart — P520 EMP Q2', 'apt', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 17 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_18', id, 'Com copart — P520 EMP Q2', 'apt', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 18 FROM operadoras WHERE chave='portosaude' ON CONFLICT (codigo) DO NOTHING",
+        "UPDATE planos SET personalizado=1 WHERE codigo IN ('ps_9','ps_10','ps_11','ps_12','ps_13','ps_14','ps_15','ps_16','ps_17','ps_18')",
+        "UPDATE planos SET rede_chave='P220' WHERE codigo IN ('ps_9','ps_10')",
+        "UPDATE planos SET rede_chave='P320' WHERE codigo IN ('ps_11','ps_12')",
+        "UPDATE planos SET rede_chave='P420' WHERE codigo IN ('ps_13','ps_14')",
+        "UPDATE planos SET rede_chave='P520' WHERE codigo IN ('ps_15','ps_16','ps_17','ps_18')",
+        "UPDATE planos SET nome='Sem copart — P420 EMP Q2', rede_chave='P420' WHERE codigo='ps_5'",
+        "UPDATE planos SET nome='Com copart — P420 EMP Q2', rede_chave='P420' WHERE codigo='ps_6'",
     ]
     for sql in safe:
         try:
@@ -812,6 +833,27 @@ def _migrations_sqlite(c):
         # Fechamento: operadora (chave do catálogo) e produto contratados. NULL até fechar.
         "ALTER TABLE clientes ADD COLUMN operadora_fechada TEXT",
         "ALTER TABLE clientes ADD COLUMN produto_fechado TEXT",
+        # ── Porto Saúde série P — produtos SEM tabela de preço fixa (valor personalizado) ──
+        # Placeholder R$ 500 uniforme nas 10 faixas (NUNCA 0 = "não cobre a faixa"); o valor real
+        # é cotado no sistema da Porto e digitado na apresentação. Ficam fora do "✓ mais barato".
+        "ALTER TABLE planos ADD COLUMN personalizado INTEGER DEFAULT 0",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_9', id, 'Sem copart — P220', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 9 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_10', id, 'Com copart — P220', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 10 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_11', id, 'Sem copart — P320', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 11 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_12', id, 'Com copart — P320', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 12 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_13', id, 'Sem copart — P420 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 13 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_14', id, 'Com copart — P420 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 14 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_15', id, 'Sem copart — P520 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 15 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_16', id, 'Com copart — P520 EMP', 'enf', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 16 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_17', id, 'Sem copart — P520 EMP Q2', 'apt', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 17 FROM operadoras WHERE chave='portosaude'",
+        "INSERT OR IGNORE INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) SELECT 'ps_18', id, 'Com copart — P520 EMP Q2', 'apt', 'pme', NULL, NULL, NULL, '[500,500,500,500,500,500,500,500,500,500]', 18 FROM operadoras WHERE chave='portosaude'",
+        "UPDATE planos SET personalizado=1 WHERE codigo IN ('ps_9','ps_10','ps_11','ps_12','ps_13','ps_14','ps_15','ps_16','ps_17','ps_18')",
+        "UPDATE planos SET rede_chave='P220' WHERE codigo IN ('ps_9','ps_10')",
+        "UPDATE planos SET rede_chave='P320' WHERE codigo IN ('ps_11','ps_12')",
+        "UPDATE planos SET rede_chave='P420' WHERE codigo IN ('ps_13','ps_14')",
+        "UPDATE planos SET rede_chave='P520' WHERE codigo IN ('ps_15','ps_16','ps_17','ps_18')",
+        "UPDATE planos SET nome='Sem copart — P420 EMP Q2', rede_chave='P420' WHERE codigo='ps_5'",
+        "UPDATE planos SET nome='Com copart — P420 EMP Q2', rede_chave='P420' WHERE codigo='ps_6'",
     ]
     for sql in safe:
         try:

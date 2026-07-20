@@ -214,6 +214,9 @@ body{font-family:"Outfit",sans-serif;background:var(--cream);color:var(--ink);fo
 .faixa-cell{font-size:12px;font-weight:500;color:var(--ink)}
 .qty-cell{font-size:11px;color:var(--ink3)}
 .price-cell{font-size:11px;color:var(--ink3)}
+/* Porto série P — produtos com valor personalizado (sem tabela fixa) */
+.perso-badge{display:inline-block;margin-top:4px;font-size:8px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#b45309;background:#fff;border:1px solid #fdba74;border-radius:20px;padding:1px 6px;white-space:nowrap}
+.rt td.col-perso, .rt th.col-perso{background:#fff7ed}
 .sub-u{font-size:13px;font-weight:600;color:var(--unity)}
 .sub-e{font-size:13px;font-weight:600;color:var(--evo)}
 .sub-p{font-size:13px;font-weight:600;color:var(--plenum)}
@@ -1264,6 +1267,8 @@ const OP_CLS_MAP = {medsenior:'on-ms', segurosunimed:'on-su', portosaude:'on-ps'
 const OP_COR_MAP = {unity:'var(--unity)',evo:'var(--evo)',plenum:'var(--plenum)',amil:'var(--amil)',medsenior:'var(--medsenior)',segurosunimed:'var(--seguros-unimed)',portosaude:'var(--portosaude)',bradesco:'var(--bradesco)',bestsenior:'var(--bestsenior)',sulamerica:'var(--sulamerica)',hapvida:'var(--hapvida)'};
 const subCls  = op => ({unity:'sub-u',evo:'sub-e',plenum:'sub-p',amil:'sub-a',medsenior:'sub-ms',segurosunimed:'sub-su',portosaude:'sub-ps',bradesco:'sub-bd',bestsenior:'sub-bs',sulamerica:'sub-sa',hapvida:'sub-hap'}[op]);
 const subAttr = op => { const c=subCls(op); if(c) return `class="${c}"`; const col=OP_COR_MAP[op]||'var(--ink2)'; return `style="font-size:13px;font-weight:600;color:${col}"`; };
+// subAttr + tint âmbar da coluna personalizada (mescla col-perso, seja o retorno class= ou style=)
+const subAttrPerso = (op, perso) => { const a=subAttr(op); if(!perso) return a; return a.startsWith('class="') ? a.replace('class="', 'class="col-perso ') : 'class="col-perso" ' + a; };
 const tbCls   = op => ({unity:'tb-u',evo:'tb-e',plenum:'tb-p',amil:'tb-a',medsenior:'tb-ms',segurosunimed:'tb-su',portosaude:'tb-ps',bradesco:'tb-bd',bestsenior:'tb-bs',sulamerica:'tb-sa',hapvida:'tb-hap'}[op]);
 
 // ── RENDER ───────────────────────────────────────────────────────────
@@ -1319,7 +1324,9 @@ function render() {
     const color = opColor(op);
     const tag = mixedTipos ? ` <small style="font-size:8px;font-weight:600;opacity:.65;letter-spacing:.04em">${tipoShort[tipoOp[op]]}</small>` : '';
     const label = plan.nome.includes('—') ? plan.nome.split('—').slice(1).join('—').trim() : plan.nome;
-    th += `<th style="color:${color}">${label}${tag}</th><th style="color:${color}">${(OP_META[op]||{}).nome||op}</th>`;
+    const pc = plan.personalizado ? ' class="col-perso"' : '';
+    const selo = plan.personalizado ? '<div class="perso-badge">✎ valor personalizado</div>' : '';
+    th += `<th${pc} style="color:${color}">${label}${selo}${tag}</th><th${pc} style="color:${color}">${(OP_META[op]||{}).nome||op}</th>`;
   });
   rh.innerHTML = th + '</tr>';
 
@@ -1330,20 +1337,21 @@ function render() {
     const q = qtds[i]||0;
     if (q === 0) return;
     // ✓ (mais barato) só entre planos de cobertura completa — parciais não são comparáveis
-    const compSubs = cols.map(({plan, partial}) => partial ? Infinity : plan.precos[i] * q);
+    const compSubs = cols.map(({plan, partial}) => (partial || plan.personalizado) ? Infinity : plan.precos[i] * q);
     const mn = Math.min(...compSubs);
     const nComp = compSubs.filter(s => s !== Infinity).length;
     const tr = document.createElement('tr');
     let h = `<td><div class="faixa-cell">${faixa} anos</div><div class="qty-cell">${q} vida(s)</div></td>`;
     cols.forEach(({op, plan, partial}, ci) => {
+      const perso = plan.personalizado;
       if (plan.precos[i] === 0) {   // plano não cobre esta faixa
-        h += `<td class="price-cell" style="color:var(--ink3)">—</td><td ${subAttr(op)} style="color:var(--ink3)">—</td>`;
+        h += `<td class="price-cell${perso?' col-perso':''}" style="color:var(--ink3)">—</td><td ${subAttrPerso(op, perso)} style="color:var(--ink3)">—</td>`;
         return;
       }
       const s = plan.precos[i] * q;
-      const isBest = !partial && s === mn && nComp > 1;
+      const isBest = !partial && !perso && s === mn && nComp > 1;
       const mk = f(s) + (isBest ? '<span class="best">✓</span>' : '');
-      h += `<td class="price-cell">${f(plan.precos[i])}</td><td ${subAttr(op)}>${mk}</td>`;
+      h += `<td class="price-cell${perso?' col-perso':''}">${f(plan.precos[i])}</td><td ${subAttrPerso(op, perso)}>${mk}</td>`;
     });
     tr.innerHTML = h;
     rb.appendChild(tr);
@@ -1354,8 +1362,8 @@ function render() {
   const trTot = document.createElement('tr');
   trTot.className = 'row-total';
   let ht = `<td style="font-size:11px;font-weight:600;color:var(--ink2)">Total · ${tv} vida(s)</td>`;
-  cols.forEach(({op, partial}, ci) => {
-    const star = partial ? '<span style="color:var(--ink3);font-weight:400"> *</span>' : '';
+  cols.forEach(({op, plan, partial}, ci) => {
+    const star = (partial || plan.personalizado) ? '<span style="color:var(--ink3);font-weight:400"> *</span>' : '';
     ht += `<td></td><td ${subAttr(op)}>${f(totals[ci])}${star}</td>`;
   });
   trTot.innerHTML = ht;
@@ -1384,7 +1392,7 @@ function render() {
   // Vencedora — só entre planos de cobertura completa (total parcial não é comparável)
   const w = document.getElementById('winner');
   const fullCols = cols.map((c, i) => ({op:c.op, nome:c.plan.nome, total:totals[i]}))
-                       .filter((_, i) => !cols[i].partial);
+                       .filter((_, i) => !cols[i].partial && !cols[i].plan.personalizado);
   if (fullCols.length > 1) {
     const sorted = fullCols.sort((a,b)=>a.total-b.total);
     const diff = sorted[sorted.length-1].total - sorted[0].total;
@@ -1433,6 +1441,13 @@ function renderNotes(cols) {
     d.innerHTML = `<span class="on-name">${m.nome||op}</span><span>${m.info||''}</span>`;
     oc.appendChild(d);
   });
+  // Nota do valor personalizado (Porto série P): explica o "*" quando há ≥1 coluna personalizada.
+  if (cols.some(c => c.plan && c.plan.personalizado)) {
+    const d = document.createElement('div');
+    d.className = 'op-note';
+    d.innerHTML = `<span class="on-name">* Valor personalizado</span><span>A Porto não tem tabela fixa para estes produtos. O R$ 500 é um placeholder; ajuste o valor na apresentação. Produtos personalizados ficam fora do ✓ mais barato.</span>`;
+    oc.appendChild(d);
+  }
 }
 
 // ── APRESENTAÇÃO ────────────────────────────────────────────────────
@@ -1449,7 +1464,7 @@ function buildApresentacaoData() {
       const p = PLANOS.find(x => x.id === pid);
       if (!p || !planAvailable(p)) return null;
       const total = qtds.reduce((a,q,i) => a + q * p.precos[i], 0);
-      return {op, pid, total, precos: [...p.precos]};
+      return {op, pid, total, precos: [...p.precos], personalizado: !!p.personalizado};
     }).filter(Boolean));
   const withTotal = opsInfo.filter(x => x.total > 0);
   if (withTotal.length === 0) return null;

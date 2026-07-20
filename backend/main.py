@@ -1989,7 +1989,7 @@ def catalogo_publico(user=Depends(require_corretor)):
     ).fetchall()
     planos_rows = conn.execute(
         """SELECT p.id as plano_id, p.codigo, o.chave as op, p.nome, p.acomodacao as aco, p.tipo,
-                  p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.rede_chave, p.precos
+                  p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.rede_chave, p.precos, p.personalizado
            FROM planos p JOIN operadoras o ON p.operadora_id = o.id
            WHERE p.ativo = 1 AND o.ativo = 1
            ORDER BY o.ordem, p.ordem, p.id"""
@@ -2027,6 +2027,7 @@ def catalogo_publico(user=Depends(require_corretor)):
             "nome":   r["nome"],
             "aco":    r["aco"],
             "tipo":   r["tipo"] or "adesao",
+            "personalizado": bool(r["personalizado"]),
             "precos": json.loads(r["precos"]),
             "vantagens": vant_por_plano.get(r["plano_id"], []),
         }
