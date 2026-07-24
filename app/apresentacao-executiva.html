@@ -195,6 +195,8 @@ body{font-family:"DM Sans",sans-serif;background:var(--cream);color:var(--ink);f
 .car-apres-tbl tbody td:first-child{text-align:left;color:var(--ink);font-weight:500}
 .car-apres-tbl tbody tr:last-child td{border-bottom:none}
 .cvc-g{color:#0a6b3a;font-weight:600}.cvc-y{color:#92400e;font-weight:600}.cvc-r{color:#8b2515;font-weight:600}.cvc-na{color:var(--ink3);font-style:italic}
+.car-isento{background:linear-gradient(135deg,#0a3d24,#0a6b3a);color:#fff;border-radius:var(--r);padding:1.25rem 1.5rem;font-size:13px;line-height:1.55}
+.car-isento strong{color:#fff}
 .car-apres-note{font-size:10px;color:var(--ink3);margin-top:.4rem;font-style:italic}
 
 /* SEÇÕES */
@@ -1170,9 +1172,9 @@ const CAR_PROCS = [
   'Urgência, Emergência e Acidente Pessoal',
   'Consultas Médicas',
   'Exames Simples (RX, laboratório, ECG)',
-  'Exames e Procedimentos Complexos',
-  'Fisioterapia e demais terapias',
-  'Alta Complexidade (RNM, tomografia)',
+  'Exames e Procedimentos Complexos',                       // 4 (tomografia, RNM, endoscopia)
+  'Terapias Simples (fisio, psico, fono, TO, nutrição)',    // 5 (era "Fisioterapia e demais terapias")
+  'Terapias Especiais (quimio, radio, diálise)',            // 6 (era "Alta Complexidade …")
   'Internações Clínicas, Cirúrgicas e UTI',
   'Parto a termo',
   'Doenças e Lesões Preexistentes (CPT)',
@@ -1185,8 +1187,8 @@ const CARENCIAS_COMP = {
   sulamerica: {
     vals: {
       contratual: ['g|24h','y|15 dias','y|15 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
-      reduz:      ['g|24h','g|24h','g|24h','y|60 dias','r|180 dias','y|60 dias','y|60 dias','r|300 dias','r|24 meses'],
-      pleno:      ['g|24h','g|24h','g|24h','g|24h','r|180 dias','g|24h','g|24h','r|300 dias','r|24 meses'],
+      reduz:      ['g|24h','g|24h','g|24h','y|60 dias','r|180 dias','r|180 dias','y|60 dias','r|300 dias','r|24 meses'],
+      pleno:      ['g|24h','g|24h','g|24h','g|24h','r|180 dias','r|180 dias','g|24h','r|300 dias','r|24 meses'],
     },
     bracket: { nao:'contratual','3a6':'reduz','6a11':'reduz','12a23':'pleno','mais24':'pleno' },
   },
@@ -1195,20 +1197,29 @@ const CARENCIAS_COMP = {
   evo:           ['g|24h','g|Zero','g|Zero','y|15 dias','r|180 dias','y|15 dias','y|30 dias','r|300 dias','r|24 meses'],
   plenum:        ['g|24h','g|24h','g|24h','g|24h','y|60 dias','y|60 dias','y|120 dias','r|300 dias','r|24 meses'],
   segurosunimed: ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
-  portosaude:    ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  portosaude: {
+    vals: {
+      v03_09: ['g|24h','y|15 dias','y|15 dias','r|180 dias','y|90 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+      v10_29: ['g|Sem carência','g|Sem carência','g|Sem carência','g|Sem carência','y|90 dias','r|180 dias','g|Sem carência','r|300 dias','r|24 meses'],
+      red01:  ['g|24h','g|24h','g|24h','y|60 dias','y|60 dias','r|180 dias','y|60 dias','r|300 dias','r|24 meses'],
+      red02:  ['g|Sem carência','g|Sem carência','g|Sem carência','g|Sem carência','y|60 dias','r|180 dias','g|Sem carência','r|300 dias','r|24 meses'],
+    },
+    bracket: { nao:(v)=>v<=9?'v03_09':'v10_29', '3a6':'red01','6a11':'red01','12a23':'red02','mais24':'red02' },
+  },
   medsenior:     ['g|24h','g|24h','g|24h','y|90 dias','y|90 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
   bestsenior:    ['g|24h','r|30 dias','r|30 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
 };
-// Carência por faixa de aproveitamento (tempo de plano anterior = g-arc).
-// Legado: CARENCIAS_COMP[op] = [9]  (não varia por faixa — até a operadora ser curada).
-// Novo:   CARENCIAS_COMP[op] = { vals:{coluna:[9]}, bracket:{faixaArc:'coluna'} }.
-function carenciaVals(op, arc){
+// Carência por 2 eixos: faixa de aproveitamento (g-arc) + total de vidas (Porto).
+// Legado: CARENCIAS_COMP[op] = [9]. Novo: { vals:{col:[9]}, bracket:{arc:'col' | (vidas)=>'col'} }.
+function carenciaVals(op, arc, totalVidas){
   const c = CARENCIAS_COMP[op]; if(!c) return null;
   if (Array.isArray(c)) return c;
-  const col = c.bracket[arc] || c.bracket['mais24'] || Object.keys(c.vals)[0];
-  return c.vals[col];
+  let b = c.bracket[arc];
+  if (typeof b === 'function') b = b(totalVidas);
+  b = b || c.bracket['mais24'] || Object.keys(c.vals)[0];
+  return c.vals[b];
 }
-const ARC_CAP = { nao:'sem plano anterior (sem aproveitamento)', '3a6':'plano anterior de 3 a 6 meses',
+const ARC_CAP = { nao:'sem plano anterior', '3a6':'plano anterior de 3 a 6 meses',
   '6a11':'plano anterior de 6 a 11 meses', '12a23':'plano anterior de 12 a 23 meses',
   'mais24':'plano anterior de mais de 24 meses' };
 const CARENCIAS_DB = {
@@ -1743,23 +1754,30 @@ async function gerar() {
   const regrasNum = nextNum();
   const fechNum   = nextNum();
 
-  // FRENTE A: uma tabela comparativa (Procedimento | Op1..N), carência por faixa de aproveitamento (g-arc).
-  const carLabels = activeOpKeys.filter(ok => CARENCIAS_COMP[ok]);   // só ops com dado
-  const carThs = carLabels.map(ok=>{
-    const m=OP_META[ok]||{nome:ok,cor:'#555'};
-    return `<th class="${ok===effectiveWinnerOp?'col-win':''}" style="background:${m.cor}">${m.nome}</th>`;
-  }).join('');
-  const carRows = CAR_PROCS.map((proc,i)=>{
-    const tds = carLabels.map(ok=>{
-      const arr = carenciaVals(ok, arc) || [];
-      const [cls,val] = (arr[i]||'na|—').split('|');
-      return `<td class="${ok===effectiveWinnerOp?'col-win ':''}cvc-${cls}">${val}</td>`;
+  // FRENTE A: tabela comparativa por 2 eixos (plano anterior + total de vidas). 30+ vidas = isento.
+  const totalVidas = vidas.reduce((a,v)=>a+(v.qtd||0),0);   // censo do contrato (multi e single)
+  const isento30 = totalVidas >= 30;                        // 30+ vidas = isento por lei (ANS)
+  const carLabels = activeOpKeys.filter(ok => CARENCIAS_COMP[ok]);
+  let carenciasHTML = '';
+  if (isento30) {
+    carenciasHTML = `<div class="car-isento">✅ <strong>Contrato com ${totalVidas} vidas — isento de carência.</strong> Contratos coletivos empresariais com 30 ou mais beneficiários não cumprem carência (determinação da ANS): cobertura integral desde a vigência.</div>`;
+  } else if (carLabels.length) {
+    const carThs = carLabels.map(ok=>{
+      const m=OP_META[ok]||{nome:ok,cor:'#555'};
+      return `<th class="${ok===effectiveWinnerOp?'col-win':''}" style="background:${m.cor}">${m.nome}</th>`;
     }).join('');
-    return `<tr><td class="td-first">${proc}</td>${tds}</tr>`;      // sem <td> "Sem aprov."
-  }).join('');
-  const carenciasHTML = carLabels.length ? `<div class="comp-tbl-wrap"><table class="comp-tbl">
-    <thead><tr><th class="th-first">Procedimento</th>${carThs}</tr></thead>
-    <tbody>${carRows}</tbody></table></div>` : '';
+    const carRows = CAR_PROCS.map((proc,i)=>{
+      const tds = carLabels.map(ok=>{
+        const arr = carenciaVals(ok, arc, totalVidas) || [];
+        const [cls,val] = (arr[i]||'na|—').split('|');
+        return `<td class="${ok===effectiveWinnerOp?'col-win ':''}cvc-${cls}">${val}</td>`;
+      }).join('');
+      return `<tr><td class="td-first">${proc}</td>${tds}</tr>`;   // SEM coluna "Sem aprov."
+    }).join('');
+    carenciasHTML = `<div class="comp-tbl-wrap"><table class="comp-tbl">
+      <thead><tr><th class="th-first">Procedimento</th>${carThs}</tr></thead>
+      <tbody>${carRows}</tbody></table></div>`;
+  }
 
   // Monta HTML
   const apresHTML = `
@@ -1866,11 +1884,13 @@ async function gerar() {
   <div class="sec">
     <div class="sec-eyebrow">${carNum} — Carências por Operadora</div>
     <h2 class="sec-title">Carências comparadas, operadora a operadora</h2>
-    <p class="sec-intro">Prazos de carência considerando <strong>${ARC_CAP[arc]}</strong>. Ajuste em "Plano anterior (ARC)" para recalcular conforme o histórico do cliente.</p>
+    <p class="sec-intro">${isento30
+      ? 'Este contrato é <strong>isento de carência</strong>.'
+      : `Prazos de carência considerando <strong>${ARC_CAP[arc]}</strong>. Ajuste em "Plano anterior (ARC)" conforme o histórico do cliente.`}</p>
     ${carenciasHTML}
-    <div style="margin-top:.875rem;padding:.75rem 1rem;background:var(--navy);border-radius:var(--r-sm);font-size:11.5px;color:rgba(255,255,255,.85)">
+    ${isento30 ? '' : `<div style="margin-top:.875rem;padding:.75rem 1rem;background:var(--navy);border-radius:var(--r-sm);font-size:11.5px;color:rgba(255,255,255,.85)">
       🚨 <strong style="color:#fff">Regra inegociável da ANS:</strong> urgências e emergências têm acesso garantido em <strong>24 horas</strong> a partir da data de vigência — independente de qualquer carência.
-    </div>
+    </div>`}
   </div>
 
   <!-- REDE DE ATENDIMENTO -->
