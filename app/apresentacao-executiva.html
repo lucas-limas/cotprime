@@ -1380,8 +1380,8 @@ const REDE_COL_LABELS = {
   P220:'P220', P320:'P320', P420:'P420', P520:'P520',
   BRONZE_BR:'Bronze BR', PRATA_MAIS:'Prata+', OURO_MAIS:'Ouro+', DIAMANTE_MAIS:'Diamante+',
   // bradesco
-  EFETIVO:'Efetivo', EFETIVO_PLUS:'Efetivo+', FLEX:'Flex', IDEAL:'Ideal',
-  NACIONAL:'Nacional', NACIONAL_PLUS:'Nacional+', PREMIUM:'Premium',
+  EFETIVO:'Efetivo', EFETIVO_PLUS:'Efetivo Plus', FLEX:'Flex', IDEAL:'Ideal',
+  NACIONAL_II:'Nacional II', NACIONAL_III:'Nacional III', NACIONAL_PLUS:'Nacional Plus', PREMIUM:'Premium',
   // sulamerica
   DIRETO_NAC:'Direto Nac.', EXATO:'Exato', CLASSICO:'Clássico',
   ESPECIAL_RC:'Esp. RC', ESPECIAL100:'Esp. 100', EXECUTIVO:'Executivo', PRESTIGE:'Prestige',
@@ -1442,12 +1442,13 @@ function getRedeCol(opKey, prodNome, redeChave) {
     return 'BRONZE_BSB_PRO';
   }
   if (opKey==='bradesco') {
-    if (n.includes('premium'))         return 'PREMIUM';
-    if (n.includes('nacional plus'))   return 'NACIONAL_PLUS';
-    if (n.includes('nacional'))        return 'NACIONAL';
-    if (n.includes('ideal'))           return 'IDEAL';
-    if (n.includes('flex'))            return 'FLEX';
-    if (n.includes('efetivo plus'))    return 'EFETIVO_PLUS';
+    if (n.includes('premium'))        return 'PREMIUM';
+    if (n.includes('nacional plus'))  return 'NACIONAL_PLUS';
+    if (n.includes('nacional iii'))   return 'NACIONAL_III';
+    if (n.includes('nacional ii'))    return 'NACIONAL_II';
+    if (n.includes('ideal'))          return 'IDEAL';
+    if (n.includes('flex'))           return 'FLEX';
+    if (n.includes('efetivo plus'))   return 'EFETIVO_PLUS';
     return 'EFETIVO';
   }
   if (opKey==='sulamerica') {
