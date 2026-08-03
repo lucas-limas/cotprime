@@ -165,9 +165,9 @@ window.REDE_DATA = {
     adm: 'Adm. Esplendor · Atualizada 04/2026',
     grupos: [
       { titulo: 'Hospitais — Life Vital & Unity Vida', itens: [
-        { nome: 'Hosp. Santa Lúcia Norte', local: 'Asa Norte', tags: ['PS','INT'] },
+        { nome: 'Hosp. Prontonorte', local: 'Asa Norte', tags: ['PS','INT'] },
         { nome: 'Hosp. Santa Lúcia Taguatinga', tags: ['PS','INT'] },
-        { nome: 'Hosp. Santa Lúcia Gama', tags: ['PS','INT'] },
+        { nome: 'Hosp. Maria Auxiliadora', tags: ['PS','INT'] },
         { nome: 'Hosp. São Mateus', local: 'Cruzeiro', tags: ['PS','INT','AMB'] },
         { nome: 'Hosp. PAI', local: 'Asa Sul', tags: ['PS','INT'] },
         { nome: 'Hosp. AMMA', local: 'Águas Claras', tags: ['INT','AMB'] },
@@ -349,7 +349,7 @@ window.REDE_DATA = {
         { nome: 'Laboratório Santa Paula',                                                     tags: ['AMB']            },
       ]},
       { titulo: 'Prime · Platinum (adiciona à rede Classic)', itens: [
-        { nome: 'Hospital Santa Lúcia Norte',                local: 'Asa Norte',  tags: ['PS','INT','AMB'] },
+        { nome: 'Hospital Prontonorte',                local: 'Asa Norte',  tags: ['PS','INT','AMB'] },
         { nome: 'Unidade Avançada Santa Lúcia',              local: 'Taguatinga', tags: ['PS','AMB']       },
         { nome: 'Hospital Anchieta Taguatinga (Kora Saúde)', local: 'Taguatinga', tags: ['INT','AMB'], obs: 'PS 24h incluído no Platinum' },
         { nome: 'Hospital Santa Lúcia Sul',                  local: 'Asa Sul',    tags: ['INT','AMB'], obs: 'PS 24h incluído no Platinum' },
@@ -363,7 +363,7 @@ window.REDE_DATA = {
     grupos: [
       { titulo: 'Nacional Plus 4 e Premium 6 — Todos os planos Apt', itens: [
         { nome: 'Hosp. Santa Helena', local: 'Asa Norte', tags: ['PS','INT','MAT'] },
-        { nome: 'Hosp. Santa Lúcia Norte · Santa Lúcia Sul', local: 'Asa Norte / Asa Sul', tags: ['PS','INT','MAT'] },
+        { nome: 'Hosp. Prontonorte · Santa Lúcia Sul', local: 'Asa Norte / Asa Sul', tags: ['PS','INT','MAT'] },
         { nome: 'Hosp. Alvorada · H. Home · H. Daher', tags: ['PS','INT'] },
         { nome: 'Hosp. DF Star · H. do Coração do Brasil', local: 'Asa Sul', tags: ['PS','INT'] },
         { nome: 'Hosp. Santa Luzia · Santa Marta', local: 'Asa Sul', tags: ['PS','INT'] },
@@ -374,15 +374,15 @@ window.REDE_DATA = {
         { nome: 'Hosp. Brasília', local: 'SHIS', tags: ['INT'] },
         { nome: 'Maternidade Brasília', local: 'Sudoeste', tags: ['INT','MAT'] },
         { nome: 'Hosp. Águas Claras', local: 'Brasília', tags: ['PS','INT'] },
-        { nome: 'Sta Lúcia Gama', local: 'Gama', tags: ['PS','INT','MAT'] },
+        { nome: 'Maria Auxiliadora', local: 'Gama', tags: ['PS','INT','MAT'] },
       ]},
       { titulo: 'Nacional Flex — Enfermaria', itens: [
-        { nome: 'Hosp. Santa Helena · Sta Lúcia Norte/Sul/Gama', tags: ['PS','INT','MAT'] },
+        { nome: 'Hosp. Santa Helena · Prontonorte / Sta Lúcia Sul / Maria Auxiliadora', tags: ['PS','INT','MAT'] },
         { nome: 'Hosp. Alvorada · H. Home · H. Daher · Maternidade Brasília', tags: ['PS','INT'] },
         { nome: 'Hosp. Anchieta Ceilândia · H. Mantevida · Sta Marta Taguatinga', tags: ['PS','INT'] },
       ]},
       { titulo: 'Efetivo — Rede reduzida (Enfermaria)', itens: [
-        { nome: 'Sta Lúcia Norte / Sul / Gama', tags: ['INT','MAT'] },
+        { nome: 'Prontonorte / Sta Lúcia Sul / Maria Auxiliadora', tags: ['INT','MAT'] },
         { nome: 'Cto. Clínico Recanto', tags: ['INT'] },
       ]},
       { titulo: 'Laboratórios', itens: [
