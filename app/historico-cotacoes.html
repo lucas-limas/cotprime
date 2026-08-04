@@ -476,7 +476,7 @@ function abrirCotacao(id){
     if (window.parent && window.parent.showCotador) window.parent.showCotador();
     const cot = window.parent.document.getElementById('cotador');
     if (cot && cot.contentWindow && cot.contentWindow.restaurarCotacaoFromObj){
-      cot.contentWindow.restaurarCotacaoFromObj(it.dados);
+      cot.contentWindow.restaurarCotacaoFromObj(it.dados, true);
     }
   } catch(e){ /* fora do shell: nada a fazer */ }
 }

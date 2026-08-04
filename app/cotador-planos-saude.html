@@ -966,6 +966,7 @@ let tipoOp = {};               // contratação por operadora: 'adesao'|'pme'|'p
 let copartOp = {};             // copart por operadora: 'sem'|'parcial'|'total'|null (null = não filtra)
 let modOp = {};                // modalidade PME (só Seguros Unimed): 'comp'|'fac'
 let vigOp = {};                // vigência (só SulAmérica): 12|24
+let _cotacaoSig = null;        // assinatura da última cotação salva/aberta (evita duplicar idêntica)
 let openOps = {};              // {op: true} — estado expandido/recolhido do accordion
 
 // Mantém o espelho activeOps coerente com a seleção (render/export/sync da apresentação leem activeOps)
@@ -1508,7 +1509,7 @@ function criarApresentacao() {
 // e recomputa os preços (não usa os snapshots do `dados`). Abre a Apresentação direto,
 // SEM salvar no histórico e SEM abrir o modal do CRM.
 function regenerarApresentacao(dados) {
-  restaurarCotacaoFromObj(dados);
+  restaurarCotacaoFromObj(dados, true);
   const data = buildApresentacaoData();
   if (!data) {
     showToast('Não foi possível regenerar: planos indisponíveis no catálogo atual.');
@@ -2006,10 +2007,22 @@ _initCotador().then(() => {
 // ── SALVAR COTAÇÃO ───────────────────────────────────────────────────
 // Fonte única de verdade: o backend (POST /api/cotacoes). O histórico é
 // consultado na tela própria (historico-cotacoes.html via GET /api/cotacoes).
+function _cotSig(){
+  return JSON.stringify({
+    q: qtds, s: selPlanos, a: activeOps, t: tipoOp,
+    c: copartOp, m: modOp, v: vigOp,
+    n: (document.getElementById('nome')?.value||'').trim(),
+    o: (document.getElementById('obs')?.value||'').trim()
+  });
+}
+
 function saveToHistory(clienteId = null) {
   const nome = document.getElementById('nome')?.value?.trim() || 'Sem nome';
   const tv = qtds.reduce((a,b)=>a+b,0);
   if (tv === 0) return;
+  const _sig = _cotSig();
+  if (_sig === _cotacaoSig) return;   // mesmo estado já salvo/aberto — não duplica
+  _cotacaoSig = _sig;
   const opsOrder = Object.keys(OP_META);
   const withTotal = opsOrder
     .filter(op => activeOps[op] && planosFiltered(op).length > 0)
@@ -2085,7 +2098,7 @@ function _aplicarRestore(e){
   updateTitle(); _updateFVidasHint(); buildOpConfig(); render();
 }
 
-function restaurarCotacaoFromObj(e){ _aplicarRestore(e); }
+function restaurarCotacaoFromObj(e, fromHist){ _aplicarRestore(e); if (fromHist) _cotacaoSig = _cotSig(); }
 </script>
 
 </body>
