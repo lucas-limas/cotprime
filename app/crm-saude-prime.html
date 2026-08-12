@@ -158,6 +158,16 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
   padding:5px 12px;border-radius:6px;cursor:pointer;transition:all .15s;
 }
 .scope button.on{background:var(--tab-active);color:var(--t1)}
+.crm-corretor-filtro{margin-left:8px;background:var(--card);border:1px solid var(--bd1);border-radius:8px;color:var(--t2);font-family:"Outfit",sans-serif;font-size:12px;padding:5px 10px;cursor:pointer;outline:none}
+html[data-theme="dark"] .crm-corretor-filtro{color-scheme:dark}
+.crm-corretor-filtro option{background:var(--opt-bg);color:var(--t1)}
+.m-reatribuir{margin-top:10px}
+.reat-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.reat-lbl{font-size:12px;color:var(--t3)}
+.reat-picker{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.reat-picker select{background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;color:var(--t1);font-size:13px;font-family:"Outfit",sans-serif;padding:6px 9px;outline:none}
+html[data-theme="dark"] .reat-picker select{color-scheme:dark}
+.reat-picker select option{background:var(--opt-bg);color:var(--t1)}
 
 /* ── áreas (Funil / Renovação) ── */
 .view{flex:1;overflow:hidden;display:none;flex-direction:column}
@@ -671,6 +681,7 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
     <button class="on" id="scope-meus" onclick="setScope('meus',this)">Meus</button>
     <button id="scope-empresa" onclick="setScope('empresa',this)">Empresa</button>
   </div>
+  <select class="crm-corretor-filtro" id="corretor-filtro" style="display:none" onchange="onCorretorFiltro()"></select>
 </div>
 
 <!-- ========== FUNIL ========== -->
@@ -743,6 +754,7 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
           <div class="m-dados-actions" id="dados-actions"></div>
         </div>
         <div class="m-grid" id="modal-dados"></div>
+        <div class="m-reatribuir" id="reatribuir-box" style="display:none"></div>
       </div>
 
       <!-- FUNIL -->
@@ -949,7 +961,18 @@ let currentTab = 'funil';    // 'funil' | 'renov' — área visível
 let allClientes = [];
 let currentCliente = null;
 let currentUser = null;
+let _corretorFiltro = null;   // gestor: filtro do funil por corretor (escopo Empresa)
+let _corretoresCache = null;  // lista de corretores da corretora (cacheada)
 let _toastTimer;
+
+// Gestor = corretor com pode_ver_equipe (o /api/me já marca 1 p/ admin/superadmin também)
+function _isGestor(){ return !!(currentUser && currentUser.pode_ver_equipe); }
+async function _ensureCorretores(){
+  if (_corretoresCache) return _corretoresCache;
+  try { const r = await fetch(`${API}/api/gestor/corretores`, {headers:authH()}); _corretoresCache = r.ok ? await r.json() : []; }
+  catch { _corretoresCache = []; }
+  return _corretoresCache;
+}
 let _valorCliente = {};   // { [cliente_id]: mensalidade } — da cotação mais recente vinculada
 let _dragData = null;     // { clienteId, opId, from } durante o arrasto
 let _vigCtx = null;       // contexto do modal de vigência: { clienteId, opId, nome, jaFechado }
@@ -1049,14 +1072,34 @@ function switchView(tab, btn){
 function setScope(scope, btn){
   if (scope === currentScope) return;
   currentScope = scope;
+  if (scope !== 'empresa') _corretorFiltro = null;   // filtro por corretor só vale no escopo Empresa
   document.querySelectorAll('.scope button').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   loadKanban(currentScope);   // "empresa" usa ?view=empresa → exige refetch
+}
+function onCorretorFiltro(){
+  const cf = document.getElementById('corretor-filtro');
+  _corretorFiltro = (cf && cf.value) ? parseInt(cf.value, 10) : null;
+  loadKanban('empresa');
 }
 // "Novo Cliente" é uma ação do escopo "Meus" (o cliente nasce do usuário logado).
 function _applyScopeUI(){
   const btn = document.getElementById('btn-novo');
   if (btn) btn.style.display = currentScope === 'empresa' ? 'none' : '';
+  // Filtro "Corretor" só p/ gestor no escopo Empresa
+  const cf = document.getElementById('corretor-filtro');
+  if (cf){
+    if (currentScope === 'empresa' && _isGestor()){
+      cf.style.display = '';
+      _ensureCorretores().then(list => {
+        cf.innerHTML = '<option value="">Corretor: Todos</option>' +
+          list.map(u => `<option value="${u.id}">${esc(u.nome || u.username)}</option>`).join('');
+        cf.value = _corretorFiltro || '';
+      });
+    } else {
+      cf.style.display = 'none';
+    }
+  }
 }
 
 /* ── UTILS ── */
@@ -1082,7 +1125,7 @@ function fmtDate(iso){
   return new Date(_isoZ(iso)).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
 }
 function isMyClient(c){ return currentUser && c.corretor_id === currentUser.id; }
-function canEdit(c){ return currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || isMyClient(c)); }
+function canEdit(c){ return currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || _isGestor() || isMyClient(c)); }
 
 /* ── CARREGAR KANBAN ── */
 async function loadKanban(scope){
@@ -1090,7 +1133,11 @@ async function loadKanban(scope){
   const board = document.getElementById('kanban-board');
   board.innerHTML = '<div class="k-loading">Carregando...</div>';
   try {
-    const url = scope === 'empresa' ? `${API}/api/clientes?view=empresa` : `${API}/api/clientes`;
+    let url = `${API}/api/clientes`;
+    if (scope === 'empresa'){
+      url += '?view=empresa';
+      if (_corretorFiltro) url += '&corretor_id=' + encodeURIComponent(_corretorFiltro);
+    }
     const [res] = await Promise.all([
       fetch(url, {headers:{Authorization:`Bearer ${token()}`}}),
       loadValores(),
@@ -1341,6 +1388,7 @@ function renderModal(c, interacoes, cotacoes){
   _modalEditable = editable;
   _dadosEditMode = false;
   renderDadosSection();
+  renderReatribuir(c);   // gestor: transferir o lead p/ outro corretor
 
   // Funil
   document.querySelectorAll('.funil-stage').forEach(btn => {
@@ -1496,6 +1544,40 @@ async function saveDados(){
     showToast('Salvo!');
     await loadKanban(currentScope);   // card reflete nome/segmento/vidas novos
   } catch { showToast('Erro ao salvar'); }
+}
+
+/* ── REATRIBUIR (só gestor): transferir o lead p/ outro corretor da corretora ── */
+function renderReatribuir(c){
+  const box = document.getElementById('reatribuir-box');
+  if (!box) return;
+  if (!_isGestor()){ box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  const dono = c && c.corretor_nome ? esc(c.corretor_nome) : '—';
+  box.innerHTML = `<div class="reat-row"><span class="reat-lbl">Responsável: <b>${dono}</b></span>
+      <button class="dados-btn" onclick="abrirReatribuir(${c.id})">Reatribuir</button></div>
+    <div id="reat-picker" class="reat-picker" style="display:none"></div>`;
+}
+async function abrirReatribuir(id){
+  const picker = document.getElementById('reat-picker');
+  if (!picker) return;
+  const list = await _ensureCorretores();
+  const opts = list.map(u => `<option value="${u.id}">${esc(u.nome || u.username)}</option>`).join('');
+  picker.style.display = '';
+  picker.innerHTML = `<select id="reat-sel">${opts}</select>
+    <button class="dados-btn save" onclick="salvarReatribuir(${id})">Transferir</button>
+    <button class="dados-btn cancel" onclick="document.getElementById('reat-picker').style.display='none'">Cancelar</button>`;
+}
+async function salvarReatribuir(id){
+  const sel = document.getElementById('reat-sel');
+  if (!sel || !sel.value){ showToast('Selecione um corretor'); return; }
+  const corretor_id = parseInt(sel.value, 10);
+  try {
+    const r = await fetch(`${API}/api/clientes/${id}/reatribuir`, {method:'PATCH', headers:authH(), body:JSON.stringify({corretor_id})});
+    if (!r.ok){ const d = await r.json().catch(()=>({})); showToast(d.detail || 'Erro ao reatribuir'); return; }
+    showToast('Lead reatribuído ✓');
+    closeModal();
+    await loadKanban(currentScope);
+  } catch { showToast('Erro ao reatribuir'); }
 }
 
 /* ── FUNIL ── */

@@ -1054,9 +1054,10 @@ def login(req: LoginRequest, request: Request):
 def me(user=Depends(require_corretor)):
     # require_corretor já exige usuário ATIVO + corretora ativa (403 se inativo) e seta user["id"]
     conn = get_connection()
-    row = conn.execute("SELECT email FROM users WHERE username = ?", (user["sub"],)).fetchone()
+    row = conn.execute("SELECT email, pode_ver_equipe FROM users WHERE username = ?", (user["sub"],)).fetchone()
     conn.close()
     _email = row["email"] if row else None
+    _gestor = 1 if (user.get("role") in ("admin", "superadmin") or (row and row["pode_ver_equipe"])) else 0
     return {
         "id": user.get("id"),
         "username": user["sub"],
@@ -1064,6 +1065,7 @@ def me(user=Depends(require_corretor)):
         "role": user.get("role"),
         "corretora_id": user.get("corretora_id"),
         "precisa_email": 0 if (_email and str(_email).strip()) else 1,
+        "pode_ver_equipe": _gestor,
     }
 
 
@@ -2808,7 +2810,7 @@ def _check_cliente_acesso(cliente, user, write=False):
 
 
 @app.get("/api/clientes")
-def listar_clientes(view: Optional[str] = None, q: Optional[str] = None, user=Depends(require_corretor)):
+def listar_clientes(view: Optional[str] = None, q: Optional[str] = None, corretor_id: Optional[int] = None, user=Depends(require_corretor)):
     conn = get_connection()
     role = user.get("role")
     if q is not None:
@@ -2838,11 +2840,18 @@ def listar_clientes(view: Optional[str] = None, q: Optional[str] = None, user=De
     """
     if view == "empresa":
         if _is_gestor(user, conn):
-            # gestor vê TODOS os leads da corretora (não só os compartilhados)
-            rows = conn.execute(
-                base + "WHERE c.corretora_id = ? AND c.ativo = 1 ORDER BY c.criado_em DESC",
-                (user.get("corretora_id"),),
-            ).fetchall()
+            # gestor vê TODOS os leads da corretora (não só os compartilhados);
+            # ?corretor_id= (opcional) filtra por membro — escopado à corretora (não vaza).
+            if corretor_id is not None:
+                rows = conn.execute(
+                    base + "WHERE c.corretora_id = ? AND c.corretor_id = ? AND c.ativo = 1 ORDER BY c.criado_em DESC",
+                    (user.get("corretora_id"), corretor_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    base + "WHERE c.corretora_id = ? AND c.ativo = 1 ORDER BY c.criado_em DESC",
+                    (user.get("corretora_id"),),
+                ).fetchall()
         else:
             rows = conn.execute(
                 base + "WHERE c.corretora_id = ? AND c.compartilhado = 1 AND c.ativo = 1 ORDER BY c.criado_em DESC",
@@ -2943,6 +2952,49 @@ def desativar_cliente(cliente_id: int, user=Depends(require_corretor)):
     conn.commit()
     conn.close()
     log_action(user["sub"], "desativar_cliente", f"Cliente {cliente_id}", usuario_id=user.get("id"))
+    return {"ok": True}
+
+
+@app.get("/api/gestor/corretores")
+def listar_corretores_gestor(user=Depends(require_gestor)):
+    """Corretores ativos da própria corretora do gestor (p/ reatribuir/filtrar)."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, nome, username FROM users WHERE corretora_id = ? AND role = 'corretor' AND ativo = 1 ORDER BY nome",
+        (user.get("corretora_id"),),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+class ReatribuirRequest(BaseModel):
+    corretor_id: int
+
+
+@app.patch("/api/clientes/{cliente_id}/reatribuir")
+def reatribuir_cliente(cliente_id: int, body: ReatribuirRequest, user=Depends(require_gestor)):
+    """Gestor transfere um lead para outro corretor DA MESMA corretora."""
+    conn = get_connection()
+    try:
+        cli = conn.execute("SELECT corretora_id FROM clientes WHERE id = ?", (cliente_id,)).fetchone()
+        if not cli:
+            raise HTTPException(404, "Cliente não encontrado")
+        if cli["corretora_id"] != user.get("corretora_id"):
+            raise HTTPException(403, "Sem permissão para este cliente")
+        alvo = conn.execute(
+            "SELECT id, corretora_id FROM users WHERE id = ? AND role = 'corretor' AND ativo = 1",
+            (body.corretor_id,),
+        ).fetchone()
+        if not alvo or alvo["corretora_id"] != user.get("corretora_id"):
+            raise HTTPException(400, "Corretor destino inválido (fora da sua corretora)")
+        conn.execute(
+            "UPDATE clientes SET corretor_id = ?, atualizado_em = ? WHERE id = ?",
+            (body.corretor_id, datetime.utcnow().isoformat() + 'Z', cliente_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    log_action(user["sub"], "reatribuir_cliente", f"Cliente {cliente_id} -> corretor {body.corretor_id}", usuario_id=user.get("id"))
     return {"ok": True}
 
 
