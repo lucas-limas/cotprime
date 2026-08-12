@@ -261,6 +261,20 @@ def require_gestor(user=Depends(get_current_user)):
     return user
 
 
+def _is_gestor(user, conn=None):
+    """Gestor = admin/superadmin (sempre) OU corretor com pode_ver_equipe=1.
+    A flag não está no JWT → consulta no banco (reusa a conn aberta quando passada)."""
+    if user.get("role") in ("admin", "superadmin"):
+        return True
+    own = conn or get_connection()
+    try:
+        r = own.execute("SELECT pode_ver_equipe FROM users WHERE username = ?", (user["sub"],)).fetchone()
+        return bool(r and r["pode_ver_equipe"])
+    finally:
+        if conn is None:
+            own.close()
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
@@ -2780,6 +2794,9 @@ def _check_cliente_acesso(cliente, user, write=False):
         if cliente["corretora_id"] != user.get("corretora_id"):
             raise HTTPException(403, "Sem permissão para acessar este cliente")
         return
+    # gestor = admin-like p/ o CRM DA PRÓPRIA corretora (lê E edita; sem poderes de admin de usuários/catálogo)
+    if cliente["corretora_id"] == user.get("corretora_id") and _is_gestor(user):
+        return
     if cliente["corretor_id"] == user.get("id"):
         return
     if (not write and cliente.get("compartilhado") == 1
@@ -2805,6 +2822,8 @@ def listar_clientes(view: Optional[str] = None, q: Optional[str] = None, user=De
             rows = conn.execute(sq + "AND (c.nome LIKE ? OR c.empresa LIKE ?) ORDER BY c.nome LIMIT 20", (like, like)).fetchall()
         elif role == "admin":
             rows = conn.execute(sq + "AND c.corretora_id = ? AND (c.nome LIKE ? OR c.empresa LIKE ?) ORDER BY c.nome LIMIT 20", (user.get("corretora_id"), like, like)).fetchall()
+        elif _is_gestor(user, conn):
+            rows = conn.execute(sq + "AND c.corretora_id = ? AND (c.nome LIKE ? OR c.empresa LIKE ?) ORDER BY c.nome LIMIT 20", (user.get("corretora_id"), like, like)).fetchall()
         else:
             rows = conn.execute(sq + "AND c.corretor_id = ? AND (c.nome LIKE ? OR c.empresa LIKE ?) ORDER BY c.nome LIMIT 20", (user.get("id"), like, like)).fetchall()
         conn.close()
@@ -2818,10 +2837,17 @@ def listar_clientes(view: Optional[str] = None, q: Optional[str] = None, user=De
         FROM clientes c
     """
     if view == "empresa":
-        rows = conn.execute(
-            base + "WHERE c.corretora_id = ? AND c.compartilhado = 1 AND c.ativo = 1 ORDER BY c.criado_em DESC",
-            (user.get("corretora_id"),),
-        ).fetchall()
+        if _is_gestor(user, conn):
+            # gestor vê TODOS os leads da corretora (não só os compartilhados)
+            rows = conn.execute(
+                base + "WHERE c.corretora_id = ? AND c.ativo = 1 ORDER BY c.criado_em DESC",
+                (user.get("corretora_id"),),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                base + "WHERE c.corretora_id = ? AND c.compartilhado = 1 AND c.ativo = 1 ORDER BY c.criado_em DESC",
+                (user.get("corretora_id"),),
+            ).fetchall()
     elif role == "superadmin":
         rows = conn.execute(base + "WHERE c.ativo = 1 ORDER BY c.criado_em DESC").fetchall()
     elif role == "admin":
