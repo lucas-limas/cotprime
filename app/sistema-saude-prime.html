@@ -143,6 +143,8 @@ html[data-theme="light"] .switcher{box-shadow:0 1px 6px rgba(0,0,0,.1)}
 .sfld{display:flex;flex-direction:column;gap:5px}
 .sfld label{font-size:10px;color:var(--t4);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 .sfld input{background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:9px 11px;color:var(--t1);font-size:13px;font-family:"Outfit",sans-serif;outline:none}
+.sfld select{background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:9px 11px;color:var(--t1);font-size:13px;font-family:"Outfit",sans-serif;outline:none;width:100%}
+html[data-theme="dark"] .sfld select{color-scheme:dark}
 .sfld input:focus{border-color:var(--bd3)}
 .sfld.err input{border-color:#ef4444}
 .s-hint{font-size:11px;color:#ef4444;min-height:14px}
@@ -879,6 +881,24 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
   </div>
 </div>
 
+<!-- MODAL: Remover colaborador (offboarding — transferir leads ou excluir tudo) -->
+<div class="senha-overlay hidden" id="offboard-modal">
+  <div class="senha-box">
+    <div class="senha-hdr"><h3>Remover — <span id="off-nome"></span></h3></div>
+    <div class="senha-body">
+      <p style="font-size:13px;color:var(--t3);line-height:1.5">Transferir os leads/cotações deste colaborador para outro (recomendado), ou excluir tudo em definitivo.</p>
+      <div class="sfld"><label>Transferir leads para</label>
+        <select id="off-sel"></select>
+        <div class="s-hint" id="off-hint" style="color:var(--t4)"></div>
+      </div>
+    </div>
+    <div class="senha-actions">
+      <button class="btn-ghost" onclick="fecharOffboard()">Cancelar</button>
+      <button class="btn-solid" onclick="confirmarOffboard()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <div class="frames">
   <iframe id="inicio"    src="inicio.html" class="visible"></iframe>
   <iframe id="dashboard" src="dashboard.html"></iframe>
@@ -1261,16 +1281,35 @@ async function toggleColaborador(id, btn) {
   if (res.ok) await loadColaboradores(); else btn.disabled = false;
 }
 
-async function deletarColaborador(id, btn) {
-  if (!confirm('Excluir este colaborador e TODOS os seus dados (clientes, cotações, tarefas)? Irreversível.')) return;
-  btn.disabled = true;
+let _offboardId = null;
+function deletarColaborador(id, btn) {
+  // Offboarding: oferece transferir os leads para outro colaborador antes de remover.
+  _offboardId = id;
+  const u = (_colaboradores || []).find(x => x.id === id);
+  document.getElementById('off-nome').textContent = u ? (u.nome || u.username) : '';
+  const others = (_colaboradores || []).filter(x => x.id !== id && x.ativo);
+  document.getElementById('off-sel').innerHTML =
+    '<option value="">— Excluir tudo (não transferir) —</option>' +
+    others.map(x => `<option value="${x.id}">${x.nome || x.username}</option>`).join('');
+  document.getElementById('off-hint').textContent = others.length ? '' : 'Sem outro colaborador ativo para transferir.';
+  document.getElementById('offboard-modal').classList.remove('hidden');
+}
+function fecharOffboard(){ document.getElementById('offboard-modal').classList.add('hidden'); _offboardId = null; }
+async function confirmarOffboard(){
+  if (_offboardId == null) return;
+  const sel = document.getElementById('off-sel');
+  const alvo = (sel && sel.value) ? parseInt(sel.value, 10) : null;
+  const msg = alvo
+    ? 'Transferir os leads/cotações e remover o colaborador?'
+    : 'Excluir o colaborador e TODOS os seus dados (clientes, cotações, tarefas)? Irreversível.';
+  if (!confirm(msg)) return;
+  const url = `${API}/api/admin/users/${_offboardId}` + (alvo ? `?reatribuir_para=${alvo}` : '');
   try {
-    const res = await fetch(`${API}/api/admin/users/${id}`, {method:'DELETE', headers: authH()});
-    if (res.ok) { await loadColaboradores(); return; }
+    const res = await fetch(url, {method:'DELETE', headers: authH()});
+    if (res.ok){ fecharOffboard(); await loadColaboradores(); return; }
     const d = await res.json().catch(() => ({}));
-    alert('Não foi possível excluir: ' + (d.detail || ('erro ' + res.status)));
-  } catch(e){ alert('Não foi possível excluir: erro de rede.'); }
-  btn.disabled = false;
+    alert('Não foi possível: ' + (d.detail || ('erro ' + res.status)));
+  } catch(e){ alert('Não foi possível: erro de rede.'); }
 }
 
 /* ════════════════════════════════════════

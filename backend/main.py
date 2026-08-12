@@ -1213,6 +1213,22 @@ def _purgar_usuario(conn, uid, uname):
     conn.execute("DELETE FROM users WHERE id = ?", (uid,))
 
 
+def _offboard_usuario(conn, uid, uname, alvo_id, alvo_uname):
+    """Offboarding: MIGRA leads/cotações/tarefas/interações do corretor que sai para
+    o alvo (mesma corretora), depois remove só o resto (integração, vínculos, o usuário).
+    Nada de clientes/oportunidades/tarefas/interações é apagado — tudo migra.
+    Sem commit/rollback: quem chama controla a transação. SQL parametrizado, sem %/LIKE."""
+    conn.execute("UPDATE clientes  SET corretor_id = ? WHERE corretor_id = ?", (alvo_id, uid))
+    conn.execute("UPDATE cotacoes  SET usuario_id = ?, usuario = ? WHERE usuario_id = ?", (alvo_id, alvo_uname, uid))
+    conn.execute("UPDATE cotacoes  SET usuario = ? WHERE usuario = ?", (alvo_uname, uname))
+    # tarefas/interações têm FK por username → reatribui p/ o alvo (não deixa órfão ao remover o usuário)
+    conn.execute("UPDATE tarefas   SET usuario = ? WHERE usuario = ?", (alvo_uname, uname))
+    conn.execute("UPDATE interacoes SET usuario = ? WHERE usuario = ?", (alvo_uname, uname))
+    conn.execute("DELETE FROM integracao_google WHERE usuario = ?", (uname,))
+    conn.execute("UPDATE audit_log SET usuario_id = NULL WHERE usuario_id = ?", (uid,))
+    conn.execute("DELETE FROM users WHERE id = ?", (uid,))
+
+
 @app.delete("/api/superadmin/corretoras/{corretora_id}")
 def deletar_corretora(corretora_id: int, admin=Depends(require_superadmin)):
     conn = get_connection()
@@ -1494,7 +1510,7 @@ def definir_email_corretora(user_id: int, body: UpdateEmailRequest, admin=Depend
 
 
 @app.delete("/api/admin/users/{user_id}")
-def deletar_usuario_corretora(user_id: int, admin=Depends(require_admin)):
+def deletar_usuario_corretora(user_id: int, reatribuir_para: Optional[int] = None, admin=Depends(require_admin)):
     corretora_id = admin.get("corretora_id")
     conn = get_connection()
     row = conn.execute(
@@ -1506,8 +1522,24 @@ def deletar_usuario_corretora(user_id: int, admin=Depends(require_admin)):
     if corretora_id and row["corretora_id"] != corretora_id:
         conn.close()
         raise HTTPException(403, "Sem permissão para remover este usuário")
+    # Offboarding opcional: transfere os leads/dados para outro corretor da MESMA corretora
+    alvo = None
+    if reatribuir_para is not None:
+        if reatribuir_para == user_id:
+            conn.close()
+            raise HTTPException(400, "Transfira para OUTRO corretor.")
+        alvo = conn.execute(
+            "SELECT id, username, corretora_id FROM users WHERE id = ? AND role = 'corretor' AND ativo = 1",
+            (reatribuir_para,),
+        ).fetchone()
+        if not alvo or (corretora_id and alvo["corretora_id"] != corretora_id):
+            conn.close()
+            raise HTTPException(400, "Corretor destino inválido (fora da sua corretora)")
     try:
-        _purgar_usuario(conn, user_id, row["username"])
+        if alvo:
+            _offboard_usuario(conn, user_id, row["username"], alvo["id"], alvo["username"])
+        else:
+            _purgar_usuario(conn, user_id, row["username"])
         conn.commit()
     except Exception:
         try:
@@ -1517,7 +1549,10 @@ def deletar_usuario_corretora(user_id: int, admin=Depends(require_admin)):
         conn.close()
         raise HTTPException(500, "Não foi possível excluir; nada foi removido.")
     conn.close()
-    log_action(admin["sub"], "deletar_corretor", f"Corretor {row['username']} e dados removidos (hard-delete)")
+    if alvo:
+        log_action(admin["sub"], "offboard_corretor", f"Corretor {row['username']} removido; leads → {alvo['username']}")
+    else:
+        log_action(admin["sub"], "deletar_corretor", f"Corretor {row['username']} e dados removidos (hard-delete)")
     return {"ok": True}
 
 
@@ -3320,12 +3355,17 @@ def listar_minhas_tarefas(status: Optional[str] = None, user=Depends(require_cor
         raise HTTPException(400, "status inválido")
     conn = get_connection()
     role = user.get("role")
-    sql = ("SELECT t.*, c.nome AS cliente_nome, c.telefone AS cliente_telefone, c.email AS cliente_email "
+    sql = ("SELECT t.*, c.nome AS cliente_nome, c.telefone AS cliente_telefone, c.email AS cliente_email, "
+           "(SELECT nome FROM users WHERE id = c.corretor_id) AS corretor_nome "
            "FROM tarefas t JOIN clientes c ON c.id = t.cliente_id WHERE c.ativo = 1")
     params = []
     if role == "superadmin":
         pass
     elif role == "admin":
+        sql += " AND c.corretora_id = ?"
+        params.append(user.get("corretora_id"))
+    elif _is_gestor(user, conn):
+        # gestor: tarefas/agenda de TODA a corretora (com o responsável de cada uma)
         sql += " AND c.corretora_id = ?"
         params.append(user.get("corretora_id"))
     else:

@@ -504,6 +504,7 @@ html[data-theme="dark"] .tar-form input,html[data-theme="dark"] .tar-form select
 .tp-titulo{font-size:13px;color:var(--t2);font-weight:500;flex:1}
 .tp-quando{font-size:11px;color:var(--t4);white-space:nowrap}
 .tp-lead{font-size:11px;color:var(--t3)}
+.tp-resp{font-size:11px;color:#818cf8;font-weight:600}
 .tp-atrasada .tp-quando{color:#f97316;font-weight:600}
 
 /* toast */
@@ -2242,9 +2243,10 @@ function renderTarefasPanel(list){
   el.innerHTML = list.slice(0, 6).map(t => {
     const [start] = _tarStartEnd(t);
     const atrasada = start < now;
+    const resp = (_isGestor() && t.corretor_nome) ? ` <span class="tp-resp">· ${esc(t.corretor_nome)}</span>` : '';
     return `<div class="tp-item${atrasada ? ' tp-atrasada' : ''}" onclick="openModal(${t.cliente_id})">
       <span class="tp-icon">${TAR_ICON[t.tipo] || '📌'}</span>
-      <span class="tp-titulo">${esc(t.titulo || '')} <span class="tp-lead">· ${esc(t.cliente_nome || '')}</span></span>
+      <span class="tp-titulo">${esc(t.titulo || '')} <span class="tp-lead">· ${esc(t.cliente_nome || '')}</span>${resp}</span>
       <span class="tp-quando">${_fmtTarInicio(t.inicio)}</span>
     </div>`;
   }).join('');
