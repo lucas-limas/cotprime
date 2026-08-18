@@ -610,6 +610,21 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
 .btn-ghost:hover{color:var(--t1)}
 .btn-solid-green{background:#22c55e;border:none;color:#fff;border-radius:7px;padding:8px 16px;font-family:"Outfit",sans-serif;font-size:13px;font-weight:600;cursor:pointer}
 .btn-solid-green:hover{opacity:.9}
+/* ── SINO de renovações ── */
+.crm-bell-wrap{position:relative;display:inline-flex}
+.crm-bell{position:relative;background:none;border:none;color:var(--t2);cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;line-height:0}
+.crm-bell:hover{color:var(--t1);background:rgba(255,255,255,.06)}
+.crm-bell svg{width:20px;height:20px}
+.crm-bell-badge{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:#f97316;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center}
+.crm-bell-drop{position:absolute;top:calc(100% + 8px);right:0;width:320px;max-height:60vh;overflow:auto;background:var(--panel,var(--card));border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.32);z-index:120;padding:6px}
+.crm-bell-drop .bell-head{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3);padding:8px 10px 6px}
+.crm-bell-drop .bell-empty{padding:16px 12px;color:var(--t3);font-size:13px;text-align:center}
+.crm-bell-drop .bell-item{display:block;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;cursor:pointer;color:var(--t1)}
+.crm-bell-drop .bell-item:hover{background:rgba(255,255,255,.06)}
+.crm-bell-drop .bi-nome{font-weight:600;font-size:13px}
+.crm-bell-drop .bi-sub{font-size:12px;color:var(--t3);margin-top:1px}
+.crm-bell-drop .bi-dias{font-size:12px;font-weight:600;margin-top:2px}
+.crm-bell-drop .bi-dias span{font-weight:400;color:var(--t3)}
 </style>
 </head>
 <body>
@@ -624,6 +639,13 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
     <span class="logo-title">CRM — Saúde Prime</span>
   </div>
   <div class="user-info">
+    <div class="crm-bell-wrap">
+      <button class="crm-bell" id="crm-bell" onclick="toggleRenovBell()" title="Renovações próximas (60 dias)" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="crm-bell-badge" id="crm-bell-badge" style="display:none">0</span>
+      </button>
+      <div class="crm-bell-drop" id="crm-bell-drop" style="display:none"></div>
+    </div>
     <span class="g-conn" id="google-conn"></span>
     <span class="user-nome" id="user-nome-bar"></span>
     <button class="btn-theme" onclick="toggleTheme()" title="Alternar tema claro/escuro">
@@ -954,7 +976,7 @@ const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',proposta:'#f59e0b',negocia
 const INT_ICON = {ligacao:'📞',whatsapp:'💬',email:'📧',reuniao:'👥',nota:'📝'};
 const INT_LABEL = {ligacao:'Ligação',whatsapp:'WhatsApp',email:'E-mail',reuniao:'Reunião',nota:'Nota'};
 const INT_TIPOS = ['ligacao','whatsapp','email','reuniao','nota'];
-const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};
+const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌',renovacao:'🔔'};
 const TAR_STATUS_LABEL = {pendente:'Pendente',feito:'Concluído',cancelado:'Cancelado'};
 
 let currentScope = 'meus';   // 'meus' | 'empresa' — escopo dos dados (vale para Funil E Renovação)
@@ -1050,6 +1072,7 @@ async function init(){
     if (_gp) history.replaceState({}, '', location.pathname);
     await loadKanban(currentScope);
     loadTarefasPendentes();
+    loadRenovacoesBell();
     loadGoogleStatus();
     const _autoId = sessionStorage.getItem('crm_cliente_id');
     if (_autoId) {
@@ -1798,6 +1821,8 @@ function _buildRenCard(r, isEmpresa){
   const c = r.c;
   const el = document.createElement('div');
   el.className = 'rcard';
+  el.style.cursor = 'pointer';                 // card abre a ficha (editar/excluir do fechado)
+  el.onclick = () => openModal(c.id);
   const nome = esc(c.nome || '');
   const sub = esc([
     _nomeOperadora(c.operadora_fechada) || c.operadora_atual,
@@ -1813,7 +1838,7 @@ function _buildRenCard(r, isEmpresa){
     el.style.borderLeftColor = 'var(--t4)';
     const podeEditar = canEdit(c);
     const acao = podeEditar
-      ? `<button class="rbtn ghost" onclick="abrirVigencia(${c.id}, ${c.oportunidade_id || 'null'})">Definir vigência</button>`
+      ? `<button class="rbtn ghost" onclick="event.stopPropagation(); abrirVigencia(${c.id}, ${c.oportunidade_id || 'null'})">Definir vigência</button>`
       : '';
     el.innerHTML = `
       <div><div class="nm">${nome}</div><div class="sub">${sub}</div></div>
@@ -1839,7 +1864,7 @@ function _buildRenCard(r, isEmpresa){
     <div><div class="lab">Reajuste em</div><div class="dat" style="color:${color}">${r.dias} dia${r.dias === 1 ? '' : 's'} <span style="font-weight:400;color:var(--t3);font-size:11px">(${_fmtDataBR(r.reaj)})</span></div></div>
     <div class="actcell" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
       <span class="rstat" style="background:${bg};color:${color}">${label}</span>
-      <button class="rbtn" onclick="recotarCliente(${c.id})">Recotar</button>
+      <button class="rbtn" onclick="event.stopPropagation(); recotarCliente(${c.id})">Recotar</button>
     </div>`;
   return el;
 }
@@ -1855,6 +1880,67 @@ async function excluirCliente(){
     await loadKanban(currentScope);
   } catch { showToast('Erro ao excluir'); }
 }
+
+/* ── SINO: renovações próximas (lembrete PESSOAL, sempre "meus", independe do escopo) ── */
+let _renovProx = [];
+async function loadRenovacoesBell(){
+  try {
+    const r = await fetch(`${API}/api/renovacoes/proximas`, {headers: authH()});
+    _renovProx = r.ok ? await r.json() : [];
+  } catch { _renovProx = []; }
+  const badge = document.getElementById('crm-bell-badge');
+  if (badge){
+    if (_renovProx.length){ badge.textContent = _renovProx.length; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+  }
+  _renderRenovBellDrop();
+}
+function _renderRenovBellDrop(){
+  const drop = document.getElementById('crm-bell-drop');
+  if (!drop) return;
+  if (!_renovProx.length){
+    drop.innerHTML = '<div class="bell-empty">Nenhuma renovação nos próximos 60 dias 🎉</div>';
+    return;
+  }
+  drop.innerHTML = '<div class="bell-head">Renovações próximas (60 dias)</div>' + _renovProx.map(it => {
+    const op = _nomeOperadora(it.operadora_fechada) || it.operadora_fechada || '';
+    const d = it.dias;
+    const dataBR = _fmtDataBR(_parseVig(it.reajuste_em));
+    const cor = d <= 15 ? '#ef4444' : (d <= 30 ? '#f97316' : '#eab308');
+    return `<button class="bell-item" onclick="abrirRenovDe(${it.cliente_id})">
+      <div class="bi-nome">${esc(it.nome||'')}</div>
+      <div class="bi-sub">${esc(op)}</div>
+      <div class="bi-dias" style="color:${cor}">reajuste em ${d} dia${d===1?'':'s'} <span>(${dataBR})</span></div>
+    </button>`;
+  }).join('');
+}
+function toggleRenovBell(){
+  const drop = document.getElementById('crm-bell-drop');
+  const btn = document.getElementById('crm-bell');
+  if (!drop) return;
+  const show = drop.style.display === 'none' || !drop.style.display;
+  drop.style.display = show ? 'block' : 'none';
+  if (btn) btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+}
+function abrirRenovDe(id){
+  const drop = document.getElementById('crm-bell-drop');
+  if (drop) drop.style.display = 'none';
+  const bbtn = document.getElementById('crm-bell');
+  if (bbtn) bbtn.setAttribute('aria-expanded', 'false');
+  const tabBtn = document.getElementById('tab-renov');
+  if (tabBtn) switchView('renov', tabBtn);
+  openModal(id);
+}
+// Fecha o dropdown do sino ao clicar fora dele
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.crm-bell-wrap');
+  if (wrap && !wrap.contains(e.target)){
+    const drop = document.getElementById('crm-bell-drop');
+    if (drop && drop.style.display !== 'none') drop.style.display = 'none';
+    const bbtn = document.getElementById('crm-bell');
+    if (bbtn) bbtn.setAttribute('aria-expanded', 'false');
+  }
+});
 
 /* ── INTERAÇÕES ── */
 function renderInteracoes(interacoes){

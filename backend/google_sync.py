@@ -151,31 +151,35 @@ def service_from_refresh(refresh_token: str):
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
-def _event_body(titulo, descricao, inicio, duracao_min):
+def _event_body(titulo, descricao, inicio, duracao_min, recurrence=None):
     # inicio: 'YYYY-MM-DD HH:MM' em horário BR (sem conversão para UTC)
     start = inicio.replace(" ", "T") + ":00"
     dt = datetime.strptime(inicio, "%Y-%m-%d %H:%M")
     end = (dt + timedelta(minutes=duracao_min or 30)).strftime("%Y-%m-%dT%H:%M:%S")
-    return {
+    body = {
         "summary": titulo or "Tarefa",
         "description": descricao or "",
         "start": {"dateTime": start, "timeZone": TZ},
         "end": {"dateTime": end, "timeZone": TZ},
         "reminders": {"useDefault": False, "overrides": [{"method": "popup", "minutes": 30}]},
     }
+    # recurrence: lista de RRULEs (ex.: ["RRULE:FREQ=YEARLY"]) p/ eventos recorrentes
+    if recurrence:
+        body["recurrence"] = recurrence
+    return body
 
 
-def create_event(service, titulo, descricao, inicio, duracao_min) -> str:
+def create_event(service, titulo, descricao, inicio, duracao_min, recurrence=None) -> str:
     ev = service.events().insert(
-        calendarId="primary", body=_event_body(titulo, descricao, inicio, duracao_min)
+        calendarId="primary", body=_event_body(titulo, descricao, inicio, duracao_min, recurrence)
     ).execute()
     return ev.get("id")
 
 
-def patch_event(service, event_id, titulo, descricao, inicio, duracao_min):
+def patch_event(service, event_id, titulo, descricao, inicio, duracao_min, recurrence=None):
     service.events().patch(
         calendarId="primary", eventId=event_id,
-        body=_event_body(titulo, descricao, inicio, duracao_min),
+        body=_event_body(titulo, descricao, inicio, duracao_min, recurrence),
     ).execute()
 
 

@@ -1623,6 +1623,34 @@ def _add_months(dt, n):
     return _br_dt(idx // 12, idx % 12 + 1, 1)
 
 
+def _aniversario_anual(y, m, d, ano):
+    """Aniversário no ano dado; 29/02 em ano não-bissexto → clamp p/ 28/02."""
+    try:
+        return date(ano, m, d)
+    except ValueError:
+        return date(ano, m, 28)
+
+
+def _prox_reajuste(data_vigencia):
+    """Espelho em Python do JS _proxReajuste: o MENOR aniversário anual da vigência
+    (vig + N×12 meses, N≥1) que seja >= hoje (horário BR). Retorna date ou None.
+    Trata 29/02 com clamp p/ 28/02."""
+    if not data_vigencia:
+        return None
+    try:
+        y, m, d = (int(x) for x in str(data_vigencia)[:10].split("-"))
+        date(y, m, d)  # valida a vigência de origem
+    except (ValueError, TypeError):
+        return None
+    hoje = datetime.now(_BR_TZ).date()
+    ano = y + 1
+    cand = _aniversario_anual(y, m, d, ano)
+    while cand < hoje:
+        ano += 1
+        cand = _aniversario_anual(y, m, d, ano)
+    return cand
+
+
 def _count_periodo(conn, usuario, ini_br, fim_br):
     row = conn.execute(
         "SELECT COUNT(*) AS n FROM cotacoes WHERE usuario = ? AND criado_em >= ? AND criado_em < ?",
@@ -2940,6 +2968,53 @@ def obter_cliente(cliente_id: int, user=Depends(require_corretor)):
     return cliente
 
 
+def _upsert_lembrete_renovacao(conn, cliente, dono_username):
+    """Cria/atualiza a auto-tarefa 'renovacao' (aviso 60 dias antes do reajuste) do lead.
+    Só mexe no BANCO (idempotente: 1 tarefa por cliente). Devolve (tarefa, is_new) p/ o caller
+    sincronizar no Google DEPOIS de fechar a conn, ou None se não há reajuste calculável."""
+    reaj = _prox_reajuste(cliente.get("data_vigencia"))
+    if not reaj:
+        return None
+    hoje = datetime.now(_BR_TZ).date()
+    aviso = reaj - timedelta(days=60)
+    if aviso < hoje:
+        # contrato fechado a <60d do reajuste → agenda o aviso do PRÓXIMO ciclo (+12 meses)
+        reaj = _aniversario_anual(reaj.year + 1, reaj.month, reaj.day, reaj.year + 1)
+        aviso = reaj - timedelta(days=60)
+    inicio = aviso.strftime("%Y-%m-%d") + " 09:00"
+    nome = cliente.get("nome") or "cliente"
+    titulo = f"🔔 Renovação — {nome}"
+    op = cliente.get("operadora_fechada") or ""
+    descricao = f"Reajuste/renovação em {reaj.strftime('%d/%m/%Y')} (aviso 60 dias antes)."
+    if op:
+        descricao += f" Operadora: {op}."
+    existe = conn.execute(
+        "SELECT id, google_event_id, status FROM tarefas WHERE cliente_id = ? AND tipo = 'renovacao'",
+        (cliente["id"],),
+    ).fetchone()
+    if existe:
+        conn.execute(
+            "UPDATE tarefas SET inicio = ?, titulo = ?, descricao = ? WHERE id = ?",
+            (inicio, titulo, descricao, existe["id"]),
+        )
+        conn.commit()
+        tarefa = {
+            "id": existe["id"], "cliente_id": cliente["id"], "usuario": dono_username,
+            "tipo": "renovacao", "titulo": titulo, "descricao": descricao,
+            "inicio": inicio, "duracao_min": 30, "status": existe["status"] or "pendente",
+            "google_event_id": existe["google_event_id"],
+        }
+        return tarefa, False
+    nova = dict(insert_returning(
+        conn,
+        "INSERT INTO tarefas (cliente_id, usuario, tipo, titulo, descricao, inicio, duracao_min, status) "
+        "VALUES (?, ?, 'renovacao', ?, ?, ?, 30, 'pendente')",
+        (cliente["id"], dono_username, titulo, descricao, inicio),
+        "tarefas",
+    ))
+    return nova, True
+
+
 @app.patch("/api/clientes/{cliente_id}")
 def atualizar_cliente(cliente_id: int, body: UpdateClienteRequest, user=Depends(require_corretor)):
     conn = get_connection()
@@ -2964,7 +3039,28 @@ def atualizar_cliente(cliente_id: int, body: UpdateClienteRequest, user=Depends(
         params.append(cliente_id)
         conn.execute(f"UPDATE clientes SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
+
+    # Lembrete de renovação: quando a vigência muda (o modal de vigência faz este PATCH),
+    # cria/atualiza a auto-tarefa 'renovacao' na agenda do DONO do lead (não de quem salvou).
+    _lembrete = _dono_lembrete = _cli_upd = None
+    _old_vig = (str(row["data_vigencia"])[:10] if row["data_vigencia"] else "")
+    if body.data_vigencia is not None:
+        _nv = body.data_vigencia.strip() if isinstance(body.data_vigencia, str) else str(body.data_vigencia)
+        if _nv and _nv[:10] != _old_vig:
+            _cli_upd = dict(conn.execute("SELECT * FROM clientes WHERE id = ?", (cliente_id,)).fetchone())
+            _dono_id = _cli_upd.get("corretor_id")
+            _dono_row = conn.execute("SELECT username FROM users WHERE id = ?", (_dono_id,)).fetchone() if _dono_id else None
+            if _dono_row:
+                _dono_lembrete = _dono_row["username"]
+                _lembrete = _upsert_lembrete_renovacao(conn, _cli_upd, _dono_lembrete)
     conn.close()
+    # Sync Google best-effort (nunca derruba o PATCH); usa a agenda do dono do lead.
+    if _lembrete:
+        _tar, _is_new = _lembrete
+        if _is_new:
+            _sync_tarefa_criar(_dono_lembrete, _tar, _cli_upd)
+        else:
+            _sync_tarefa_editar(_dono_lembrete, _tar, _cli_upd)
     return {"ok": True}
 
 
@@ -2984,8 +3080,21 @@ def desativar_cliente(cliente_id: int, user=Depends(require_corretor)):
         "UPDATE clientes SET ativo = 0, atualizado_em = ? WHERE id = ?",
         (datetime.utcnow().isoformat() + 'Z', cliente_id),
     )
+    # Remove o lembrete de renovação p/ não deixar evento órfão na agenda do dono.
+    _tar = conn.execute(
+        "SELECT id, google_event_id FROM tarefas WHERE cliente_id = ? AND tipo = 'renovacao'",
+        (cliente_id,),
+    ).fetchone()
+    _ev_id = _dono = None
+    if _tar:
+        _ev_id = _tar["google_event_id"]
+        _dr = conn.execute("SELECT username FROM users WHERE id = ?", (row["corretor_id"],)).fetchone() if row["corretor_id"] else None
+        _dono = _dr["username"] if _dr else None
+        conn.execute("DELETE FROM tarefas WHERE id = ?", (_tar["id"],))
     conn.commit()
     conn.close()
+    if _ev_id and _dono:
+        _sync_tarefa_excluir(_dono, _ev_id)   # best-effort (degrada se o dono não conectou o Google)
     log_action(user["sub"], "desativar_cliente", f"Cliente {cliente_id}", usuario_id=user.get("id"))
     return {"ok": True}
 
@@ -3031,6 +3140,37 @@ def reatribuir_cliente(cliente_id: int, body: ReatribuirRequest, user=Depends(re
         conn.close()
     log_action(user["sub"], "reatribuir_cliente", f"Cliente {cliente_id} -> corretor {body.corretor_id}", usuario_id=user.get("id"))
     return {"ok": True}
+
+
+@app.get("/api/renovacoes/proximas")
+def renovacoes_proximas(user=Depends(require_corretor)):
+    """Lembrete PESSOAL do sino: contratos do próprio usuário (corretor_id = user id, também
+    p/ admin/gestor) cujo reajuste anual cai entre 0 e 60 dias. Ordenado por proximidade."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, nome, operadora_fechada, data_vigencia FROM clientes "
+        "WHERE corretor_id = ? AND ativo = 1 AND data_vigencia IS NOT NULL AND data_vigencia <> ''",
+        (user["id"],),
+    ).fetchall()
+    conn.close()
+    hoje = datetime.now(_BR_TZ).date()
+    out = []
+    for r in rows:
+        reaj = _prox_reajuste(r["data_vigencia"])
+        if not reaj:
+            continue
+        dias = (reaj - hoje).days
+        if 0 <= dias <= 60:
+            out.append({
+                "cliente_id": r["id"],
+                "nome": r["nome"],
+                "operadora_fechada": r["operadora_fechada"],
+                "data_vigencia": str(r["data_vigencia"])[:10],
+                "reajuste_em": reaj.strftime("%Y-%m-%d"),
+                "dias": dias,
+            })
+    out.sort(key=lambda x: x["dias"])
+    return out
 
 
 # ── CRM: Oportunidades ─────────────────────────────────────────────────────────
@@ -3206,7 +3346,7 @@ def atualizar_interacao(interacao_id: int, body: InteracaoRequest, user=Depends(
 
 # ── CRM: Tarefas / Agendamentos (Fase 1 — Google Agenda via link/.ics no front) ──
 
-TIPOS_TAREFA = {"ligacao", "reuniao", "reativar", "whatsapp", "email", "outro"}
+TIPOS_TAREFA = {"ligacao", "reuniao", "reativar", "whatsapp", "email", "outro", "renovacao"}
 STATUS_TAREFA = {"pendente", "feito", "cancelado"}
 
 
@@ -3452,14 +3592,20 @@ def _google_service(usuario):
         return None, "erro"
 
 
+def _rec_tarefa(tarefa):
+    # Auto-tarefa de renovação = evento anual recorrente (dispara sozinho todo ano, sem cron).
+    return ["RRULE:FREQ=YEARLY"] if tarefa.get("tipo") == "renovacao" else None
+
+
 def _sync_tarefa_criar(usuario, tarefa, cliente):
     svc, motivo = _google_service(usuario)
     if not svc:
         return motivo
+    rec = _rec_tarefa(tarefa)
     try:
         eid = google_sync.create_event(
             svc, tarefa["titulo"], _desc_evento(tarefa.get("descricao"), cliente),
-            tarefa["inicio"], tarefa.get("duracao_min") or 30,
+            tarefa["inicio"], tarefa.get("duracao_min") or 30, recurrence=rec,
         )
         conn = get_connection()
         conn.execute("UPDATE tarefas SET google_event_id = ? WHERE id = ?", (eid, tarefa["id"]))
@@ -3477,6 +3623,7 @@ def _sync_tarefa_editar(usuario, tarefa, cliente):
     if not svc:
         return motivo
     eid = tarefa.get("google_event_id")
+    rec = _rec_tarefa(tarefa)
     try:
         # cancelado → remove o evento e limpa o id
         if tarefa.get("status") == "cancelado":
@@ -3491,13 +3638,13 @@ def _sync_tarefa_editar(usuario, tarefa, cliente):
         if eid:
             google_sync.patch_event(
                 svc, eid, tarefa["titulo"], _desc_evento(tarefa.get("descricao"), cliente),
-                tarefa["inicio"], tarefa.get("duracao_min") or 30,
+                tarefa["inicio"], tarefa.get("duracao_min") or 30, recurrence=rec,
             )
             return "synced"
         # conectado, ativa, mas sem evento (criada offline ou sync anterior falhou) → cria
         new_eid = google_sync.create_event(
             svc, tarefa["titulo"], _desc_evento(tarefa.get("descricao"), cliente),
-            tarefa["inicio"], tarefa.get("duracao_min") or 30,
+            tarefa["inicio"], tarefa.get("duracao_min") or 30, recurrence=rec,
         )
         conn = get_connection()
         conn.execute("UPDATE tarefas SET google_event_id = ? WHERE id = ?", (new_eid, tarefa["id"]))
