@@ -352,8 +352,8 @@ html[data-theme="light"] .modal-box{box-shadow:0 20px 60px rgba(0,0,0,.18)}
 .funil-stage.active{color:#fff;border-color:transparent}
 .funil-stage[data-s="lead"].active{background:#6b7280}
 .funil-stage[data-s="contato"].active{background:#3b82f6}
-.funil-stage[data-s="proposta"].active{background:#f59e0b}
-.funil-stage[data-s="negociacao"].active{background:#f97316}
+.funil-stage[data-s="negociacao"].active{background:#f59e0b}
+.funil-stage[data-s="implementacao"].active{background:#f97316}
 .funil-stage[data-s="fechado"].active{background:#22c55e}
 .funil-stage[data-s="perdido"].active{background:#ef4444}
 #motivo-row{display:none;margin-top:8px}
@@ -786,8 +786,8 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
         <div class="funil-row" id="funil-row">
           <button class="funil-stage" data-s="lead" onclick="setStage('lead')">Lead</button>
           <button class="funil-stage" data-s="contato" onclick="setStage('contato')">Contato</button>
-          <button class="funil-stage" data-s="proposta" onclick="setStage('proposta')">Proposta</button>
           <button class="funil-stage" data-s="negociacao" onclick="setStage('negociacao')">Negociação</button>
+          <button class="funil-stage" data-s="implementacao" onclick="setStage('implementacao')">Implementação</button>
           <button class="funil-stage" data-s="fechado" onclick="setStage('fechado')">Fechado</button>
           <button class="funil-stage" data-s="perdido" onclick="setStage('perdido')">Perdido</button>
         </div>
@@ -970,9 +970,9 @@ html[data-theme="dark"] .vig-body input,html[data-theme="dark"] .vig-body select
 
 <script>
 const API = window.location.origin;
-const STAGES = ['lead','contato','proposta','negociacao','fechado','perdido'];
-const STAGE_LABEL = {lead:'Lead',contato:'Contato',proposta:'Proposta',negociacao:'Negociação',fechado:'Fechado',perdido:'Perdido'};
-const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',proposta:'#f59e0b',negociacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
+const STAGES = ['lead','contato','negociacao','implementacao','fechado','perdido'];
+const STAGE_LABEL = {lead:'Lead',contato:'Contato',negociacao:'Negociação',implementacao:'Implementação',fechado:'Fechado',perdido:'Perdido'};
+const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',negociacao:'#f59e0b',implementacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
 const INT_ICON = {ligacao:'📞',whatsapp:'💬',email:'📧',reuniao:'👥',nota:'📝'};
 const INT_LABEL = {ligacao:'Ligação',whatsapp:'WhatsApp',email:'E-mail',reuniao:'Reunião',nota:'Nota'};
 const INT_TIPOS = ['ligacao','whatsapp','email','reuniao','nota'];
@@ -1342,7 +1342,7 @@ async function advanceStage(clienteId, opId, currentStage){
   const idx = STAGES.indexOf(currentStage);
   if (idx < 0 || idx >= STAGES.length - 2) return; // -2 pula 'perdido'
   const newStage = STAGES[idx + 1];
-  if (newStage === 'fechado'){ abrirVigencia(clienteId, opId); return; }   // avançar de Negociação = fechar → vigência
+  if (newStage === 'fechado'){ abrirVigencia(clienteId, opId); return; }   // avançar de Implementação = fechar → vigência
   try {
     await patchStage(clienteId, opId, newStage, null);
     await loadKanban(currentScope);
@@ -1684,7 +1684,7 @@ function cotarParaCliente(){
 
 /* ══ FLUXO FECHAR → VIGÊNCIA → RENOVAÇÃO ══════════════════════════════════════
    Único caminho para "fechar": drop na coluna Fechado, botão "→" saindo de
-   Negociação, ou botão "Fechado" na ficha — todos abrem este modal. Também é o
+   Implementação, ou botão "Fechado" na ficha — todos abrem este modal. Também é o
    modal de "Definir vigência" para fechados legados (sem data_vigencia). */
 let _operadoras = null;   // [{chave, nome}] — catálogo do cotador, cacheado
 async function _ensureOperadoras(){

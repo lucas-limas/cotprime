@@ -495,6 +495,21 @@ def _migrations_pg(conn):
         "UPDATE planos SET rede_chave='NACIONAL_III' WHERE codigo IN ('bd_p21','bd_p22','bd_p23','bd_p24')",
         "UPDATE planos SET rede_chave='NACIONAL_PLUS' WHERE codigo IN ('bd_p25','bd_p26','bd_p27','bd_p28')",
         "UPDATE planos SET rede_chave='PREMIUM' WHERE codigo IN ('bd_p29','bd_p30','bd_p31','bd_p32')",
+        # ── Renomeia as etapas do funil (proposta→negociacao, negociacao→implementacao) ──
+        # One-shot com guarda: as migrações rodam a cada boot; sem a guarda, o 2º deploy
+        # renomearia de novo o dado JÁ convertido. Ordem interna: impl ANTES de neg.
+        "CREATE TABLE IF NOT EXISTS _migracoes_dados (nome TEXT PRIMARY KEY, aplicada_em TEXT)",
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM _migracoes_dados WHERE nome = 'rename_estagios_impl_2026_08') THEN
+            UPDATE oportunidades SET estagio = 'implementacao' WHERE estagio = 'negociacao';
+            UPDATE oportunidades SET estagio = 'negociacao'    WHERE estagio = 'proposta';
+            INSERT INTO _migracoes_dados (nome, aplicada_em)
+              VALUES ('rename_estagios_impl_2026_08', TO_CHAR(NOW(),'YYYY-MM-DD HH24:MI:SS'));
+          END IF;
+        END $$;
+        """,
     ]
     for sql in safe:
         try:
@@ -940,6 +955,13 @@ def _migrations_sqlite(c):
         "UPDATE planos SET rede_chave='NACIONAL_III' WHERE codigo IN ('bd_p21','bd_p22','bd_p23','bd_p24')",
         "UPDATE planos SET rede_chave='NACIONAL_PLUS' WHERE codigo IN ('bd_p25','bd_p26','bd_p27','bd_p28')",
         "UPDATE planos SET rede_chave='PREMIUM' WHERE codigo IN ('bd_p29','bd_p30','bd_p31','bd_p32')",
+        # ── Renomeia as etapas do funil (proposta→negociacao, negociacao→implementacao) ──
+        # One-shot com guarda por NOT EXISTS: cada UPDATE só roda se o flag ainda não existe;
+        # a ORDEM dos itens é obrigatória (impl ANTES de neg) e o flag é inserido por ÚLTIMO.
+        "CREATE TABLE IF NOT EXISTS _migracoes_dados (nome TEXT PRIMARY KEY, aplicada_em TEXT)",
+        "UPDATE oportunidades SET estagio='implementacao' WHERE estagio='negociacao' AND NOT EXISTS (SELECT 1 FROM _migracoes_dados WHERE nome='rename_estagios_impl_2026_08')",
+        "UPDATE oportunidades SET estagio='negociacao' WHERE estagio='proposta' AND NOT EXISTS (SELECT 1 FROM _migracoes_dados WHERE nome='rename_estagios_impl_2026_08')",
+        "INSERT OR IGNORE INTO _migracoes_dados (nome, aplicada_em) VALUES ('rename_estagios_impl_2026_08', strftime('%Y-%m-%d %H:%M:%S','now'))",
     ]
     for sql in safe:
         try:
