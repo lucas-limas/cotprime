@@ -19,7 +19,7 @@ from auth import (
     verify_password, hash_password, create_access_token, decode_token,
     create_state_token, decode_state_token,
 )
-from database import get_connection, init_db, insert_returning
+from database import get_connection, init_db, insert_returning, _seed_rede_matriz
 import google_sync
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -307,6 +307,13 @@ def startup():
     conn.close()
     seed_catalogo()
     seed_vantagens()
+    # Rede credenciada (Fase 1): importa a matriz do HOSPITAIS_DB p/ o banco.
+    # DEPOIS de seed_catalogo() (precisa das operadoras) e de init_db() (cria _migracoes_dados).
+    _conn = get_connection()
+    try:
+        _seed_rede_matriz(_conn)
+    finally:
+        _conn.close()
 
 
 # Biblioteca inicial (as 8 vantagens que eram hardcoded no front) + operadoras de origem
@@ -2089,6 +2096,15 @@ def catalogo_publico(user=Depends(require_corretor)):
            WHERE v.ativo = 1
            ORDER BY pv.ordem, pv.vantagem_id"""
     ).fetchall()
+    # Rede credenciada (Fase 1): matriz estabelecimento × (operadora, rede_chave); só células cobertas.
+    hosp_rows = conn.execute(
+        """SELECT e.codigo, e.nome, e.local, e.icon, e.tags, e.ordem, o.chave AS op, c.rede_chave
+           FROM rede_estabelecimentos e
+           JOIN rede_cobertura c ON c.estabelecimento_id = e.id
+           JOIN operadoras o ON o.id = c.operadora_id
+           WHERE e.ativo = 1 AND o.ativo = 1
+           ORDER BY e.ordem, e.id"""
+    ).fetchall()
     conn.close()
     vant_por_plano = {}
     for r in plano_vant_rows:
@@ -2140,7 +2156,21 @@ def catalogo_publico(user=Depends(require_corretor)):
             if r["obs"]:       item["obs"] = r["obs"]
             if r["tag_extra"]: item["tagExtra"] = json.loads(r["tag_extra"])
             existing["itens"].append(item)
-    return {"faixas": FAIXAS, "operadoras": operadoras, "planos": planos, "rede": rede, "vantagens_lib": vantagens_lib}
+    # Rede (Fase 1): agrupa a matriz por estabelecimento no MESMO formato do HOSPITAIS_DB.
+    # Ordem preservada por e.ordem/e.id (1ª aparição do codigo). Sem cobertura → fica de fora.
+    _hosp_map = {}
+    hospitais = []
+    for r in hosp_rows:
+        cod = r["codigo"]
+        h = _hosp_map.get(cod)
+        if h is None:
+            h = {"id": cod, "nome": r["nome"], "local": r["local"], "icon": r["icon"],
+                 "tags": json.loads(r["tags"]) if r["tags"] else [], "rede": {}}
+            _hosp_map[cod] = h
+            hospitais.append(h)
+        h["rede"].setdefault(r["op"], {})[r["rede_chave"]] = 1
+    return {"faixas": FAIXAS, "operadoras": operadoras, "planos": planos, "rede": rede,
+            "vantagens_lib": vantagens_lib, "hospitais": hospitais}
 
 
 # ── Superadmin: Catálogo — Operadoras ─────────────────────────────────────────

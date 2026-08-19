@@ -673,6 +673,8 @@ Object.entries(window.OP_META || {}).forEach(([k,v]) => {
 const _apTok = (window.parent && window.parent.token && window.parent.token()) || null;
 fetch('/api/catalogo', {headers: _apTok ? {'Authorization': 'Bearer ' + _apTok} : {}}).then(r=>r.ok?r.json():null).then(data=>{
   if(!data) return;
+  // Rede credenciada (Fase 1): a matriz vem do banco; se ausente/vazia, mantém o array embutido (fallback).
+  if (Array.isArray(data.hospitais) && data.hospitais.length) HOSPITAIS_DB = data.hospitais;
   Object.entries(data.operadoras||{}).forEach(([k,v])=>{
     const cor = _corHex(v&&v.cor);
     if (OP_META[k]) { if (v&&v.nome) OP_META[k].nome = v.nome; if (cor) OP_META[k].cor = cor; }
@@ -685,7 +687,7 @@ fetch('/api/catalogo', {headers: _apTok ? {'Authorization': 'Bearer ' + _apTok} 
   buildVantConfig();   // re-renderiza o seletor/checks agora que a biblioteca chegou
 }).catch(()=>{});
 
-const HOSPITAIS_DB = [
+let HOSPITAIS_DB = [   // Fase 1: sobrescrito por data.hospitais (banco) quando presente; este array é o fallback offline.
 // Chaves rede por operadora:
 // amil: BRONZE,PRATA,OURO,OURO_II,PLATINUM,PLATINUM_MAIS,S380,S450,S750,BLACK_I,S2500,BLACK_II,BLACK_S6500
 // unity: LIFE_VITAL,UNITY_VIDA,VIDA(=star)
