@@ -5,8 +5,9 @@ import logging
 import os
 import re
 import secrets
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from fastapi import FastAPI, Depends, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -379,7 +380,9 @@ def seed_vantagens():
 
 def seed_catalogo():
     conn = get_connection()
-    cnt = conn.execute("SELECT COUNT(*) as cnt FROM operadoras").fetchone()
+    # 'hapvida' vem de uma migração no init_db() antes deste seed rodar; exclui-la do guard
+    # para que, num DB novo (só ela presente), o seed das outras 10 operadoras ainda rode.
+    cnt = conn.execute("SELECT COUNT(*) as cnt FROM operadoras WHERE chave <> 'hapvida'").fetchone()
     if cnt["cnt"] > 0:
         conn.close()
         return
@@ -406,6 +409,10 @@ def seed_catalogo():
         "hapvida": "#F78400",
     }
     for chave, nome, info, ordem in _OPS:
+        # 'hapvida' já está no _OPS E é inserida por uma migração antes deste seed rodar
+        # (por isso o guard acima a exclui); pula quem já existe p/ não colidir no UNIQUE(chave).
+        if conn.execute("SELECT 1 FROM operadoras WHERE chave = ?", (chave,)).fetchone():
+            continue
         conn.execute(
             "INSERT INTO operadoras (chave, nome, info, ordem, cor) VALUES (?, ?, ?, ?, ?)",
             (chave, nome, info, ordem, _CORES.get(chave)),
@@ -734,9 +741,12 @@ def seed_catalogo():
         ("sa_99_24_cc_7","sulamerica","Copart Completa — Executivo R3","apt","pme","30-99",None,24,[1236.90,1546.13,1917.20,2128.09,2277.06,2641.39,3157.52,3700.62,4405.57,7421.19],95),
         ("sa_99_24_cc_8","sulamerica","Copart Completa — Prestige","apt","pme","30-99",None,24,[1622.22,2027.77,2514.43,2791.02,2986.40,3464.22,4141.13,4853.41,5777.97,9732.99],96),
     ]
+    # 'hapvida' já pode ter planos inseridos pelas migrações (que rodam antes deste seed,
+    # com ON CONFLICT/OR IGNORE); pula quem já existe p/ não colidir no UNIQUE(codigo).
+    codigos_existentes = {r["codigo"] for r in conn.execute("SELECT codigo FROM planos").fetchall()}
     for i, (codigo, op_chave, nome, aco, tipo, fvidas, mod, vig, precos, ordem) in enumerate(_PLANOS):
         op_id = ops_map.get(op_chave)
-        if not op_id:
+        if not op_id or codigo in codigos_existentes:
             continue
         conn.execute(
             "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, precos, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -875,6 +885,34 @@ class UpdateRedeItemRequest(BaseModel):
 class RedeMetaRequest(BaseModel):
     rede_adm: Optional[str] = None
     rede_rodape: Optional[str] = None
+
+
+# ── Rede credenciada — matriz (Fase 2) ──
+_REDE_TIPOS_VALIDOS = {"hospital", "lab"}
+_REDE_TAGS_VALIDAS = {"PS", "INT", "AMB", "MAT"}
+
+
+class RedeEstabRequest(BaseModel):
+    nome: str
+    local: Optional[str] = None
+    icon: Optional[str] = None
+    tipo: str = "hospital"
+    tags: Optional[List[str]] = None
+    ordem: int = 0
+
+
+class UpdateRedeEstabRequest(BaseModel):
+    nome: Optional[str] = None
+    local: Optional[str] = None
+    icon: Optional[str] = None
+    tipo: Optional[str] = None
+    tags: Optional[List[str]] = None
+    ordem: Optional[int] = None
+    ativo: Optional[int] = None
+
+
+class RedeCoberturaRequest(BaseModel):
+    cobertura: Dict[str, List[str]] = {}
 
 
 class ClienteRequest(BaseModel):
@@ -2080,12 +2118,6 @@ def catalogo_publico(user=Depends(require_corretor)):
            WHERE p.ativo = 1 AND o.ativo = 1
            ORDER BY o.ordem, p.ordem, p.id"""
     ).fetchall()
-    rede_rows = conn.execute(
-        """SELECT rc.grupo, rc.grupo_ordem, rc.nome, rc.local, rc.tags, rc.obs, rc.tag_extra, rc.ordem, o.chave as op_chave
-           FROM rede_credenciada rc JOIN operadoras o ON rc.operadora_id = o.id
-           WHERE rc.ativo = 1 AND o.ativo = 1
-           ORDER BY o.ordem, rc.grupo_ordem, rc.ordem, rc.id"""
-    ).fetchall()
     # Vantagens: biblioteca ativa + associações por plano (1 query cada — sem N+1).
     vant_rows = conn.execute(
         "SELECT codigo, icone, nome, descricao FROM vantagens WHERE ativo = 1 ORDER BY ordem, id"
@@ -2096,9 +2128,12 @@ def catalogo_publico(user=Depends(require_corretor)):
            WHERE v.ativo = 1
            ORDER BY pv.ordem, pv.vantagem_id"""
     ).fetchall()
-    # Rede credenciada (Fase 1): matriz estabelecimento × (operadora, rede_chave); só células cobertas.
+    # Rede credenciada (Fase 2): fonte única é a matriz (rede_estabelecimentos × rede_cobertura).
+    # Uma query serve tanto `rede` (agrupada por operadora × tipo, p/ o cotador) quanto `hospitais`
+    # (matriz plana, p/ a apresentação) — só estabelecimentos com ≥1 cobertura aparecem.
     hosp_rows = conn.execute(
-        """SELECT e.codigo, e.nome, e.local, e.icon, e.tags, e.ordem, o.chave AS op, c.rede_chave
+        """SELECT e.id AS estab_id, e.codigo, e.nome, e.local, e.icon, e.tipo, e.tags, e.ordem,
+                  o.chave AS op, c.rede_chave
            FROM rede_estabelecimentos e
            JOIN rede_cobertura c ON c.estabelecimento_id = e.id
            JOIN operadoras o ON o.id = c.operadora_id
@@ -2131,44 +2166,47 @@ def catalogo_publico(user=Depends(require_corretor)):
         if r["vig"]:        p["vig"] = r["vig"]
         if r["rede_chave"]: p["rede_chave"] = r["rede_chave"]
         planos.append(p)
-    # Build rede dict only when there are rows in the DB
+    # `rede` (cotador): agrupa por operadora × tipo ('hospital'→Hospitais, 'lab'→Laboratórios);
+    # só entra operadora/grupo com ≥1 item coberto (mesmo comportamento gracioso de antes).
+    # `hospitais` (apresentação, Fase 1): matriz plana {id, nome, local, icon, tags, rede:{op:{chave:1}}}.
+    op_meta_map = {r["chave"]: r for r in ops_rows}
     rede = {}
-    if rede_rows:
-        op_meta_map = {r["chave"]: r for r in ops_rows}
-        for r in rede_rows:
-            op = r["op_chave"]
-            if op not in rede:
-                meta = op_meta_map.get(op, {})
-                rede[op] = {
-                    "adm": (meta["rede_adm"] or "") if meta else "",
-                    "grupos": [],
-                    "rodape": (meta["rede_rodape"] or "") if meta else "",
-                }
-            grupo_titulo = r["grupo"] or ""
-            grupos = rede[op]["grupos"]
-            existing = next((g for g in grupos if g["titulo"] == grupo_titulo), None)
-            if not existing:
-                existing = {"titulo": grupo_titulo, "itens": []}
-                grupos.append(existing)
-            item = {"nome": r["nome"]}
-            if r["local"]:     item["local"] = r["local"]
-            if r["tags"]:      item["tags"] = json.loads(r["tags"])
-            if r["obs"]:       item["obs"] = r["obs"]
-            if r["tag_extra"]: item["tagExtra"] = json.loads(r["tag_extra"])
-            existing["itens"].append(item)
-    # Rede (Fase 1): agrupa a matriz por estabelecimento no MESMO formato do HOSPITAIS_DB.
-    # Ordem preservada por e.ordem/e.id (1ª aparição do codigo). Sem cobertura → fica de fora.
     _hosp_map = {}
     hospitais = []
+    _seen_grupo = set()   # (op, estab_id) — não duplica item quando o estab. tem >1 rede_chave coberta na mesma op
     for r in hosp_rows:
+        op = r["op"]
         cod = r["codigo"]
+        tags = json.loads(r["tags"]) if r["tags"] else []
+        # hospitais (Fase 1) — inalterado
         h = _hosp_map.get(cod)
         if h is None:
-            h = {"id": cod, "nome": r["nome"], "local": r["local"], "icon": r["icon"],
-                 "tags": json.loads(r["tags"]) if r["tags"] else [], "rede": {}}
+            h = {"id": cod, "nome": r["nome"], "local": r["local"], "icon": r["icon"], "tags": tags, "rede": {}}
             _hosp_map[cod] = h
             hospitais.append(h)
-        h["rede"].setdefault(r["op"], {})[r["rede_chave"]] = 1
+        h["rede"].setdefault(op, {})[r["rede_chave"]] = 1
+        # rede (cotador) — agrupado por operadora × tipo
+        if op not in rede:
+            meta = op_meta_map.get(op, {})
+            rede[op] = {
+                "adm": (meta["rede_adm"] or "") if meta else "",
+                "grupos": [],
+                "rodape": (meta["rede_rodape"] or "") if meta else "",
+            }
+        gk = (op, r["estab_id"])
+        if gk in _seen_grupo:
+            continue
+        _seen_grupo.add(gk)
+        grupo_titulo = "Laboratórios" if r["tipo"] == "lab" else "Hospitais"
+        grupos = rede[op]["grupos"]
+        existing = next((g for g in grupos if g["titulo"] == grupo_titulo), None)
+        if not existing:
+            existing = {"titulo": grupo_titulo, "itens": []}
+            grupos.append(existing)
+        item = {"nome": r["nome"]}
+        if r["local"]: item["local"] = r["local"]
+        if tags:       item["tags"] = tags
+        existing["itens"].append(item)
     return {"faixas": FAIXAS, "operadoras": operadoras, "planos": planos, "rede": rede,
             "vantagens_lib": vantagens_lib, "hospitais": hospitais}
 
@@ -2740,6 +2778,165 @@ def atualizar_rede_meta(op_id: int, body: RedeMetaRequest, admin=Depends(require
         conn.execute(f"UPDATE operadoras SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
     conn.close()
+    return {"ok": True}
+
+
+# ── Superadmin: Rede credenciada — matriz (Fase 2) ─────────────────────────────
+# Editor por estabelecimento × cobertura (rede_estabelecimentos/rede_cobertura, Fase 1).
+# Substitui o antigo editor de grupos/itens (rede_credenciada, mantido só como leitura morta).
+
+def _slugify_codigo(s):
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
+    return s or "estab"
+
+
+def _gerar_codigo_unico(conn, nome):
+    base = _slugify_codigo(nome)
+    codigo = base
+    n = 2
+    while conn.execute("SELECT 1 FROM rede_estabelecimentos WHERE codigo = ?", (codigo,)).fetchone():
+        codigo = f"{base}-{n}"
+        n += 1
+    return codigo
+
+
+@app.get("/api/superadmin/catalogo/rede-matriz")
+def obter_rede_matriz(admin=Depends(require_superadmin)):
+    conn = get_connection()
+    ops_rows = conn.execute(
+        "SELECT id, chave, nome, rede_adm, rede_rodape FROM operadoras ORDER BY ordem, id"
+    ).fetchall()
+    # colunas[op] = chaves de rede da operadora (planos.rede_chave ∪ rede_cobertura.rede_chave já usadas)
+    plano_cols = conn.execute(
+        """SELECT o.chave AS op, p.rede_chave AS rc FROM planos p JOIN operadoras o ON p.operadora_id = o.id
+           WHERE p.rede_chave IS NOT NULL AND p.rede_chave <> ''"""
+    ).fetchall()
+    cov_cols = conn.execute(
+        "SELECT o.chave AS op, c.rede_chave AS rc FROM rede_cobertura c JOIN operadoras o ON c.operadora_id = o.id"
+    ).fetchall()
+    colunas = {}
+    for r in plano_cols:
+        colunas.setdefault(r["op"], set()).add(r["rc"])
+    for r in cov_cols:
+        colunas.setdefault(r["op"], set()).add(r["rc"])
+    colunas = {k: sorted(v) for k, v in colunas.items()}
+
+    est_rows = conn.execute("SELECT * FROM rede_estabelecimentos ORDER BY ordem, id").fetchall()
+    cov_rows = conn.execute(
+        "SELECT c.estabelecimento_id, o.chave AS op, c.rede_chave FROM rede_cobertura c JOIN operadoras o ON c.operadora_id = o.id"
+    ).fetchall()
+    conn.close()
+    cov_map = {}
+    for r in cov_rows:
+        cov_map.setdefault(r["estabelecimento_id"], {}).setdefault(r["op"], []).append(r["rede_chave"])
+    estabelecimentos = []
+    for r in est_rows:
+        d = dict(r)
+        d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
+        d["cobertura"] = cov_map.get(d["id"], {})
+        estabelecimentos.append(d)
+    operadoras = [
+        {"id": r["id"], "chave": r["chave"], "nome": r["nome"], "rede_adm": r["rede_adm"], "rede_rodape": r["rede_rodape"]}
+        for r in ops_rows
+    ]
+    return {"operadoras": operadoras, "colunas": colunas, "estabelecimentos": estabelecimentos}
+
+
+@app.post("/api/superadmin/catalogo/rede-matriz/estabelecimentos")
+def criar_rede_estab(body: RedeEstabRequest, admin=Depends(require_superadmin)):
+    nome = (body.nome or "").strip()
+    if not nome:
+        raise HTTPException(400, "Nome é obrigatório")
+    if body.tipo not in _REDE_TIPOS_VALIDOS:
+        raise HTTPException(400, "tipo deve ser 'hospital' ou 'lab'")
+    tags = body.tags or []
+    if not set(tags) <= _REDE_TAGS_VALIDAS:
+        raise HTTPException(400, "tags inválidas (use PS, INT, AMB, MAT)")
+    icon = (body.icon or "").strip() or ("🔬" if body.tipo == "lab" else "🏥")
+    conn = get_connection()
+    codigo = _gerar_codigo_unico(conn, nome)
+    conn.execute(
+        "INSERT INTO rede_estabelecimentos (codigo, nome, local, icon, tipo, tags, ordem, ativo) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+        (codigo, nome, body.local, icon, body.tipo, json.dumps(tags), body.ordem),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM rede_estabelecimentos WHERE codigo = ?", (codigo,)).fetchone()
+    conn.close()
+    log_action(admin["sub"], "criar_rede_estab", f"Estabelecimento: {nome} ({codigo})")
+    d = dict(row)
+    d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
+    return d
+
+
+@app.patch("/api/superadmin/catalogo/rede-matriz/estabelecimentos/{estab_id}")
+def atualizar_rede_estab(estab_id: int, body: UpdateRedeEstabRequest, admin=Depends(require_superadmin)):
+    if body.tipo is not None and body.tipo not in _REDE_TIPOS_VALIDOS:
+        raise HTTPException(400, "tipo deve ser 'hospital' ou 'lab'")
+    if body.tags is not None and not set(body.tags) <= _REDE_TAGS_VALIDAS:
+        raise HTTPException(400, "tags inválidas (use PS, INT, AMB, MAT)")
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM rede_estabelecimentos WHERE id = ?", (estab_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Estabelecimento não encontrado")
+    updates, params = [], []
+    for field in ("nome", "local", "icon", "tipo", "ordem", "ativo"):
+        val = getattr(body, field)
+        if val is not None:
+            updates.append(f"{field} = ?")
+            params.append(val.strip() if isinstance(val, str) else val)
+    if body.tags is not None:
+        updates.append("tags = ?")
+        params.append(json.dumps(body.tags))
+    if updates:
+        params.append(estab_id)
+        conn.execute(f"UPDATE rede_estabelecimentos SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.delete("/api/superadmin/catalogo/rede-matriz/estabelecimentos/{estab_id}")
+def deletar_rede_estab(estab_id: int, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    row = conn.execute("SELECT nome FROM rede_estabelecimentos WHERE id = ?", (estab_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Estabelecimento não encontrado")
+    # SQLite não força FK (sem PRAGMA foreign_keys): limpa a cobertura antes de remover o estabelecimento.
+    conn.execute("DELETE FROM rede_cobertura WHERE estabelecimento_id = ?", (estab_id,))
+    conn.execute("DELETE FROM rede_estabelecimentos WHERE id = ?", (estab_id,))
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "deletar_rede_estab", f"Estabelecimento removido: {row['nome']}")
+    return {"ok": True}
+
+
+@app.put("/api/superadmin/catalogo/rede-matriz/estabelecimentos/{estab_id}/cobertura")
+def salvar_rede_cobertura(estab_id: int, body: RedeCoberturaRequest, admin=Depends(require_superadmin)):
+    """Substitui TODA a cobertura do estabelecimento pelo conjunto enviado (replace atômico,
+    idempotente por construção). Operadora/chave desconhecida é ignorada — não quebra o request."""
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM rede_estabelecimentos WHERE id = ?", (estab_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Estabelecimento não encontrado")
+    op_by_chave = {r["chave"]: r["id"] for r in conn.execute("SELECT id, chave FROM operadoras").fetchall()}
+    conn.execute("DELETE FROM rede_cobertura WHERE estabelecimento_id = ?", (estab_id,))
+    for op_chave, chaves in (body.cobertura or {}).items():
+        op_id = op_by_chave.get(op_chave)
+        if not op_id or not isinstance(chaves, list):
+            continue
+        for rede_chave in set(chaves):
+            if not rede_chave:
+                continue
+            conn.execute(
+                "INSERT INTO rede_cobertura (estabelecimento_id, operadora_id, rede_chave) VALUES (?, ?, ?)",
+                (estab_id, op_id, rede_chave),
+            )
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "salvar_rede_cobertura", f"Cobertura atualizada: estabelecimento {estab_id}")
     return {"ok": True}
 
 

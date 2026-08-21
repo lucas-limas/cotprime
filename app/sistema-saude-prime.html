@@ -637,20 +637,8 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
         <div id="sa-vantagens-body"><div class="admin-loading">Carregando...</div></div>
       </div>
 
-      <!-- REDE CREDENCIADA -->
+      <!-- REDE CREDENCIADA — matriz por estabelecimento (Fase 2) -->
       <div id="cat-sub-rede" style="display:none">
-        <div class="form-card" style="border-color:rgba(251,191,36,.25)">
-          <h3 style="color:#fbbf24">Importar rede do dados.js</h3>
-          <p style="color:rgba(255,255,255,.55);font-size:13px;margin:8px 0 16px">
-            Lê o <code>REDE_DATA</code> do <code>dados.js</code> e importa todos os estabelecimentos e metas que ainda não existem no banco. Itens já cadastrados <strong>não serão duplicados</strong>.
-          </p>
-          <div class="form-actions">
-            <button class="btn-novo" onclick="importarRedeJS()" id="btn-importar-rede">Importar rede do dados.js</button>
-            <span class="form-msg" id="import-rede-msg"></span>
-          </div>
-          <div id="import-rede-result" style="display:none;margin-top:12px;background:rgba(0,0,0,.25);border-radius:8px;padding:12px;font-size:13px;color:rgba(255,255,255,.75)"></div>
-        </div>
-
         <div class="form-card">
           <h3>Meta da Rede por Operadora</h3>
           <div class="form-grid">
@@ -667,32 +655,59 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
         </div>
 
         <div class="form-card">
-          <h3 id="cat-rd-form-title">Adicionar Item</h3>
-          <input type="hidden" id="cat-rd-item-id">
+          <h3 id="cat-re-form-title">Adicionar Estabelecimento</h3>
+          <input type="hidden" id="cat-re-id">
           <div class="form-grid">
-            <div class="form-field"><label>Operadora</label>
-              <select id="cat-rd-op"><option value="">Selecione</option></select>
+            <div class="form-field" style="grid-column:span 2"><label>Nome</label><input type="text" id="cat-re-nome" placeholder="Ex: Hospital Santa Lúcia"></div>
+            <div class="form-field"><label>Localização</label><input type="text" id="cat-re-local" placeholder="Ex: Asa Sul — DF"></div>
+            <div class="form-field"><label>Ícone</label><input type="text" id="cat-re-icon" placeholder="🏥" maxlength="4"></div>
+            <div class="form-field"><label>Tipo</label>
+              <select id="cat-re-tipo" onchange="_reTipoChange()"><option value="hospital">Hospital</option><option value="lab">Laboratório</option></select>
             </div>
-            <div class="form-field"><label>Grupo (seção)</label><input type="text" id="cat-rd-grupo" placeholder="Ex: Hospitais, Laboratórios"></div>
-            <div class="form-field"><label>Ordem do grupo</label><input type="number" id="cat-rd-grupo-ordem" value="0" min="0"></div>
-            <div class="form-field" style="grid-column:span 2"><label>Nome do estabelecimento</label><input type="text" id="cat-rd-nome" placeholder="Ex: Hospital Santa Lúcia Norte"></div>
-            <div class="form-field"><label>Localização</label><input type="text" id="cat-rd-local" placeholder="Ex: Asa Norte"></div>
-            <div class="form-field"><label>Tags (PS, INT, AMB, MAT)</label><input type="text" id="cat-rd-tags" placeholder="Ex: PS, INT"></div>
-            <div class="form-field" style="grid-column:1/-1"><label>Observação</label><input type="text" id="cat-rd-obs" placeholder="Ex: Atendimento primário obrigatório"></div>
-            <div class="form-field"><label>Ordem</label><input type="number" id="cat-rd-ordem" value="0" min="0"></div>
+            <div class="form-field"><label>Ordem</label><input type="number" id="cat-re-ordem" value="0" min="0"></div>
+            <div class="form-field">
+              <label>Tags</label>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:8px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer"><input type="checkbox" class="cat-re-tag" value="PS"> PS</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer"><input type="checkbox" class="cat-re-tag" value="INT"> INT</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer"><input type="checkbox" class="cat-re-tag" value="AMB"> AMB</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);cursor:pointer"><input type="checkbox" class="cat-re-tag" value="MAT"> MAT</label>
+              </div>
+            </div>
+            <div class="form-field" id="cat-re-ativo-wrap" style="display:none">
+              <label>Status</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);padding-top:9px;cursor:pointer"><input type="checkbox" id="cat-re-ativo" checked> Ativo</label>
+            </div>
           </div>
           <div class="form-actions">
-            <button class="btn-novo" id="cat-rd-btn" onclick="salvarRedeItem()">Adicionar Item</button>
-            <button class="btn-toggle" id="cat-rd-cancel" style="display:none" onclick="cancelarRedeEdit()">Cancelar</button>
-            <span class="form-msg" id="cat-rd-msg"></span>
+            <button class="btn-novo" id="cat-re-btn" onclick="salvarRedeEstab()">Adicionar</button>
+            <button class="btn-toggle" id="cat-re-cancel" style="display:none" onclick="cancelarRedeEstabEdit()">Cancelar</button>
+            <span class="form-msg" id="cat-re-msg"></span>
           </div>
         </div>
 
         <div class="section-bar" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <h3>Itens cadastrados</h3>
-          <select id="cat-rd-filtro-op" onchange="loadRede()" class="pf-ctrl"><option value="">Todas as operadoras</option></select>
+          <h3>Estabelecimentos cadastrados</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input type="text" id="cat-re-busca" class="pf-ctrl" placeholder="Buscar por nome/local…" oninput="_renderRedeEstabList()">
+            <select id="cat-re-filtro-tipo" class="pf-ctrl" onchange="_renderRedeEstabList()">
+              <option value="">Todos os tipos</option><option value="hospital">Hospital</option><option value="lab">Laboratório</option>
+            </select>
+            <select id="cat-re-filtro-op" class="pf-ctrl" onchange="_renderRedeEstabList()"><option value="">Todas as operadoras</option></select>
+          </div>
         </div>
         <div id="sa-rede-body"><div class="admin-loading">Carregando...</div></div>
+
+        <!-- Editor de cobertura (grade operadora × produto) -->
+        <div id="cat-re-cob-wrap" style="display:none;margin-top:20px">
+          <div class="section-bar"><h3 id="cat-re-cob-title">Cobertura</h3></div>
+          <div id="cat-re-cob-body"></div>
+          <div class="form-actions" style="margin:14px 0 20px">
+            <button class="btn-novo" onclick="salvarRedeCobertura()">Salvar cobertura</button>
+            <button class="btn-toggle" onclick="fecharRedeCobertura()">Fechar</button>
+            <span class="form-msg" id="cat-re-cob-msg"></span>
+          </div>
+        </div>
       </div>
 
       <!-- IMPORTAR PREÇOS (CSV) -->
@@ -1329,7 +1344,7 @@ function catTab(tab, btn) {
   if (tab === 'operadoras') loadOpsCat();
   else if (tab === 'planos') loadPlanosCat();
   else if (tab === 'vantagens') loadVantagensCat();
-  else if (tab === 'rede') { _populateRedeOpSelects(); loadRede(); }
+  else if (tab === 'rede') { loadRedeMatriz(); }
 }
 
 // ── Importação de preços (CSV) ─────────────────────────────────────────────────
@@ -1438,181 +1453,50 @@ function cancelarImportPrecos(){
   document.getElementById('precos-msg').textContent = '';
 }
 
-// ── Rede Credenciada ──────────────────────────────────────────────────────────
+// ── Rede Credenciada — matriz por estabelecimento (Fase 2) ─────────────────────
+// Editor novo: um estabelecimento tem cobertura em N operadoras × N produtos (rede_chave).
+// Substitui o antigo editor de grupos/itens (rede_credenciada); a matriz (rede_estabelecimentos/
+// rede_cobertura, Fase 1) é a fonte única lida pelo cotador e pela apresentação.
 
-let _cat_rede = [];
+let _rede_matriz = { operadoras: [], colunas: {}, estabelecimentos: [] };
+let _rede_cob_estab_id = null;
+let _rede_cob_draft = {};   // {opChave: [rede_chave,...]} — rascunho em edição, só vira PUT no Salvar
 
-async function importarRedeJS() {
-  const btn = document.getElementById('btn-importar-rede');
-  const msg = document.getElementById('import-rede-msg');
-  const res = document.getElementById('import-rede-result');
-  msg.textContent = ''; res.style.display = 'none';
-  btn.disabled = true; btn.textContent = 'Carregando dados.js…';
-  try {
-    await new Promise((ok, err) => {
-      if (window.REDE_DATA) { ok(); return; }
-      const s = document.createElement('script');
-      s.src = 'dados.js?' + Date.now();
-      s.onload = ok; s.onerror = err;
-      document.head.appendChild(s);
-    });
-    if (!window.REDE_DATA || typeof window.REDE_DATA !== 'object') {
-      throw new Error('REDE_DATA não encontrado no dados.js');
-    }
-    btn.textContent = 'Importando…';
-    const r = await fetch(`${API}/api/superadmin/catalogo/importar-rede`, {
-      method: 'POST', headers: authH(), body: JSON.stringify(window.REDE_DATA)
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || 'Erro no servidor');
-    res.textContent = `✅ ${data.itens_novos} itens importados · ${data.metas_atualizadas} metas atualizadas`;
-    res.style.display = '';
-    msg.textContent = 'Concluído!'; msg.style.color = '#4ade80';
-    loadRede();
-  } catch(e) {
-    msg.textContent = e.message || 'Erro.'; msg.style.color = '#f87171';
-  } finally {
-    btn.disabled = false; btn.textContent = 'Importar rede do dados.js';
-  }
-}
-
-function _populateRedeOpSelects() {
-  const ops = _cat_ops.filter(o => o.ativo);
-  ['cat-rd-op', 'cat-rd-op-meta', 'cat-rd-filtro-op'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    const cur = sel.value;
-    const placeholder = id === 'cat-rd-filtro-op'
-      ? '<option value="">Todas as operadoras</option>'
-      : '<option value="">Selecione</option>';
-    sel.innerHTML = placeholder + ops.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
-    sel.value = cur;
-  });
-}
-
-async function loadRede() {
+async function loadRedeMatriz() {
   const body = document.getElementById('sa-rede-body');
   if (!body) return;
   body.innerHTML = '<div class="admin-loading">Carregando...</div>';
-  const filtroOp = document.getElementById('cat-rd-filtro-op').value;
-  const qs = filtroOp ? `?operadora_id=${filtroOp}` : '';
   try {
-    const res = await fetch(`${API}/api/superadmin/catalogo/rede${qs}`, {headers: authH()});
-    _cat_rede = await res.json();
-    _renderRedeList();
+    const res = await fetch(`${API}/api/superadmin/catalogo/rede-matriz`, {headers: authH()});
+    _rede_matriz = await res.json();
+    _populateRedeMetaSelect();
+    _populateRedeFiltroOp();
+    _renderRedeEstabList();
   } catch {
     body.innerHTML = '<div class="admin-loading">Erro ao carregar.</div>';
   }
 }
 
-function _renderRedeList() {
-  const body = document.getElementById('sa-rede-body');
-  const opMap = Object.fromEntries(_cat_ops.map(o => [o.id, o.nome]));
-  if (!_cat_rede.length) {
-    body.innerHTML = '<div class="admin-loading" style="color:rgba(255,255,255,.35)">Nenhum item cadastrado.</div>';
-    return;
-  }
-  const grouped = {};
-  _cat_rede.forEach(r => {
-    const k = r.operadora_id;
-    if (!grouped[k]) grouped[k] = { nome: opMap[k] || k, itens: [] };
-    grouped[k].itens.push(r);
-  });
-  body.innerHTML = Object.entries(grouped).map(([, g]) => `
-    <div style="margin-bottom:18px">
-      <div class="section-bar" style="margin-bottom:4px"><h3>${g.nome}</h3></div>
-      <table class="admin-table"><thead>
-        <tr><th>Grupo</th><th>Nome</th><th>Local</th><th>Tags</th><th>Obs</th><th>Ord</th><th>Ativo</th><th>Ações</th></tr>
-      </thead><tbody>
-        ${g.itens.map(r => `<tr>
-          <td style="color:rgba(255,255,255,.5);font-size:12px">${r.grupo||''}</td>
-          <td>${r.nome}</td>
-          <td style="color:rgba(255,255,255,.55);font-size:12px">${r.local||'—'}</td>
-          <td style="font-size:11px">${(r.tags||[]).join(', ')||'—'}</td>
-          <td style="color:rgba(255,255,255,.5);font-size:11px;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.obs||''}">${r.obs||'—'}</td>
-          <td style="text-align:center">${r.ordem}</td>
-          <td style="text-align:center">${r.ativo ? '✅' : '❌'}</td>
-          <td><button class="btn-edit" onclick="editRedeItem(${r.id})">Editar</button>
-              <button class="btn-del"  onclick="deletarRedeItem(${r.id},'${r.nome.replace(/'/g,"\\'")}')">Excluir</button></td>
-        </tr>`).join('')}
-      </tbody></table>
-    </div>`).join('');
+function _populateRedeMetaSelect() {
+  const sel = document.getElementById('cat-rd-op-meta');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Selecione</option>' +
+    _rede_matriz.operadoras.map(o => `<option value="${o.id}">${o.nome}</option>`).join('');
+  sel.value = cur;
 }
 
-function editRedeItem(id) {
-  const r = _cat_rede.find(x => x.id === id);
-  if (!r) return;
-  document.getElementById('cat-rd-item-id').value     = r.id;
-  document.getElementById('cat-rd-op').value          = r.operadora_id;
-  document.getElementById('cat-rd-grupo').value       = r.grupo || '';
-  document.getElementById('cat-rd-grupo-ordem').value = r.grupo_ordem ?? 0;
-  document.getElementById('cat-rd-nome').value        = r.nome;
-  document.getElementById('cat-rd-local').value       = r.local || '';
-  document.getElementById('cat-rd-tags').value        = (r.tags||[]).join(', ');
-  document.getElementById('cat-rd-obs').value         = r.obs || '';
-  document.getElementById('cat-rd-ordem').value       = r.ordem ?? 0;
-  document.getElementById('cat-rd-form-title').textContent = 'Editar Item';
-  document.getElementById('cat-rd-btn').textContent   = 'Salvar Alterações';
-  document.getElementById('cat-rd-cancel').style.display = '';
-  document.getElementById('cat-sub-rede').scrollIntoView({behavior:'smooth', block:'start'});
-}
-
-function cancelarRedeEdit() {
-  ['cat-rd-item-id','cat-rd-nome','cat-rd-local','cat-rd-tags','cat-rd-obs','cat-rd-grupo'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
-  document.getElementById('cat-rd-grupo-ordem').value = '0';
-  document.getElementById('cat-rd-ordem').value = '0';
-  document.getElementById('cat-rd-form-title').textContent = 'Adicionar Item';
-  document.getElementById('cat-rd-btn').textContent = 'Adicionar Item';
-  document.getElementById('cat-rd-cancel').style.display = 'none';
-  document.getElementById('cat-rd-msg').textContent = '';
-}
-
-async function salvarRedeItem() {
-  const msg    = document.getElementById('cat-rd-msg');
-  const itemId = document.getElementById('cat-rd-item-id').value;
-  const opId   = parseInt(document.getElementById('cat-rd-op').value);
-  const nome   = document.getElementById('cat-rd-nome').value.trim();
-  if (!opId || !nome) { msg.textContent = 'Operadora e nome são obrigatórios.'; msg.style.color='#f87171'; return; }
-  const tagsRaw = document.getElementById('cat-rd-tags').value.trim();
-  const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : null;
-  const payload = {
-    operadora_id: opId,
-    grupo: document.getElementById('cat-rd-grupo').value.trim(),
-    grupo_ordem: parseInt(document.getElementById('cat-rd-grupo-ordem').value)||0,
-    nome,
-    local: document.getElementById('cat-rd-local').value.trim() || null,
-    tags,
-    obs: document.getElementById('cat-rd-obs').value.trim() || null,
-    ordem: parseInt(document.getElementById('cat-rd-ordem').value)||0,
-  };
-  msg.textContent = 'Salvando...'; msg.style.color='rgba(255,255,255,.5)';
-  try {
-    const url = itemId
-      ? `${API}/api/superadmin/catalogo/rede/${itemId}`
-      : `${API}/api/superadmin/catalogo/rede`;
-    const res = await fetch(url, {method: itemId ? 'PATCH' : 'POST', headers: authH(), body: JSON.stringify(payload)});
-    if (!res.ok) { const e = await res.json(); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
-    msg.textContent = itemId ? 'Atualizado!' : 'Adicionado!'; msg.style.color='#4ade80';
-    cancelarRedeEdit();
-    loadRede();
-  } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
-}
-
-async function deletarRedeItem(id, nome) {
-  if (!confirm(`Excluir "${nome}"?`)) return;
-  try {
-    const res = await fetch(`${API}/api/superadmin/catalogo/rede/${id}`, {method:'DELETE', headers: authH()});
-    if (!res.ok) { showToast('Erro ao excluir.'); return; }
-    loadRede();
-  } catch { showToast('Erro de rede.'); }
+function _populateRedeFiltroOp() {
+  const sel = document.getElementById('cat-re-filtro-op');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todas as operadoras</option>' +
+    _rede_matriz.operadoras.map(o => `<option value="${o.chave}">${o.nome}</option>`).join('');
+  sel.value = cur;
 }
 
 function loadRedeMeta() {
   const opId = document.getElementById('cat-rd-op-meta').value;
   if (!opId) return;
-  const op = _cat_ops.find(o => o.id == opId);
+  const op = _rede_matriz.operadoras.find(o => o.id == opId);
   document.getElementById('cat-rd-adm').value    = op?.rede_adm    || '';
   document.getElementById('cat-rd-rodape').value = op?.rede_rodape || '';
 }
@@ -1631,8 +1515,216 @@ async function salvarRedeMeta() {
       {method:'PATCH', headers: authH(), body: JSON.stringify(payload)});
     if (!res.ok) { const e = await res.json(); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
     msg.textContent = 'Salvo!'; msg.style.color='#4ade80';
-    const op = _cat_ops.find(o => o.id == opId);
+    const op = _rede_matriz.operadoras.find(o => o.id == opId);
     if (op) { op.rede_adm = payload.rede_adm; op.rede_rodape = payload.rede_rodape; }
+  } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
+}
+
+// ── Estabelecimentos (lista + form) ──
+function _reTipoChange() {
+  const icon = document.getElementById('cat-re-icon');
+  if (!icon.value.trim() || icon.value === '🏥' || icon.value === '🔬') {
+    icon.value = document.getElementById('cat-re-tipo').value === 'lab' ? '🔬' : '🏥';
+  }
+}
+
+function _renderRedeEstabList() {
+  const body = document.getElementById('sa-rede-body');
+  const busca = (document.getElementById('cat-re-busca').value || '').toLowerCase().trim();
+  const fTipo = document.getElementById('cat-re-filtro-tipo').value;
+  const fOp   = document.getElementById('cat-re-filtro-op').value;
+  let lista = _rede_matriz.estabelecimentos || [];
+  if (busca) lista = lista.filter(e => (e.nome||'').toLowerCase().includes(busca) || (e.local||'').toLowerCase().includes(busca));
+  if (fTipo) lista = lista.filter(e => e.tipo === fTipo);
+  if (fOp)   lista = lista.filter(e => (e.cobertura && e.cobertura[fOp] && e.cobertura[fOp].length));
+  if (!lista.length) {
+    body.innerHTML = '<div class="admin-loading" style="color:rgba(255,255,255,.35)">Nenhum estabelecimento encontrado.</div>';
+    return;
+  }
+  body.innerHTML = `<table class="admin-table"><thead>
+      <tr><th></th><th>Nome</th><th>Local</th><th>Tipo</th><th>Tags</th><th>Ativo</th><th>Ações</th></tr>
+    </thead><tbody>${lista.map(e => `<tr>
+      <td style="font-size:16px">${e.icon || (e.tipo==='lab'?'🔬':'🏥')}</td>
+      <td>${e.nome}</td>
+      <td style="color:rgba(255,255,255,.55);font-size:12px">${e.local||'—'}</td>
+      <td style="font-size:11px">${e.tipo === 'lab' ? 'Laboratório' : 'Hospital'}</td>
+      <td style="font-size:11px">${(e.tags||[]).join(', ')||'—'}</td>
+      <td style="text-align:center">${e.ativo ? '✅' : '❌'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" onclick="editRedeEstab(${e.id})">Editar</button>
+        <button class="btn-toggle" onclick="abrirRedeCobertura(${e.id})">Cobertura</button>
+        <button class="btn-del" onclick="deletarRedeEstab(${e.id},'${e.nome.replace(/'/g,"\\'")}')">Excluir</button>
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function editRedeEstab(id) {
+  const e = _rede_matriz.estabelecimentos.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('cat-re-id').value    = e.id;
+  document.getElementById('cat-re-nome').value  = e.nome;
+  document.getElementById('cat-re-local').value = e.local || '';
+  document.getElementById('cat-re-icon').value  = e.icon || '';
+  document.getElementById('cat-re-tipo').value  = e.tipo || 'hospital';
+  document.getElementById('cat-re-ordem').value = e.ordem ?? 0;
+  document.querySelectorAll('.cat-re-tag').forEach(cb => cb.checked = (e.tags||[]).includes(cb.value));
+  document.getElementById('cat-re-ativo').checked = !!e.ativo;
+  document.getElementById('cat-re-ativo-wrap').style.display = '';
+  document.getElementById('cat-re-form-title').textContent = 'Editar Estabelecimento';
+  document.getElementById('cat-re-btn').textContent = 'Salvar Alterações';
+  document.getElementById('cat-re-cancel').style.display = '';
+  document.getElementById('cat-sub-rede').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function cancelarRedeEstabEdit() {
+  document.getElementById('cat-re-id').value    = '';
+  document.getElementById('cat-re-nome').value  = '';
+  document.getElementById('cat-re-local').value = '';
+  document.getElementById('cat-re-icon').value  = '';
+  document.getElementById('cat-re-tipo').value  = 'hospital';
+  document.getElementById('cat-re-ordem').value = '0';
+  document.querySelectorAll('.cat-re-tag').forEach(cb => cb.checked = false);
+  document.getElementById('cat-re-ativo').checked = true;
+  document.getElementById('cat-re-ativo-wrap').style.display = 'none';
+  document.getElementById('cat-re-form-title').textContent = 'Adicionar Estabelecimento';
+  document.getElementById('cat-re-btn').textContent = 'Adicionar';
+  document.getElementById('cat-re-cancel').style.display = 'none';
+  document.getElementById('cat-re-msg').textContent = '';
+}
+
+async function salvarRedeEstab() {
+  const msg  = document.getElementById('cat-re-msg');
+  const id   = document.getElementById('cat-re-id').value;
+  const nome = document.getElementById('cat-re-nome').value.trim();
+  if (!nome) { msg.textContent = 'Nome é obrigatório.'; msg.style.color='#f87171'; return; }
+  const tags = Array.from(document.querySelectorAll('.cat-re-tag')).filter(cb => cb.checked).map(cb => cb.value);
+  const payload = {
+    nome,
+    local: document.getElementById('cat-re-local').value.trim() || null,
+    icon:  document.getElementById('cat-re-icon').value.trim()  || null,
+    tipo:  document.getElementById('cat-re-tipo').value,
+    tags,
+    ordem: parseInt(document.getElementById('cat-re-ordem').value) || 0,
+  };
+  if (id) payload.ativo = document.getElementById('cat-re-ativo').checked ? 1 : 0;
+  msg.textContent = 'Salvando...'; msg.style.color='rgba(255,255,255,.5)';
+  try {
+    const url = id
+      ? `${API}/api/superadmin/catalogo/rede-matriz/estabelecimentos/${id}`
+      : `${API}/api/superadmin/catalogo/rede-matriz/estabelecimentos`;
+    const res = await fetch(url, {method: id ? 'PATCH' : 'POST', headers: authH(), body: JSON.stringify(payload)});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
+    msg.textContent = id ? 'Atualizado!' : 'Adicionado!'; msg.style.color='#4ade80';
+    cancelarRedeEstabEdit();
+    await loadRedeMatriz();
+  } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
+}
+
+async function deletarRedeEstab(id, nome) {
+  if (!confirm(`Excluir "${nome}"? A cobertura cadastrada também será removida.`)) return;
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/rede-matriz/estabelecimentos/${id}`, {method:'DELETE', headers: authH()});
+    if (!res.ok) { showToast('Erro ao excluir.'); return; }
+    if (_rede_cob_estab_id === id) fecharRedeCobertura();
+    showToast('Estabelecimento excluído');
+    await loadRedeMatriz();
+  } catch { showToast('Erro de rede.'); }
+}
+
+// ── Cobertura (grade operadora × produto) ──
+function abrirRedeCobertura(id) {
+  const e = _rede_matriz.estabelecimentos.find(x => x.id === id);
+  if (!e) return;
+  _rede_cob_estab_id = id;
+  _rede_cob_draft = {};
+  Object.entries(e.cobertura || {}).forEach(([op, chaves]) => { _rede_cob_draft[op] = [...chaves]; });
+  document.getElementById('cat-re-cob-title').textContent = `Cobertura — ${e.nome}`;
+  document.getElementById('cat-re-cob-msg').textContent = '';
+  _renderRedeCobertura();
+  document.getElementById('cat-re-cob-wrap').style.display = '';
+  document.getElementById('cat-re-cob-wrap').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function fecharRedeCobertura() {
+  _rede_cob_estab_id = null;
+  _rede_cob_draft = {};
+  document.getElementById('cat-re-cob-wrap').style.display = 'none';
+}
+
+function _renderRedeCobertura() {
+  const wrap = document.getElementById('cat-re-cob-body');
+  wrap.innerHTML = (_rede_matriz.operadoras || [])
+    .map(op => `<div id="cat-re-cob-card-${op.id}">${_redeCobCardHTML(op)}</div>`).join('');
+}
+
+// HTML de UM card de operadora — isolado p/ poder re-renderizar só esse card (sem
+// colapsar as outras seções nem perder a posição de rolagem a cada clique).
+function _redeCobCardHTML(op) {
+  const cols = (_rede_matriz.colunas && _rede_matriz.colunas[op.chave]) || [];
+  const marcados = new Set(_rede_cob_draft[op.chave] || []);
+  const secId = `cat-re-cob-sec-${op.id}`;
+  return `<div style="border:1px solid var(--bd1);border-radius:8px;margin-bottom:10px;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:var(--card)" onclick="_toggleRedeCobSec('${secId}')">
+      <strong style="font-size:13px;color:var(--t1)">${op.nome} <span id="cat-re-cob-cnt-${op.id}" style="color:var(--t4);font-weight:400;font-size:11px">(${marcados.size}/${cols.length})</span></strong>
+      <span style="font-size:11px;color:var(--t4)">▾</span>
+    </div>
+    <div id="${secId}" style="display:none;padding:12px 14px;border-top:1px solid var(--bd1)">
+      ${cols.length ? `
+        <div style="margin-bottom:10px">
+          <button type="button" class="btn-toggle" onclick="_marcarTodosRedeCob('${op.chave}', true)">Marcar todos</button>
+          <button type="button" class="btn-toggle" onclick="_marcarTodosRedeCob('${op.chave}', false)">Desmarcar todos</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+          ${cols.map(c => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);cursor:pointer">
+            <input type="checkbox" data-op="${op.chave}" data-rc="${c}" ${marcados.has(c)?'checked':''} onchange="_toggleRedeCobItem(this)">
+            ${REDE_COL_LABELS[c] || c}
+          </label>`).join('')}
+        </div>` : `<span style="font-size:12px;color:var(--t4)">Nenhum produto/rede cadastrado para esta operadora.</span>`}
+    </div>
+  </div>`;
+}
+
+function _toggleRedeCobSec(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function _toggleRedeCobItem(cb) {
+  const op = cb.dataset.op, rc = cb.dataset.rc;
+  const set = new Set(_rede_cob_draft[op] || []);
+  if (cb.checked) set.add(rc); else set.delete(rc);
+  _rede_cob_draft[op] = [...set];
+  // só atualiza o contador do cabeçalho — não re-renderiza a grade (mantém a seção aberta)
+  const opObj = _rede_matriz.operadoras.find(o => o.chave === op);
+  if (!opObj) return;
+  const cols = (_rede_matriz.colunas && _rede_matriz.colunas[op]) || [];
+  const cnt = document.getElementById(`cat-re-cob-cnt-${opObj.id}`);
+  if (cnt) cnt.textContent = `(${set.size}/${cols.length})`;
+}
+
+function _marcarTodosRedeCob(op, marcar) {
+  const cols = (_rede_matriz.colunas && _rede_matriz.colunas[op]) || [];
+  _rede_cob_draft[op] = marcar ? [...cols] : [];
+  const opObj = _rede_matriz.operadoras.find(o => o.chave === op);
+  if (!opObj) return;
+  const card = document.getElementById(`cat-re-cob-card-${opObj.id}`);
+  if (card) card.innerHTML = _redeCobCardHTML(opObj);
+  const el = document.getElementById(`cat-re-cob-sec-${opObj.id}`);
+  if (el) el.style.display = '';   // mantém a seção aberta depois de marcar/desmarcar todos
+}
+
+async function salvarRedeCobertura() {
+  if (!_rede_cob_estab_id) return;
+  const msg = document.getElementById('cat-re-cob-msg');
+  msg.textContent = 'Salvando...'; msg.style.color = 'rgba(255,255,255,.5)';
+  const cobertura = {};
+  Object.entries(_rede_cob_draft).forEach(([op, chaves]) => { if (chaves && chaves.length) cobertura[op] = chaves; });
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/rede-matriz/estabelecimentos/${_rede_cob_estab_id}/cobertura`,
+      {method:'PUT', headers: authH(), body: JSON.stringify({cobertura})});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
+    msg.textContent = 'Cobertura salva!'; msg.style.color='#4ade80';
+    await loadRedeMatriz();
   } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
 }
 
