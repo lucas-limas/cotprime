@@ -1191,6 +1191,17 @@ async function loadValores(){
       if (cid && d.winnerTotal > 0 && !(cid in _valorCliente)) _valorCliente[cid] = d.winnerTotal;
     });
   } catch(e){ _valorCliente = {}; }   // sem valores → cards/colunas sem soma (não quebra)
+  // Gestor: completa com os valores da CORRETORA INTEIRA (cotações de outros corretores não
+  // aparecem em /api/cotacoes, que é escopo-do-usuário) — sem isso a soma no Empresa fica parcial.
+  if (_isGestor()){
+    try {
+      const r = await fetch(`${API}/api/cotacoes/valores-equipe`, {headers: authH()});
+      if (r.ok){
+        const m = await r.json();
+        Object.entries(m).forEach(([cid, v]) => { if (!(cid in _valorCliente)) _valorCliente[cid] = v; });
+      }
+    } catch {}
+  }
 }
 
 // Valor mensal do cliente: o valor MANUAL (digitado no lead) vence; sem manual, cai na
@@ -1239,9 +1250,10 @@ function renderKanban(clientes, scope){
     col.className = 'kanban-col';
     col.dataset.stage = stage;
     col.style.setProperty('--col-accent', STAGE_COLOR[stage]);
-    // Soma de mensalidade só na visão "Meus" (na "empresa" os valores são por-usuário → parciais)
+    // Soma de mensalidade: em "Meus" sempre (valores só do usuário, completos); em "Empresa"
+    // só pro gestor (que tem /api/cotacoes/valores-equipe mesclado — soma completa, não parcial).
     const soma = cards.reduce((a, c) => a + _valorMensal(c), 0);
-    const somaHtml = (scope !== 'empresa' && soma > 0)
+    const somaHtml = (((scope !== 'empresa') || _isGestor()) && soma > 0)
       ? `<span class="col-soma">${_fmtMes(soma)}</span>` : '';
     col.innerHTML = `
       <div class="kanban-col-hdr">
@@ -1803,8 +1815,9 @@ function renderRenovacao(clientes, scope){
   // KPIs
   document.getElementById('kpi-carteira').textContent = fechados.length;
   const recCard = document.getElementById('kpi-receita-card');
-  if (isEmpresa){
-    // Receita recorrente só em "Meus": a mensalidade vem das cotações do usuário logado.
+  if (isEmpresa && !_isGestor()){
+    // Receita recorrente: em "Empresa", só o gestor tem os valores da equipe inteira
+    // (via valores-equipe); pro corretor comum a mensalidade dos outros é parcial/ausente.
     document.getElementById('kpi-receita').innerHTML = '—';
     if (recCard){ recCard.style.opacity = '.5'; recCard.title = 'Disponível no escopo "Meus" (a mensalidade vem das suas cotações)'; }
   } else {

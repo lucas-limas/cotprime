@@ -1639,6 +1639,30 @@ def listar_cotacoes(user=Depends(require_corretor)):
     ]
 
 
+@app.get("/api/cotacoes/valores-equipe")
+def valores_equipe(user=Depends(require_gestor)):
+    """Mensalidade (winnerTotal) mais recente por cliente, para TODA a corretora do gestor.
+    Espelha loadValores() do front, mas no escopo da corretora (não só do usuário logado) —
+    permite ao gestor ver a soma completa do funil no escopo Empresa."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT dados, criado_em FROM cotacoes WHERE corretora_id = ? ORDER BY criado_em DESC",
+        (user.get("corretora_id"),),
+    ).fetchall()
+    conn.close()
+    valores = {}
+    for r in rows:
+        try:
+            d = json.loads(r["dados"]) if r["dados"] else {}
+        except Exception:
+            d = {}
+        cid = d.get("cliente_id")
+        total = d.get("winnerTotal")
+        if cid and total and total > 0 and cid not in valores:
+            valores[cid] = total
+    return valores
+
+
 # ── Métricas do histórico de cotações (dashboard) ─────────────────────────────
 # criado_em é texto UTC "YYYY-MM-DD HH:MM:SS". Calculamos os limites em horário de
 # Brasília (BR), convertemos para UTC e comparamos como string (ordenação lexicográfica
