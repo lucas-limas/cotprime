@@ -512,6 +512,9 @@ def _migrations_pg(conn):
           END IF;
         END $$;
         """,
+        # Correção: a etapa "implementacao" vira "implantacao" (chave == rótulo). Sem guarda:
+        # a chave destino é nova (não reúso de nome), então re-rodar não corrompe nada.
+        "UPDATE oportunidades SET estagio='implantacao' WHERE estagio='implementacao'",
     ]
     for sql in safe:
         try:
@@ -964,6 +967,9 @@ def _migrations_sqlite(c):
         "UPDATE oportunidades SET estagio='implementacao' WHERE estagio='negociacao' AND NOT EXISTS (SELECT 1 FROM _migracoes_dados WHERE nome='rename_estagios_impl_2026_08')",
         "UPDATE oportunidades SET estagio='negociacao' WHERE estagio='proposta' AND NOT EXISTS (SELECT 1 FROM _migracoes_dados WHERE nome='rename_estagios_impl_2026_08')",
         "INSERT OR IGNORE INTO _migracoes_dados (nome, aplicada_em) VALUES ('rename_estagios_impl_2026_08', strftime('%Y-%m-%d %H:%M:%S','now'))",
+        # Correção: a etapa "implementacao" vira "implantacao" (chave == rótulo). Sem guarda:
+        # a chave destino é nova (não reúso de nome), então re-rodar não corrompe nada.
+        "UPDATE oportunidades SET estagio='implantacao' WHERE estagio='implementacao'",
     ]
     for sql in safe:
         try:

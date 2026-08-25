@@ -135,7 +135,7 @@ async function api(path){
 }
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 const _money = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0});
-const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',negociacao:'#f59e0b',implementacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
+const STAGE_COLOR = {lead:'#6b7280',contato:'#3b82f6',negociacao:'#f59e0b',implantacao:'#f97316',fechado:'#22c55e',perdido:'#ef4444'};
 const TIPO_LABEL = {pme:'PME', adesao:'Adesão', pf:'PF'};
 const RAMP = ['var(--g1)','var(--g2)','var(--g3)','var(--g4)','var(--g5)'];
 const TAR_ICON = {ligacao:'📞',reuniao:'👥',reativar:'🔄',whatsapp:'💬',email:'📧',outro:'📌'};

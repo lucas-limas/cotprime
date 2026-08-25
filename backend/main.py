@@ -1646,9 +1646,9 @@ def listar_cotacoes(user=Depends(require_corretor)):
 _BR_TZ = timezone(timedelta(hours=-3))
 _DT_FMT = "%Y-%m-%d %H:%M:%S"
 _MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-_STAGES = ['lead', 'contato', 'negociacao', 'implementacao', 'fechado', 'perdido']
+_STAGES = ['lead', 'contato', 'negociacao', 'implantacao', 'fechado', 'perdido']
 _STAGE_LABEL = {'lead': 'Lead', 'contato': 'Contato', 'negociacao': 'Negociação',
-                'implementacao': 'Implementação', 'fechado': 'Fechado', 'perdido': 'Perdido'}
+                'implantacao': 'Implantação', 'fechado': 'Fechado', 'perdido': 'Perdido'}
 
 
 def _br_dt(y, m, d, h=0):
