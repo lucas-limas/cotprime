@@ -675,6 +675,8 @@ fetch('/api/catalogo', {headers: _apTok ? {'Authorization': 'Bearer ' + _apTok} 
   if(!data) return;
   // Rede credenciada (Fase 1): a matriz vem do banco; se ausente/vazia, mantém o array embutido (fallback).
   if (Array.isArray(data.hospitais) && data.hospitais.length) HOSPITAIS_DB = data.hospitais;
+  // Carências (Fase 1): idem — vem do banco; se ausente/vazio, mantém o objeto embutido (fallback).
+  if (data.carencias && Object.keys(data.carencias).length) CARENCIAS_COMP = data.carencias;
   Object.entries(data.operadoras||{}).forEach(([k,v])=>{
     const cor = _corHex(v&&v.cor);
     if (OP_META[k]) { if (v&&v.nome) OP_META[k].nome = v.nome; if (cor) OP_META[k].cor = cor; }
@@ -1186,7 +1188,7 @@ const CAR_PROCS = [
 const CAR_PADRAO = ['24h','30 dias','30 dias','180 dias','180 dias','180 dias','180 dias','300 dias','24 meses'];
 // melhor caso por operadora — formato 'cls|valor' (cls: g=verde, y=âmbar, r=vermelho), ordem = CAR_PROCS
 // ⚠️ RASCUNHO — valores a validar pelo corretor (ver observações no chat do analista).
-const CARENCIAS_COMP = {
+let CARENCIAS_COMP = {   // Fase 1: sobrescrito por data.carencias (banco) quando presente; este objeto é o fallback offline.
   bradesco:      ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
   sulamerica: {
     vals: {
@@ -1233,6 +1235,12 @@ function carenciaVals(op, arc, totalVidas){
   if (Array.isArray(c)) return c;
   let b = c.bracket[arc];
   if (typeof b === 'function') b = b(totalVidas);
+  else if (Array.isArray(b)) {
+    // bracket por faixa de vidas (banco — hoje só a Porto): 1ª regra cujo intervalo contém totalVidas.
+    const hit = b.find(r => (r.vidas_min == null || totalVidas >= r.vidas_min)
+                         && (r.vidas_max == null || totalVidas <= r.vidas_max));
+    b = hit ? hit.col : null;
+  }
   b = b || c.bracket['mais24'] || Object.keys(c.vals)[0];
   return c.vals[b];
 }

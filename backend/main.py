@@ -20,7 +20,7 @@ from auth import (
     verify_password, hash_password, create_access_token, decode_token,
     create_state_token, decode_state_token,
 )
-from database import get_connection, init_db, insert_returning, _seed_rede_matriz
+from database import get_connection, init_db, insert_returning, _seed_rede_matriz, _seed_carencias
 import google_sync
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -313,6 +313,12 @@ def startup():
     _conn = get_connection()
     try:
         _seed_rede_matriz(_conn)
+    finally:
+        _conn.close()
+    # Carências (Fase 1): importa o CARENCIAS_COMP p/ o banco. Mesmo lugar/ordem da rede.
+    _conn = get_connection()
+    try:
+        _seed_carencias(_conn)
     finally:
         _conn.close()
 
@@ -2129,6 +2135,21 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
 
 FAIXAS = ['0 a 18','19 a 23','24 a 28','29 a 33','34 a 38','39 a 43','44 a 48','49 a 53','54 a 58','59 ou mais']
 
+
+def _classe_carencia(txt):
+    """Cor automática da célula de carência pelo prazo (regra confirmada pelo usuário).
+    A cor NÃO é armazenada — sempre derivada do texto na leitura."""
+    t = (txt or "").strip().lower()
+    if "24h" in t or "24 h" in t or "início vig" in t or "inicio vig" in t or "sem carência" in t or "sem carencia" in t:
+        return "g"
+    if "mes" in t or "mês" in t:
+        return "r"
+    m = re.search(r"(\d+)\s*dia", t)
+    if m:
+        return "r" if int(m.group(1)) >= 180 else "y"
+    return "y"   # fallback conservador
+
+
 @app.get("/api/catalogo")
 def catalogo_publico(user=Depends(require_corretor)):
     conn = get_connection()
@@ -2163,6 +2184,28 @@ def catalogo_publico(user=Depends(require_corretor)):
            JOIN operadoras o ON o.id = c.operadora_id
            WHERE e.ativo = 1 AND o.ativo = 1
            ORDER BY e.ordem, e.id"""
+    ).fetchall()
+    # Carências (Fase 1): coluna(s) por operadora + bracket por faixa de aproveitamento.
+    car_col_rows = conn.execute(
+        """SELECT cc.id AS col_id, o.chave AS op, cc.chave AS colchave, cc.ordem AS col_ordem
+           FROM carencia_colunas cc JOIN operadoras o ON o.id = cc.operadora_id
+           WHERE o.ativo = 1
+           ORDER BY o.ordem, cc.ordem, cc.id"""
+    ).fetchall()
+    car_val_rows = conn.execute(
+        """SELECT cv.coluna_id, cv.linha, cv.texto FROM carencia_valores cv
+           JOIN carencia_colunas cc ON cc.id = cv.coluna_id
+           JOIN operadoras o ON o.id = cc.operadora_id
+           WHERE o.ativo = 1
+           ORDER BY cv.coluna_id, cv.linha"""
+    ).fetchall()
+    car_bracket_rows = conn.execute(
+        """SELECT o.chave AS op, cb.faixa, cc.chave AS colchave, cb.vidas_min, cb.vidas_max, cb.ordem
+           FROM carencia_bracket cb
+           JOIN operadoras o ON o.id = cb.operadora_id
+           JOIN carencia_colunas cc ON cc.id = cb.coluna_id
+           WHERE o.ativo = 1
+           ORDER BY o.ordem, cb.faixa, cb.ordem"""
     ).fetchall()
     conn.close()
     vant_por_plano = {}
@@ -2231,8 +2274,44 @@ def catalogo_publico(user=Depends(require_corretor)):
         if r["local"]: item["local"] = r["local"]
         if tags:       item["tags"] = tags
         existing["itens"].append(item)
+    # Carências (Fase 1): mesmo formato do CARENCIAS_COMP embutido —
+    # { op: { vals: {colchave: ["cls|texto", ...9]}, bracket: {faixa: colchave | [regras]} } }.
+    # A cor (cls) é derivada do texto por _classe_carencia — nunca armazenada.
+    col_meta = {}          # col_id -> (op, colchave)
+    cols_ordem_por_op = {}  # op -> [colchave, ...] na ordem de carencia_colunas.ordem
+    for r in car_col_rows:
+        col_meta[r["col_id"]] = (r["op"], r["colchave"])
+        cols_ordem_por_op.setdefault(r["op"], []).append(r["colchave"])
+    valores_por_col = {}   # col_id -> {linha: texto}
+    for r in car_val_rows:
+        valores_por_col.setdefault(r["coluna_id"], {})[r["linha"]] = r["texto"]
+
+    carencias = {}
+    for col_id, (op, colchave) in col_meta.items():
+        textos = valores_por_col.get(col_id, {})
+        arr = [f"{_classe_carencia(textos[l])}|{textos[l]}" for l in range(9) if l in textos]
+        if len(arr) != 9:
+            continue   # coluna incompleta (defensivo) → não expõe essa coluna
+        carencias.setdefault(op, {"vals": {}, "bracket": {}})["vals"][colchave] = arr
+
+    bracket_regras_por_op = {}   # op -> {faixa: [regra, ...]}
+    for r in car_bracket_rows:
+        bracket_regras_por_op.setdefault(r["op"], {}).setdefault(r["faixa"], []).append(
+            {"col": r["colchave"], "vidas_min": r["vidas_min"], "vidas_max": r["vidas_max"], "ordem": r["ordem"]}
+        )
+    for op, faixas in bracket_regras_por_op.items():
+        if op not in carencias:
+            continue
+        for faixa, regras in faixas.items():
+            regras.sort(key=lambda x: x["ordem"])
+            if len(regras) == 1 and regras[0]["vidas_min"] is None and regras[0]["vidas_max"] is None:
+                carencias[op]["bracket"][faixa] = regras[0]["col"]
+            else:
+                carencias[op]["bracket"][faixa] = [
+                    {"col": r["col"], "vidas_min": r["vidas_min"], "vidas_max": r["vidas_max"]} for r in regras
+                ]
     return {"faixas": FAIXAS, "operadoras": operadoras, "planos": planos, "rede": rede,
-            "vantagens_lib": vantagens_lib, "hospitais": hospitais}
+            "vantagens_lib": vantagens_lib, "hospitais": hospitais, "carencias": carencias}
 
 
 # ── Superadmin: Catálogo — Operadoras ─────────────────────────────────────────

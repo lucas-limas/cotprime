@@ -1184,6 +1184,49 @@ def init_db():
                 UNIQUE(estabelecimento_id, operadora_id, rede_chave)
             )
         """)
+        # Carências (Fase 1): coluna de carência por operadora (ex. 'contratual','aprov') ×
+        # 9 linhas fixas (CAR_PROCS, índice 0..8, ver apresentacao-executiva.html) × faixa de
+        # aproveitamento (bracket). A cor (g/y/r) NÃO é armazenada — é derivada do texto.
+        # CAR_PROCS (referência, ordem == linha):
+        #   0 Urgência, Emergência e Acidente Pessoal
+        #   1 Consultas Médicas
+        #   2 Exames Simples (RX, laboratório, ECG)
+        #   3 Exames e Procedimentos Complexos
+        #   4 Terapias Simples (fisio, psico, fono, TO, nutrição)
+        #   5 Terapias Especiais (quimio, radio, diálise)
+        #   6 Internações Clínicas, Cirúrgicas e UTI
+        #   7 Parto a termo
+        #   8 Doenças e Lesões Preexistentes (CPT)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS carencia_colunas (
+                id SERIAL PRIMARY KEY,
+                operadora_id INTEGER NOT NULL REFERENCES operadoras(id),
+                chave TEXT NOT NULL,
+                rotulo TEXT,
+                ordem INTEGER DEFAULT 0,
+                UNIQUE(operadora_id, chave)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS carencia_valores (
+                id SERIAL PRIMARY KEY,
+                coluna_id INTEGER NOT NULL REFERENCES carencia_colunas(id) ON DELETE CASCADE,
+                linha INTEGER NOT NULL,
+                texto TEXT NOT NULL,
+                UNIQUE(coluna_id, linha)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS carencia_bracket (
+                id SERIAL PRIMARY KEY,
+                operadora_id INTEGER NOT NULL REFERENCES operadoras(id),
+                faixa TEXT NOT NULL,
+                coluna_id INTEGER NOT NULL REFERENCES carencia_colunas(id) ON DELETE CASCADE,
+                vidas_min INTEGER,
+                vidas_max INTEGER,
+                ordem INTEGER DEFAULT 0
+            )
+        """)
         conn.commit()
         _migrations_pg(conn)
     else:
@@ -1390,6 +1433,37 @@ def init_db():
                 UNIQUE(estabelecimento_id, operadora_id, rede_chave)
             )
         """)
+        # Carências (Fase 1): mesmo modelo do bloco PG acima (coluna × 9 linhas × bracket).
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS carencia_colunas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operadora_id INTEGER NOT NULL REFERENCES operadoras(id),
+                chave TEXT NOT NULL,
+                rotulo TEXT,
+                ordem INTEGER DEFAULT 0,
+                UNIQUE(operadora_id, chave)
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS carencia_valores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                coluna_id INTEGER NOT NULL REFERENCES carencia_colunas(id) ON DELETE CASCADE,
+                linha INTEGER NOT NULL,
+                texto TEXT NOT NULL,
+                UNIQUE(coluna_id, linha)
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS carencia_bracket (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operadora_id INTEGER NOT NULL REFERENCES operadoras(id),
+                faixa TEXT NOT NULL,
+                coluna_id INTEGER NOT NULL REFERENCES carencia_colunas(id) ON DELETE CASCADE,
+                vidas_min INTEGER,
+                vidas_max INTEGER,
+                ordem INTEGER DEFAULT 0
+            )
+        """)
         _migrations_sqlite(c)
         conn.commit()
 
@@ -1512,5 +1586,162 @@ def _seed_rede_matriz(conn):
     conn.execute(
         "INSERT INTO _migracoes_dados (nome, aplicada_em) VALUES (?, ?)",
         ("seed_rede_matriz_2026_08", ts),
+    )
+    conn.commit()
+
+
+# ==============================================================================
+# Carencias (Fase 1) - seed one-shot da matriz
+# _CARENCIAS_SEED: transcricao FIEL do CARENCIAS_COMP de apresentacao-executiva.html
+# (so o texto, sem o prefixo g|/y|/r| - a cor e derivada por _classe_carencia no main.py).
+# Operadora legado (array de 9) vira 1 coluna 'contratual'; operadora {vals,bracket}
+# vira 1 coluna por chave de vals + bracket por faixa (Porto: 'nao' tem 2 regras por vidas).
+_CARENCIAS_SEED = {
+    'bradesco': ['24h', 'Início vig.', 'Início vig.', '90 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+    'sulamerica': {
+        'vals': {
+            'contratual': ['24h', '15 dias', '15 dias', '180 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+            'reduz': ['24h', '24h', '24h', '60 dias', '180 dias', '180 dias', '60 dias', '300 dias', '24 meses'],
+            'pleno': ['24h', '24h', '24h', '24h', '180 dias', '180 dias', '24h', '300 dias', '24 meses'],
+        },
+        'bracket': {
+            'nao': 'contratual',
+            '3a6': 'reduz',
+            '6a11': 'reduz',
+            '12a23': 'pleno',
+            'mais24': 'pleno',
+        },
+    },
+    'amil': ['24h', 'Início vig.', 'Início vig.', '90 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+    'unity': {
+        'vals': {
+            'contratual': ['24h', '30 dias', '30 dias', '120 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+            'aprov': ['Início vig.', 'Início vig.', 'Início vig.', 'Início vig.', '90 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+        },
+        'bracket': {
+            'nao': 'contratual',
+            '3a6': 'contratual',
+            '6a11': 'aprov',
+            '12a23': 'aprov',
+            'mais24': 'aprov',
+        },
+    },
+    'evo': ['24h', '30 dias', '30 dias', '180 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+    'plenum': {
+        'vals': {
+            'contratual': ['24h', '30 dias', '30 dias', '180 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+            'col1': ['24h', '24h', '24h', '90 dias', '60 dias', '120 dias', '150 dias', '300 dias', '24 meses'],
+            'col2': ['24h', '24h', '24h', '24h', '24h', '60 dias', '120 dias', '300 dias', '24 meses'],
+        },
+        'bracket': {
+            'nao': 'contratual',
+            '3a6': 'contratual',
+            '6a11': 'contratual',
+            '12a23': 'col1',
+            'mais24': 'col2',
+        },
+    },
+    'segurosunimed': ['24h', '15 dias', '15 dias', '30 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+    'portosaude': {
+        'vals': {
+            'v03_09': ['24h', '15 dias', '15 dias', '180 dias', '90 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+            'v10_29': ['Sem carência', 'Sem carência', 'Sem carência', 'Sem carência', '90 dias', '180 dias', 'Sem carência', '300 dias', '24 meses'],
+            'red01': ['24h', '24h', '24h', '60 dias', '60 dias', '180 dias', '60 dias', '300 dias', '24 meses'],
+            'red02': ['Sem carência', 'Sem carência', 'Sem carência', 'Sem carência', '60 dias', '180 dias', 'Sem carência', '300 dias', '24 meses'],
+        },
+        'bracket': {
+            'nao': [
+                {
+                    'col': 'v03_09',
+                    'vidas_min': None,
+                    'vidas_max': 9,
+                    'ordem': 0,
+                },
+                {
+                    'col': 'v10_29',
+                    'vidas_min': 10,
+                    'vidas_max': None,
+                    'ordem': 1,
+                },
+            ],
+            '3a6': 'red01',
+            '6a11': 'red01',
+            '12a23': 'red02',
+            'mais24': 'red02',
+        },
+    },
+    'medsenior': ['24h', '24h', '24h', '90 dias', '90 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+    'bestsenior': ['24h', '30 dias', '30 dias', '180 dias', '180 dias', '180 dias', '180 dias', '300 dias', '24 meses'],
+}
+
+_ARC_FAIXAS = ["nao", "3a6", "6a11", "12a23", "mais24"]
+
+
+def _seed_carencias(conn):
+    """Importa CARENCIAS_COMP para carencia_colunas/carencia_valores/carencia_bracket.
+    One-shot, guardado por _migracoes_dados (seed_carencias_2026_09). Idempotente (flag +
+    checagem por linha/bracket); operadora ausente no catalogo -> pula (nao quebra)."""
+    if conn.execute("SELECT 1 FROM _migracoes_dados WHERE nome = ?", ("seed_carencias_2026_09",)).fetchone():
+        return
+    ts = datetime.now(timezone(timedelta(hours=-3))).strftime("%Y-%m-%d %H:%M:%S")
+    for opkey, spec in _CARENCIAS_SEED.items():
+        oprow = conn.execute("SELECT id FROM operadoras WHERE chave = ?", (opkey,)).fetchone()
+        if not oprow:
+            continue   # operadora ausente no catalogo -> pula (nao quebra o seed)
+        op_id = oprow["id"]
+        if isinstance(spec, list):
+            # legado: 1 coluna 'contratual' + todas as 5 faixas apontando pra ela (mesmo
+            # comportamento do array, que ignora o ARC).
+            cols = {"contratual": spec}
+            bracket = {arc: "contratual" for arc in _ARC_FAIXAS}
+        else:
+            cols = spec["vals"]
+            bracket = spec["bracket"]
+
+        col_id_by_key = {}
+        for ordem, (colkey, textos) in enumerate(cols.items()):
+            existente = conn.execute(
+                "SELECT id FROM carencia_colunas WHERE operadora_id = ? AND chave = ?", (op_id, colkey)
+            ).fetchone()
+            if existente:
+                col_id = existente["id"]
+            else:
+                conn.execute(
+                    "INSERT INTO carencia_colunas (operadora_id, chave, rotulo, ordem) VALUES (?, ?, ?, ?)",
+                    (op_id, colkey, colkey, ordem),
+                )
+                col_id = conn.execute(
+                    "SELECT id FROM carencia_colunas WHERE operadora_id = ? AND chave = ?", (op_id, colkey)
+                ).fetchone()["id"]
+            col_id_by_key[colkey] = col_id
+            for linha, texto in enumerate(textos):
+                ja = conn.execute(
+                    "SELECT 1 FROM carencia_valores WHERE coluna_id = ? AND linha = ?", (col_id, linha)
+                ).fetchone()
+                if not ja:
+                    conn.execute(
+                        "INSERT INTO carencia_valores (coluna_id, linha, texto) VALUES (?, ?, ?)",
+                        (col_id, linha, texto),
+                    )
+
+        for arc, b in bracket.items():
+            regras = b if isinstance(b, list) else [{"col": b, "vidas_min": None, "vidas_max": None, "ordem": 0}]
+            for regra in regras:
+                col_id = col_id_by_key.get(regra["col"])
+                if not col_id:
+                    continue   # coluna desconhecida -> pula (nao quebra o seed)
+                ja = conn.execute(
+                    "SELECT 1 FROM carencia_bracket WHERE operadora_id = ? AND faixa = ? AND ordem = ?",
+                    (op_id, arc, regra["ordem"]),
+                ).fetchone()
+                if not ja:
+                    conn.execute(
+                        "INSERT INTO carencia_bracket (operadora_id, faixa, coluna_id, vidas_min, vidas_max, ordem) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (op_id, arc, col_id, regra["vidas_min"], regra["vidas_max"], regra["ordem"]),
+                    )
+    conn.execute(
+        "INSERT INTO _migracoes_dados (nome, aplicada_em) VALUES (?, ?)",
+        ("seed_carencias_2026_09", ts),
     )
     conn.commit()
