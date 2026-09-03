@@ -479,6 +479,7 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
         <button class="cat-tab" onclick="catTab('vantagens',this)">Vantagens</button>
         <button class="cat-tab" onclick="catTab('precos',this)">Preços (CSV)</button>
         <button class="cat-tab" onclick="catTab('rede',this)">Rede</button>
+        <button class="cat-tab" onclick="catTab('carencias',this)">Carências</button>
         <button class="cat-tab" onclick="catTab('importar',this)" style="margin-left:auto;background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.3);color:#fbbf24">⬆ Importar dados.js</button>
       </div>
 
@@ -706,6 +707,48 @@ html[data-theme="light"] .admin-loading{color:rgba(0,0,0,.38)!important}
             <button class="btn-novo" onclick="salvarRedeCobertura()">Salvar cobertura</button>
             <button class="btn-toggle" onclick="fecharRedeCobertura()">Fechar</button>
             <span class="form-msg" id="cat-re-cob-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARÊNCIAS -->
+      <div id="cat-sub-carencias" style="display:none">
+        <div class="form-card">
+          <h3>Operadora</h3>
+          <div class="form-grid">
+            <div class="form-field"><label>Operadora</label>
+              <select id="car-op-sel" onchange="onCarOpChange()"><option value="">Selecione</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div id="car-op-body" style="display:none">
+          <div class="form-card">
+            <h3>Colunas de carência</h3>
+            <p style="color:rgba(255,255,255,.55);font-size:12px;margin:8px 0 14px">Cada coluna é um cenário de carência (ex.: "contratual", "aprov"). A cor de cada célula é calculada automaticamente pelo prazo — nunca é digitada.</p>
+            <div id="car-colunas-list" style="margin-bottom:16px"></div>
+            <div class="form-grid">
+              <div class="form-field"><label>Chave (slug)</label><input type="text" id="car-nova-col-chave" placeholder="ex: aprov"></div>
+              <div class="form-field"><label>Rótulo</label><input type="text" id="car-nova-col-rotulo" placeholder="ex: Aproveitamento"></div>
+              <div class="form-field"><label>Ordem</label><input type="number" id="car-nova-col-ordem" value="0" min="0"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-novo" onclick="criarCarColuna()">Adicionar coluna</button>
+              <span class="form-msg" id="car-col-msg"></span>
+            </div>
+          </div>
+
+          <div class="section-bar"><h3>Prazos por coluna</h3></div>
+          <div id="car-grade-wrap" style="overflow-x:auto;margin-bottom:20px"></div>
+
+          <div class="form-card">
+            <h3>Mapa de aproveitamento (ARC)</h3>
+            <p style="color:rgba(255,255,255,.55);font-size:12px;margin:8px 0 14px">Para cada faixa de plano anterior do cliente, escolha qual coluna de carência vale. Ative "variar por nº de vidas" quando a coluna também depende do total de vidas da empresa (hoje só a Porto usa).</p>
+            <div id="car-bracket-body"></div>
+            <div class="form-actions">
+              <button class="btn-novo" onclick="salvarCarBracket()">Salvar aproveitamento</button>
+              <span class="form-msg" id="car-bracket-msg"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -1337,6 +1380,7 @@ function catTab(tab, btn) {
   document.getElementById('cat-sub-planos').style.display    = tab === 'planos'     ? '' : 'none';
   document.getElementById('cat-sub-vantagens').style.display = tab === 'vantagens'  ? '' : 'none';
   document.getElementById('cat-sub-rede').style.display      = tab === 'rede'       ? '' : 'none';
+  document.getElementById('cat-sub-carencias').style.display = tab === 'carencias'  ? '' : 'none';
   document.getElementById('cat-sub-importar').style.display  = tab === 'importar'   ? '' : 'none';
   document.getElementById('cat-sub-precos').style.display    = tab === 'precos'     ? '' : 'none';
   document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
@@ -1345,6 +1389,7 @@ function catTab(tab, btn) {
   else if (tab === 'planos') loadPlanosCat();
   else if (tab === 'vantagens') loadVantagensCat();
   else if (tab === 'rede') { loadRedeMatriz(); }
+  else if (tab === 'carencias') { loadCarenciasAdmin(); }
 }
 
 // ── Importação de preços (CSV) ─────────────────────────────────────────────────
@@ -1725,6 +1770,303 @@ async function salvarRedeCobertura() {
     if (!res.ok) { const e = await res.json().catch(()=>({})); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
     msg.textContent = 'Cobertura salva!'; msg.style.color='#4ade80';
     await loadRedeMatriz();
+  } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
+}
+
+// ── Carências — matriz por coluna × 9 linhas + bracket de aproveitamento (Fase 2) ──
+const CAR_FAIXAS = ['nao','3a6','6a11','12a23','mais24'];
+const CAR_FAIXA_LABEL = {
+  nao: 'Não tem plano anterior', '3a6': '3 a 6 meses', '6a11': '6 a 11 meses',
+  '12a23': '12 a 23 meses', 'mais24': 'Mais de 24 meses',
+};
+const CAR_COR_HEX = { g:'#22c55e', y:'#eab308', r:'#ef4444' };
+
+// Espelha _classe_carencia do main.py — cor automática pelo prazo (nunca digitada).
+function _corCarencia(t){
+  t = (t || '').trim().toLowerCase();
+  if (/24\s*h|início vig|inicio vig|sem carência|sem carencia/.test(t)) return 'g';
+  if (/mes|mês/.test(t)) return 'r';
+  const m = t.match(/(\d+)\s*dia/);
+  if (m) return parseInt(m[1], 10) >= 180 ? 'r' : 'y';
+  return 'y';
+}
+
+let _car_data = { linhas: [], operadoras: [], dados: {} };
+let _car_op_atual = null;       // chave da operadora selecionada
+let _car_op_id_atual = null;
+let _car_bracket_draft = {};    // {faixa: [{coluna_id, vidas_min, vidas_max}, ...]} — rascunho em edição
+let _car_bracket_por_vidas = {}; // {faixa: bool} — modo "variar por nº de vidas" ligado/desligado
+
+function _carOpDados(){
+  return (_car_data.dados && _car_data.dados[_car_op_atual]) || { colunas: [], bracket: {} };
+}
+
+async function loadCarenciasAdmin(){
+  const sel = document.getElementById('car-op-sel');
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias`, {headers: authH()});
+    _car_data = await res.json();
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Selecione</option>' +
+      _car_data.operadoras.map(o => `<option value="${o.chave}">${_escP(o.nome)}</option>`).join('');
+    if (cur && _car_data.operadoras.some(o => o.chave === cur)) {
+      sel.value = cur;
+      onCarOpChange();
+    } else {
+      document.getElementById('car-op-body').style.display = 'none';
+      _car_op_atual = null; _car_op_id_atual = null;
+    }
+  } catch { showToast('Erro ao carregar carências'); }
+}
+
+function onCarOpChange(){
+  const chave = document.getElementById('car-op-sel').value;
+  const body = document.getElementById('car-op-body');
+  if (!chave) { body.style.display = 'none'; _car_op_atual = null; _car_op_id_atual = null; return; }
+  _car_op_atual = chave;
+  const op = _car_data.operadoras.find(o => o.chave === chave);
+  _car_op_id_atual = op ? op.id : null;
+  body.style.display = '';
+  _renderCarColunasList();
+  _renderCarGrade();
+  _initCarBracketDraft();
+  _redrawCarBracket();
+}
+
+/* ── Colunas: listar / renomear / reordenar / criar / excluir ── */
+function _renderCarColunasList(){
+  const wrap = document.getElementById('car-colunas-list');
+  const cols = _carOpDados().colunas.slice().sort((a,b) => a.ordem - b.ordem);
+  if (!cols.length){ wrap.innerHTML = '<div class="admin-loading" style="padding:10px 0">Nenhuma coluna cadastrada.</div>'; return; }
+  wrap.innerHTML = `<table class="admin-table"><thead>
+      <tr><th>Chave</th><th>Rótulo</th><th>Ordem</th><th>Ações</th></tr>
+    </thead><tbody>${cols.map(c => `<tr>
+      <td><code style="font-size:11px;color:rgba(255,255,255,.6)">${_escP(c.chave)}</code></td>
+      <td><input type="text" value="${_escP(c.rotulo)}" onchange="renomearCarColuna(${c.id}, this.value)"
+            style="background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:5px 8px;color:var(--t1);font-size:12px;width:170px"></td>
+      <td><input type="number" value="${c.ordem}" min="0" onchange="reordenarCarColuna(${c.id}, this.value)"
+            style="background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:5px 8px;color:var(--t1);font-size:12px;width:60px"></td>
+      <td><button class="btn-del" onclick="excluirCarColuna(${c.id}, '${c.chave.replace(/'/g,"\\'")}')">Excluir</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function renomearCarColuna(colId, rotulo){
+  rotulo = (rotulo || '').trim();
+  if (!rotulo) { showToast('Rótulo não pode ficar vazio.'); await loadCarenciasAdmin(); return; }
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias/colunas/${colId}`,
+      {method:'PATCH', headers: authH(), body: JSON.stringify({rotulo})});
+    if (!res.ok) { showToast('Erro ao renomear.'); return; }
+    showToast('Rótulo atualizado ✓');
+    await loadCarenciasAdmin();
+  } catch { showToast('Erro de rede.'); }
+}
+
+async function reordenarCarColuna(colId, ordem){
+  ordem = parseInt(ordem, 10) || 0;
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias/colunas/${colId}`,
+      {method:'PATCH', headers: authH(), body: JSON.stringify({ordem})});
+    if (!res.ok) { showToast('Erro ao reordenar.'); return; }
+    await loadCarenciasAdmin();
+  } catch { showToast('Erro de rede.'); }
+}
+
+async function excluirCarColuna(colId, chave){
+  if (!confirm(`Excluir a coluna "${chave}"? Os prazos e as regras de aproveitamento que apontam pra ela também serão removidos.`)) return;
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias/colunas/${colId}`, {method:'DELETE', headers: authH()});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); showToast(e.detail || 'Erro ao excluir.'); return; }
+    showToast('Coluna excluída ✓');
+    await loadCarenciasAdmin();
+  } catch { showToast('Erro de rede.'); }
+}
+
+async function criarCarColuna(){
+  const msg = document.getElementById('car-col-msg');
+  if (!_car_op_id_atual) { msg.textContent = 'Selecione uma operadora.'; msg.style.color='#f87171'; return; }
+  const chave = document.getElementById('car-nova-col-chave').value.trim().toLowerCase();
+  const rotulo = document.getElementById('car-nova-col-rotulo').value.trim();
+  const ordem = parseInt(document.getElementById('car-nova-col-ordem').value, 10) || 0;
+  if (!/^[a-z0-9_]+$/.test(chave)) { msg.textContent = 'Chave deve ser um slug: letras minúsculas, números e _'; msg.style.color='#f87171'; return; }
+  msg.textContent = 'Salvando...'; msg.style.color='rgba(255,255,255,.5)';
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias/colunas`,
+      {method:'POST', headers: authH(), body: JSON.stringify({operadora_id:_car_op_id_atual, chave, rotulo, ordem})});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
+    msg.textContent = 'Coluna criada ✓'; msg.style.color='#4ade80';
+    document.getElementById('car-nova-col-chave').value = '';
+    document.getElementById('car-nova-col-rotulo').value = '';
+    document.getElementById('car-nova-col-ordem').value = '0';
+    await loadCarenciasAdmin();
+  } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
+}
+
+/* ── Grade de prazos (9 linhas × colunas da operadora) ── */
+function _renderCarGrade(){
+  const wrap = document.getElementById('car-grade-wrap');
+  const cols = _carOpDados().colunas.slice().sort((a,b) => a.ordem - b.ordem);
+  const linhas = _car_data.linhas || [];
+  if (!cols.length) { wrap.innerHTML = '<div class="admin-loading" style="padding:10px 0">Cadastre uma coluna acima para começar.</div>'; return; }
+  const headerCols = cols.map(c => `<th style="min-width:170px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>${_escP(c.rotulo)}</span>
+        <button class="btn-toggle" onclick="salvarCarColunaValores(${c.id})" style="font-size:10px;padding:3px 8px">Salvar</button>
+      </div>
+      <span class="form-msg" id="car-col-save-msg-${c.id}" style="display:block;font-size:10px;margin-top:2px;font-weight:400;letter-spacing:0;text-transform:none"></span>
+    </th>`).join('');
+  const rows = linhas.map((linha, li) => `<tr>
+      <td style="color:rgba(255,255,255,.75);font-size:12px;max-width:220px">${_escP(linha)}</td>
+      ${cols.map(c => {
+        const v = (c.valores && c.valores[li]) || '';
+        return `<td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span id="car-dot-${c.id}-${li}" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${CAR_COR_HEX[_corCarencia(v)]}"></span>
+            <input type="text" value="${_escP(v)}" data-col="${c.id}" data-linha="${li}" oninput="_onCarInput(this)"
+              style="background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:6px 8px;color:var(--t1);font-size:12px;width:110px">
+          </div>
+        </td>`;
+      }).join('')}
+    </tr>`).join('');
+  wrap.innerHTML = `<table class="admin-table"><thead><tr><th>Procedimento</th>${headerCols}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function _onCarInput(inp){
+  const dot = document.getElementById(`car-dot-${inp.dataset.col}-${inp.dataset.linha}`);
+  if (dot) dot.style.background = CAR_COR_HEX[_corCarencia(inp.value)];
+}
+
+async function salvarCarColunaValores(colId){
+  const msg = document.getElementById(`car-col-save-msg-${colId}`);
+  const inputs = document.querySelectorAll(`input[data-col="${colId}"]`);
+  const valores = new Array(9).fill('');
+  inputs.forEach(inp => { valores[parseInt(inp.dataset.linha, 10)] = inp.value.trim(); });
+  if (msg) { msg.textContent = 'Salvando...'; msg.style.color = 'rgba(255,255,255,.5)'; }
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias/colunas/${colId}/valores`,
+      {method:'PUT', headers: authH(), body: JSON.stringify({valores})});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); if (msg) { msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; } return; }
+    if (msg) { msg.textContent = 'Salvo ✓'; msg.style.color='#4ade80'; }
+    await loadCarenciasAdmin();
+  } catch { if (msg) { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; } }
+}
+
+/* ── Mapa de aproveitamento (bracket por faixa ARC, com/sem variação por vidas) ── */
+function _initCarBracketDraft(){
+  _car_bracket_draft = {};
+  _car_bracket_por_vidas = {};
+  const bracket = _carOpDados().bracket || {};
+  CAR_FAIXAS.forEach(faixa => {
+    const regras = (bracket[faixa] || []).slice().sort((a,b) => a.ordem - b.ordem)
+      .map(r => ({coluna_id: r.coluna_id, vidas_min: r.vidas_min, vidas_max: r.vidas_max}));
+    _car_bracket_draft[faixa] = regras;
+    _car_bracket_por_vidas[faixa] = regras.length > 1 || regras.some(r => r.vidas_min != null || r.vidas_max != null);
+  });
+}
+
+function _redrawCarBracket(){
+  const wrap = document.getElementById('car-bracket-body');
+  const cols = _carOpDados().colunas.slice().sort((a,b) => a.ordem - b.ordem);
+  if (!cols.length) { wrap.innerHTML = '<div class="admin-loading" style="padding:10px 0">Cadastre uma coluna primeiro.</div>'; return; }
+  wrap.innerHTML = CAR_FAIXAS.map(faixa => {
+    const porVidas = !!_car_bracket_por_vidas[faixa];
+    const regras = _car_bracket_draft[faixa] || [];
+    let corpo;
+    if (!porVidas) {
+      const selecionado = regras[0] ? regras[0].coluna_id : cols[0].id;
+      corpo = `<select onchange="_carBracketSetSimples('${faixa}', this.value)" class="pf-ctrl">${
+        cols.map(c => `<option value="${c.id}" ${c.id===selecionado?'selected':''}>${_escP(c.rotulo)}</option>`).join('')
+      }</select>`;
+    } else {
+      corpo = `<div>${regras.map((r, i) => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--t4)">de</span>
+          <input type="number" min="0" value="${r.vidas_min ?? ''}" placeholder="mín" oninput="_carBracketRegraSet('${faixa}',${i},'vidas_min',this.value)"
+            style="width:60px;background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:5px 6px;color:var(--t1);font-size:12px">
+          <span style="font-size:11px;color:var(--t4)">até</span>
+          <input type="number" min="0" value="${r.vidas_max ?? ''}" placeholder="máx" oninput="_carBracketRegraSet('${faixa}',${i},'vidas_max',this.value)"
+            style="width:60px;background:var(--inp);border:1px solid var(--inp-bd);border-radius:6px;padding:5px 6px;color:var(--t1);font-size:12px">
+          <span style="font-size:11px;color:var(--t4)">vidas →</span>
+          <select onchange="_carBracketRegraSet('${faixa}',${i},'coluna_id',this.value)" class="pf-ctrl">
+            ${cols.map(c => `<option value="${c.id}" ${c.id===r.coluna_id?'selected':''}>${_escP(c.rotulo)}</option>`).join('')}
+          </select>
+          <button type="button" class="btn-del" onclick="_carBracketRemoverRegra('${faixa}',${i})">×</button>
+        </div>`).join('')}
+        <button type="button" class="btn-toggle" onclick="_carBracketAddRegra('${faixa}')">+ faixa de vidas</button>
+      </div>`;
+    }
+    return `<div style="border:1px solid var(--bd1);border-radius:8px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <strong style="font-size:13px;color:var(--t1)">${CAR_FAIXA_LABEL[faixa]}</strong>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);cursor:pointer">
+          <input type="checkbox" ${porVidas?'checked':''} onchange="_carBracketTogglePorVidas('${faixa}', this.checked)"> variar por nº de vidas
+        </label>
+      </div>
+      <div style="margin-top:10px">${corpo}</div>
+    </div>`;
+  }).join('');
+}
+
+function _carBracketSetSimples(faixa, colId){
+  _car_bracket_draft[faixa] = [{coluna_id: parseInt(colId, 10), vidas_min: null, vidas_max: null}];
+}
+
+function _carBracketTogglePorVidas(faixa, on){
+  const cols = _carOpDados().colunas.slice().sort((a,b) => a.ordem - b.ordem);
+  const atual = _car_bracket_draft[faixa] && _car_bracket_draft[faixa][0];
+  const colAtual = (atual && atual.coluna_id) || (cols[0] && cols[0].id);
+  _car_bracket_por_vidas[faixa] = on;
+  if (on) {
+    _car_bracket_draft[faixa] = [
+      {coluna_id: colAtual, vidas_min: null, vidas_max: 9},
+      {coluna_id: colAtual, vidas_min: 10, vidas_max: null},
+    ];
+  } else {
+    _car_bracket_draft[faixa] = [{coluna_id: colAtual, vidas_min: null, vidas_max: null}];
+  }
+  _redrawCarBracket();
+}
+
+function _carBracketAddRegra(faixa){
+  const cols = _carOpDados().colunas.slice().sort((a,b) => a.ordem - b.ordem);
+  const regras = _car_bracket_draft[faixa] || (_car_bracket_draft[faixa] = []);
+  const last = regras[regras.length-1];
+  regras.push({coluna_id: (last ? last.coluna_id : cols[0].id), vidas_min: null, vidas_max: null});
+  _redrawCarBracket();
+}
+
+function _carBracketRemoverRegra(faixa, idx){
+  const regras = _car_bracket_draft[faixa] || [];
+  regras.splice(idx, 1);
+  if (!regras.length) {
+    const cols = _carOpDados().colunas.slice().sort((a,b) => a.ordem - b.ordem);
+    _car_bracket_draft[faixa] = [{coluna_id: cols[0].id, vidas_min: null, vidas_max: null}];
+    _car_bracket_por_vidas[faixa] = false;
+  }
+  _redrawCarBracket();
+}
+
+function _carBracketRegraSet(faixa, idx, campo, val){
+  const r = (_car_bracket_draft[faixa] || [])[idx];
+  if (!r) return;
+  if (campo === 'coluna_id') r.coluna_id = parseInt(val, 10);
+  else r[campo] = (val === '' ? null : parseInt(val, 10));
+}
+
+async function salvarCarBracket(){
+  if (!_car_op_id_atual) return;
+  const msg = document.getElementById('car-bracket-msg');
+  msg.textContent = 'Salvando...'; msg.style.color = 'rgba(255,255,255,.5)';
+  const bracket = {};
+  CAR_FAIXAS.forEach(faixa => {
+    const regras = (_car_bracket_draft[faixa] || []).filter(r => r.coluna_id);
+    if (regras.length) bracket[faixa] = regras.map(r => ({coluna_id:r.coluna_id, vidas_min:r.vidas_min, vidas_max:r.vidas_max}));
+  });
+  try {
+    const res = await fetch(`${API}/api/superadmin/catalogo/carencias/operadoras/${_car_op_id_atual}/bracket`,
+      {method:'PUT', headers: authH(), body: JSON.stringify({bracket})});
+    if (!res.ok) { const e = await res.json().catch(()=>({})); msg.textContent = e.detail||'Erro.'; msg.style.color='#f87171'; return; }
+    msg.textContent = 'Aproveitamento salvo ✓'; msg.style.color='#4ade80';
+    await loadCarenciasAdmin();
   } catch { msg.textContent = 'Erro de rede.'; msg.style.color='#f87171'; }
 }
 

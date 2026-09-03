@@ -921,6 +921,33 @@ class RedeCoberturaRequest(BaseModel):
     cobertura: Dict[str, List[str]] = {}
 
 
+# ── Carências — matriz (Fase 2) ──
+class CarColunaRequest(BaseModel):
+    operadora_id: int
+    chave: str
+    rotulo: Optional[str] = None
+    ordem: int = 0
+
+
+class UpdateCarColunaRequest(BaseModel):
+    rotulo: Optional[str] = None
+    ordem: Optional[int] = None
+
+
+class CarValoresRequest(BaseModel):
+    valores: List[str]
+
+
+class CarBracketRegra(BaseModel):
+    coluna_id: int
+    vidas_min: Optional[int] = None
+    vidas_max: Optional[int] = None
+
+
+class CarBracketRequest(BaseModel):
+    bracket: Dict[str, List[CarBracketRegra]] = {}
+
+
 class ClienteRequest(BaseModel):
     nome: str
     empresa: Optional[str] = None
@@ -2135,6 +2162,22 @@ def dashboard_equipe(period: Optional[str] = None, user=Depends(require_gestor))
 
 FAIXAS = ['0 a 18','19 a 23','24 a 28','29 a 33','34 a 38','39 a 43','44 a 48','49 a 53','54 a 58','59 ou mais']
 
+# As 9 linhas canônicas de carência (cópia exata de CAR_PROCS em apresentacao-executiva.html
+# ~L1177) — fixas, referenciadas por índice 0..8 em carencia_valores.linha; não editáveis.
+_CAR_PROCS = [
+    'Urgência, Emergência e Acidente Pessoal',
+    'Consultas Médicas',
+    'Exames Simples (RX, laboratório, ECG)',
+    'Exames e Procedimentos Complexos',
+    'Terapias Simples (fisio, psico, fono, TO, nutrição)',
+    'Terapias Especiais (quimio, radio, diálise)',
+    'Internações Clínicas, Cirúrgicas e UTI',
+    'Parto a termo',
+    'Doenças e Lesões Preexistentes (CPT)',
+]
+_CAR_FAIXAS_VALIDAS = {"nao", "3a6", "6a11", "12a23", "mais24"}
+_CAR_CHAVE_RE = re.compile(r"^[a-z0-9_]+$")
+
 
 def _classe_carencia(txt):
     """Cor automática da célula de carência pelo prazo (regra confirmada pelo usuário).
@@ -3040,6 +3083,189 @@ def salvar_rede_cobertura(estab_id: int, body: RedeCoberturaRequest, admin=Depen
     conn.commit()
     conn.close()
     log_action(admin["sub"], "salvar_rede_cobertura", f"Cobertura atualizada: estabelecimento {estab_id}")
+    return {"ok": True}
+
+
+# ── Superadmin: Carências — matriz (Fase 2) ────────────────────────────────────
+# Editor por coluna × 9 linhas fixas (carencia_colunas/carencia_valores, Fase 1) + bracket
+# por faixa de aproveitamento (carencia_bracket). A cor nunca é gravada — só derivada
+# (_classe_carencia) na leitura de /api/catalogo.
+
+@app.get("/api/superadmin/catalogo/carencias")
+def obter_carencias_admin(admin=Depends(require_superadmin)):
+    conn = get_connection()
+    ops_rows = conn.execute("SELECT id, chave, nome FROM operadoras ORDER BY ordem, id").fetchall()
+    col_rows = conn.execute(
+        """SELECT cc.id, cc.chave, cc.rotulo, cc.ordem, o.chave AS op
+           FROM carencia_colunas cc JOIN operadoras o ON o.id = cc.operadora_id
+           ORDER BY o.ordem, cc.ordem, cc.id"""
+    ).fetchall()
+    val_rows = conn.execute("SELECT coluna_id, linha, texto FROM carencia_valores ORDER BY coluna_id, linha").fetchall()
+    bracket_rows = conn.execute(
+        """SELECT cb.faixa, cb.coluna_id, cb.vidas_min, cb.vidas_max, cb.ordem, o.chave AS op
+           FROM carencia_bracket cb JOIN operadoras o ON o.id = cb.operadora_id
+           ORDER BY o.ordem, cb.faixa, cb.ordem"""
+    ).fetchall()
+    conn.close()
+
+    valores_por_col = {}
+    for r in val_rows:
+        valores_por_col.setdefault(r["coluna_id"], {})[r["linha"]] = r["texto"]
+
+    dados = {}
+    for r in col_rows:
+        entry = dados.setdefault(r["op"], {"colunas": [], "bracket": {}})
+        textos = valores_por_col.get(r["id"], {})
+        entry["colunas"].append({
+            "id": r["id"], "chave": r["chave"], "rotulo": r["rotulo"] or r["chave"], "ordem": r["ordem"],
+            "valores": [textos.get(l, "") for l in range(9)],
+        })
+    for r in bracket_rows:
+        entry = dados.setdefault(r["op"], {"colunas": [], "bracket": {}})
+        entry["bracket"].setdefault(r["faixa"], []).append(
+            {"coluna_id": r["coluna_id"], "vidas_min": r["vidas_min"], "vidas_max": r["vidas_max"], "ordem": r["ordem"]}
+        )
+    operadoras = [{"id": r["id"], "chave": r["chave"], "nome": r["nome"]} for r in ops_rows]
+    return {"linhas": _CAR_PROCS, "operadoras": operadoras, "dados": dados}
+
+
+@app.post("/api/superadmin/catalogo/carencias/colunas")
+def criar_carencia_coluna(body: CarColunaRequest, admin=Depends(require_superadmin)):
+    chave = (body.chave or "").strip().lower()
+    if not _CAR_CHAVE_RE.match(chave):
+        raise HTTPException(400, "chave deve ser um slug: letras minúsculas, números e _")
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM operadoras WHERE id = ?", (body.operadora_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Operadora não encontrada")
+    if conn.execute(
+        "SELECT 1 FROM carencia_colunas WHERE operadora_id = ? AND chave = ?", (body.operadora_id, chave)
+    ).fetchone():
+        conn.close()
+        raise HTTPException(400, "Já existe uma coluna com essa chave nessa operadora")
+    rotulo = (body.rotulo or chave).strip()
+    conn.execute(
+        "INSERT INTO carencia_colunas (operadora_id, chave, rotulo, ordem) VALUES (?, ?, ?, ?)",
+        (body.operadora_id, chave, rotulo, body.ordem),
+    )
+    conn.commit()
+    col_id = conn.execute(
+        "SELECT id FROM carencia_colunas WHERE operadora_id = ? AND chave = ?", (body.operadora_id, chave)
+    ).fetchone()["id"]
+    for linha in range(9):
+        conn.execute(
+            "INSERT INTO carencia_valores (coluna_id, linha, texto) VALUES (?, ?, ?)",
+            (col_id, linha, "180 dias"),
+        )
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "criar_carencia_coluna", f"Coluna {chave} (operadora {body.operadora_id})")
+    return {"id": col_id, "operadora_id": body.operadora_id, "chave": chave, "rotulo": rotulo,
+            "ordem": body.ordem, "valores": ["180 dias"] * 9}
+
+
+@app.patch("/api/superadmin/catalogo/carencias/colunas/{col_id}")
+def atualizar_carencia_coluna(col_id: int, body: UpdateCarColunaRequest, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM carencia_colunas WHERE id = ?", (col_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Coluna não encontrada")
+    updates, params = [], []
+    if body.rotulo is not None:
+        updates.append("rotulo = ?"); params.append(body.rotulo.strip())
+    if body.ordem is not None:
+        updates.append("ordem = ?"); params.append(body.ordem)
+    if updates:
+        params.append(col_id)
+        conn.execute(f"UPDATE carencia_colunas SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.delete("/api/superadmin/catalogo/carencias/colunas/{col_id}")
+def deletar_carencia_coluna(col_id: int, admin=Depends(require_superadmin)):
+    conn = get_connection()
+    row = conn.execute("SELECT operadora_id, chave FROM carencia_colunas WHERE id = ?", (col_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Coluna não encontrada")
+    total = conn.execute(
+        "SELECT COUNT(*) AS n FROM carencia_colunas WHERE operadora_id = ?", (row["operadora_id"],)
+    ).fetchone()["n"]
+    if total <= 1:
+        conn.close()
+        raise HTTPException(400, "Não é possível excluir a única coluna da operadora")
+    # Limpeza explícita (sem depender de FK — mesmo motivo do DELETE da rede): apaga os
+    # valores e as regras de bracket que apontam pra essa coluna antes de apagar a coluna.
+    conn.execute("DELETE FROM carencia_bracket WHERE coluna_id = ?", (col_id,))
+    conn.execute("DELETE FROM carencia_valores WHERE coluna_id = ?", (col_id,))
+    conn.execute("DELETE FROM carencia_colunas WHERE id = ?", (col_id,))
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "deletar_carencia_coluna", f"Coluna {row['chave']} removida (operadora {row['operadora_id']})")
+    return {"ok": True}
+
+
+@app.put("/api/superadmin/catalogo/carencias/colunas/{col_id}/valores")
+def salvar_carencia_valores(col_id: int, body: CarValoresRequest, admin=Depends(require_superadmin)):
+    if len(body.valores) != 9:
+        raise HTTPException(400, "valores deve ter exatamente 9 itens")
+    valores = [str(v or "").strip() for v in body.valores]
+    if any(not v for v in valores):
+        raise HTTPException(400, "todos os 9 valores devem ser preenchidos")
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM carencia_colunas WHERE id = ?", (col_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Coluna não encontrada")
+    for linha, texto in enumerate(valores):
+        existente = conn.execute(
+            "SELECT id FROM carencia_valores WHERE coluna_id = ? AND linha = ?", (col_id, linha)
+        ).fetchone()
+        if existente:
+            conn.execute("UPDATE carencia_valores SET texto = ? WHERE id = ?", (texto, existente["id"]))
+        else:
+            conn.execute(
+                "INSERT INTO carencia_valores (coluna_id, linha, texto) VALUES (?, ?, ?)", (col_id, linha, texto)
+            )
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "salvar_carencia_valores", f"Valores atualizados: coluna {col_id}")
+    return {"ok": True}
+
+
+@app.put("/api/superadmin/catalogo/carencias/operadoras/{op_id}/bracket")
+def salvar_carencia_bracket(op_id: int, body: CarBracketRequest, admin=Depends(require_superadmin)):
+    """Substitui TODAS as faixas de bracket da operadora (replace atômico). Valida faixa e
+    que cada coluna_id pertence a essa operadora ANTES de escrever — impede vazar coluna
+    entre operadoras e evita deixar a operadora com bracket parcial numa entrada inválida."""
+    conn = get_connection()
+    if not conn.execute("SELECT id FROM operadoras WHERE id = ?", (op_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Operadora não encontrada")
+    cols_da_op = {r["id"] for r in conn.execute(
+        "SELECT id FROM carencia_colunas WHERE operadora_id = ?", (op_id,)
+    ).fetchall()}
+    bracket = body.bracket or {}
+    for faixa, regras in bracket.items():
+        if faixa not in _CAR_FAIXAS_VALIDAS:
+            conn.close()
+            raise HTTPException(400, f"faixa inválida: {faixa}")
+        for regra in regras:
+            if regra.coluna_id not in cols_da_op:
+                conn.close()
+                raise HTTPException(400, "coluna_id não pertence a essa operadora")
+    conn.execute("DELETE FROM carencia_bracket WHERE operadora_id = ?", (op_id,))
+    for faixa, regras in bracket.items():
+        for ordem, regra in enumerate(regras):
+            conn.execute(
+                "INSERT INTO carencia_bracket (operadora_id, faixa, coluna_id, vidas_min, vidas_max, ordem) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (op_id, faixa, regra.coluna_id, regra.vidas_min, regra.vidas_max, ordem),
+            )
+    conn.commit()
+    conn.close()
+    log_action(admin["sub"], "salvar_carencia_bracket", f"Bracket atualizado: operadora {op_id}")
     return {"ok": True}
 
 
