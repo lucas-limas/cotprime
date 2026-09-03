@@ -1197,9 +1197,22 @@ const CARENCIAS_COMP = {
     bracket: { nao:'contratual','3a6':'reduz','6a11':'reduz','12a23':'pleno','mais24':'pleno' },
   },
   amil:          ['g|24h','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
-  unity:         ['g|24h','y|30 dias','y|30 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  unity: {
+    vals: {
+      contratual: ['g|24h','y|30 dias','y|30 dias','y|120 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+      aprov:      ['g|Início vig.','g|Início vig.','g|Início vig.','g|Início vig.','y|90 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+    },
+    bracket: { nao:'contratual','3a6':'contratual','6a11':'aprov','12a23':'aprov','mais24':'aprov' },
+  },
   evo:           ['g|24h','y|30 dias','y|30 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
-  plenum:        ['g|24h','y|30 dias','y|30 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+  plenum: {
+    vals: {
+      contratual: ['g|24h','y|30 dias','y|30 dias','r|180 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
+      col1:       ['g|24h','g|24h','g|24h','y|90 dias','y|60 dias','y|120 dias','y|150 dias','r|300 dias','r|24 meses'],
+      col2:       ['g|24h','g|24h','g|24h','g|24h','g|24h','y|60 dias','y|120 dias','r|300 dias','r|24 meses'],
+    },
+    bracket: { nao:'contratual','3a6':'contratual','6a11':'contratual','12a23':'col1','mais24':'col2' },
+  },
   segurosunimed: ['g|24h','y|15 dias','y|15 dias','y|30 dias','r|180 dias','r|180 dias','r|180 dias','r|300 dias','r|24 meses'],
   portosaude: {
     vals: {
