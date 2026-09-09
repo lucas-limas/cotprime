@@ -1486,6 +1486,7 @@ function getRedeCol(opKey, prodNome, redeChave) {
     return 'DIRETO_NAC';
   }
   if (opKey==='segurosunimed') {
+    if (n.includes('essencial'))       return 'ESSENCIAL';   // Essencial I-IV / Novo Essencial DF I-IV
     if (n.includes('senior')||n.includes('seni')) return 'SENIOR';
     if (n.includes('superior plus'))   return 'SUPERIOR_PLUS';
     if (n.includes('superior'))        return 'SUPERIOR';

@@ -515,6 +515,10 @@ def _migrations_pg(conn):
         # Correção: a etapa "implementacao" vira "implantacao" (chave == rótulo). Sem guarda:
         # a chave destino é nova (não reúso de nome), então re-rodar não corrompe nada.
         "UPDATE oportunidades SET estagio='implantacao' WHERE estagio='implementacao'",
+        # Bug: os 24 planos Essencial I-IV da Seguros Unimed (PME) não tinham rede_chave e
+        # caíam no fallback COMPACTO (16 estab.) em vez da rede real da Essencial (5 estab.).
+        # Chave explícita e determinística — mesmo padrão de bradesco/porto.
+        "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ec04_1','su_ec04_2','su_ec04_3','su_ec04_4','su_ec29_1','su_ec29_2','su_ec29_3','su_ec29_4','su_ec99_1','su_ec99_2','su_ec99_3','su_ec99_4','su_ef04_1','su_ef04_2','su_ef04_3','su_ef04_4','su_ef29_1','su_ef29_2','su_ef29_3','su_ef29_4','su_ef99_1','su_ef99_2','su_ef99_3','su_ef99_4')",
     ]
     for sql in safe:
         try:
@@ -970,6 +974,10 @@ def _migrations_sqlite(c):
         # Correção: a etapa "implementacao" vira "implantacao" (chave == rótulo). Sem guarda:
         # a chave destino é nova (não reúso de nome), então re-rodar não corrompe nada.
         "UPDATE oportunidades SET estagio='implantacao' WHERE estagio='implementacao'",
+        # Bug: os 24 planos Essencial I-IV da Seguros Unimed (PME) não tinham rede_chave e
+        # caíam no fallback COMPACTO (16 estab.) em vez da rede real da Essencial (5 estab.).
+        # Chave explícita e determinística — mesmo padrão de bradesco/porto.
+        "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ec04_1','su_ec04_2','su_ec04_3','su_ec04_4','su_ec29_1','su_ec29_2','su_ec29_3','su_ec29_4','su_ec99_1','su_ec99_2','su_ec99_3','su_ec99_4','su_ef04_1','su_ef04_2','su_ef04_3','su_ef04_4','su_ef29_1','su_ef29_2','su_ef29_3','su_ef29_4','su_ef99_1','su_ef99_2','su_ef99_3','su_ef99_4')",
     ]
     for sql in safe:
         try:
