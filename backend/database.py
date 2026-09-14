@@ -519,6 +519,25 @@ def _migrations_pg(conn):
         # caíam no fallback COMPACTO (16 estab.) em vez da rede real da Essencial (5 estab.).
         # Chave explícita e determinística — mesmo padrão de bradesco/porto.
         "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ec04_1','su_ec04_2','su_ec04_3','su_ec04_4','su_ec29_1','su_ec29_2','su_ec29_3','su_ec29_4','su_ec99_1','su_ec99_2','su_ec99_3','su_ec99_4','su_ef04_1','su_ef04_2','su_ef04_3','su_ef04_4','su_ef29_1','su_ef29_2','su_ef29_3','su_ef29_4','su_ef99_1','su_ef99_2','su_ef99_3','su_ef99_4')",
+        # Tabela oficial 10/2026-09/2027 (reajuste ~9,88%): nome/acomodacao/rede_chave/precos dos
+        # 16 planos de ADESAO. rede_chave explicita corrige de vez o bug de fallback (Essencial->ESSENCIAL,
+        # Efetivo adesao->EFETIVO_ADESAO, nao mais o generico do PME). Idempotente por natureza.
+        "UPDATE planos SET nome='Novo Essencial Adesão DF I', acomodacao='enf', rede_chave='ESSENCIAL', precos='[357.2,437.2,547.43,604.94,644.34,747.43,893.48,1071.57,1272.19,2143.11]' WHERE codigo='su_ad_1'",
+        "UPDATE planos SET nome='Novo Essencial Adesão DF II', acomodacao='apt', rede_chave='ESSENCIAL', precos='[399.69,489.21,612.54,676.89,720.98,836.33,999.77,1199.03,1423.52,2398.04]' WHERE codigo='su_ad_2'",
+        "UPDATE planos SET nome='Adesão Compacto Enf II', acomodacao='enf', rede_chave='COMPACTO', precos='[578.8,708.45,887.07,980.26,1044.09,1211.13,1447.8,1736.39,2061.49,3472.78]' WHERE codigo='su_ad_3'",
+        "UPDATE planos SET nome='Adesão Efetivo Apto II', acomodacao='apt', rede_chave='EFETIVO_ADESAO', precos='[647.65,792.73,992.6,1096.88,1168.31,1355.24,1620.05,1942.98,2306.77,3885.92]' WHERE codigo='su_ad_4'",
+        "UPDATE planos SET nome='Adesão Completo Apto II', acomodacao='apt', rede_chave='COMPLETO', precos='[764.25,935.42,1171.25,1294.32,1378.62,1599.15,1911.67,2292.7,2721.98,4585.4]' WHERE codigo='su_ad_5'",
+        "UPDATE planos SET nome='Adesão Superior Apto I', acomodacao='apt', rede_chave='SUPERIOR', precos='[911.33,1115.47,1396.68,1543.42,1643.94,1906.92,2279.57,2733.96,3245.84,5467.9]' WHERE codigo='su_ad_6'",
+        "UPDATE planos SET nome='Adesão Superior Plus Apto II', acomodacao='apt', rede_chave='SUPERIOR_PLUS', precos='[1020.48,1249.07,1564.0,1728.3,1840.83,2135.35,2552.61,3061.42,3634.61,6122.83]' WHERE codigo='su_ad_7'",
+        "UPDATE planos SET nome='Adesão Sênior Apto II', acomodacao='apt', rede_chave='SENIOR', precos='[2004.08,2453.01,3071.44,3394.13,3615.55,4193.54,5013.01,6012.24,7137.93,12024.47]' WHERE codigo='su_ad_8'",
+        "UPDATE planos SET nome='Novo Essencial Adesão DF III', acomodacao='enf', rede_chave='ESSENCIAL', precos='[311.61,381.4,477.57,527.74,562.09,652.03,779.43,934.8,1109.82,1869.59]' WHERE codigo='su_ad_9'",
+        "UPDATE planos SET nome='Novo Essencial Adesão DF IV', acomodacao='apt', rede_chave='ESSENCIAL', precos='[348.67,426.77,534.39,590.54,628.98,729.6,872.18,1046.02,1241.89,2092.02]' WHERE codigo='su_ad_10'",
+        "UPDATE planos SET nome='Adesão Compacto Enf CP II', acomodacao='enf', rede_chave='COMPACTO', precos='[489.55,599.21,750.28,829.11,883.08,1024.36,1224.55,1468.62,1743.6,2937.25]' WHERE codigo='su_ad_11'",
+        "UPDATE planos SET nome='Adesão Efetivo Apto CP II', acomodacao='apt', rede_chave='EFETIVO_ADESAO', precos='[549.41,672.48,842.02,930.49,991.08,1149.65,1374.28,1648.23,1956.83,3296.44]' WHERE codigo='su_ad_12'",
+        "UPDATE planos SET nome='Adesão Completo Apto CP II', acomodacao='apt', rede_chave='COMPLETO', precos='[653.17,799.46,1001.03,1106.21,1178.25,1366.73,1633.83,1959.48,2326.37,3918.97]' WHERE codigo='su_ad_13'",
+        "UPDATE planos SET nome='Adesão Superior Apto CP II', acomodacao='apt', rede_chave='SUPERIOR', precos='[785.51,961.46,1203.86,1330.34,1416.97,1643.65,1964.84,2356.5,2797.71,4712.98]' WHERE codigo='su_ad_14'",
+        "UPDATE planos SET nome='Adesão Superior Plus Apto CP II', acomodacao='apt', rede_chave='SUPERIOR_PLUS', precos='[879.59,1076.63,1348.07,1489.7,1586.7,1840.56,2200.2,2638.77,3132.83,5277.53]' WHERE codigo='su_ad_15'",
+        "UPDATE planos SET nome='Adesão Sênior Apto CP II', acomodacao='apt', rede_chave='SENIOR', precos='[1812.04,2217.96,2777.13,3068.87,3268.74,3791.71,4532.65,5436.13,6453.96,10872.24]' WHERE codigo='su_ad_16'",
     ]
     for sql in safe:
         try:
@@ -978,6 +997,25 @@ def _migrations_sqlite(c):
         # caíam no fallback COMPACTO (16 estab.) em vez da rede real da Essencial (5 estab.).
         # Chave explícita e determinística — mesmo padrão de bradesco/porto.
         "UPDATE planos SET rede_chave='ESSENCIAL' WHERE codigo IN ('su_ec04_1','su_ec04_2','su_ec04_3','su_ec04_4','su_ec29_1','su_ec29_2','su_ec29_3','su_ec29_4','su_ec99_1','su_ec99_2','su_ec99_3','su_ec99_4','su_ef04_1','su_ef04_2','su_ef04_3','su_ef04_4','su_ef29_1','su_ef29_2','su_ef29_3','su_ef29_4','su_ef99_1','su_ef99_2','su_ef99_3','su_ef99_4')",
+        # Tabela oficial 10/2026-09/2027 (reajuste ~9,88%): nome/acomodacao/rede_chave/precos dos
+        # 16 planos de ADESAO. rede_chave explicita corrige de vez o bug de fallback (Essencial->ESSENCIAL,
+        # Efetivo adesao->EFETIVO_ADESAO, nao mais o generico do PME). Idempotente por natureza.
+        "UPDATE planos SET nome='Novo Essencial Adesão DF I', acomodacao='enf', rede_chave='ESSENCIAL', precos='[357.2,437.2,547.43,604.94,644.34,747.43,893.48,1071.57,1272.19,2143.11]' WHERE codigo='su_ad_1'",
+        "UPDATE planos SET nome='Novo Essencial Adesão DF II', acomodacao='apt', rede_chave='ESSENCIAL', precos='[399.69,489.21,612.54,676.89,720.98,836.33,999.77,1199.03,1423.52,2398.04]' WHERE codigo='su_ad_2'",
+        "UPDATE planos SET nome='Adesão Compacto Enf II', acomodacao='enf', rede_chave='COMPACTO', precos='[578.8,708.45,887.07,980.26,1044.09,1211.13,1447.8,1736.39,2061.49,3472.78]' WHERE codigo='su_ad_3'",
+        "UPDATE planos SET nome='Adesão Efetivo Apto II', acomodacao='apt', rede_chave='EFETIVO_ADESAO', precos='[647.65,792.73,992.6,1096.88,1168.31,1355.24,1620.05,1942.98,2306.77,3885.92]' WHERE codigo='su_ad_4'",
+        "UPDATE planos SET nome='Adesão Completo Apto II', acomodacao='apt', rede_chave='COMPLETO', precos='[764.25,935.42,1171.25,1294.32,1378.62,1599.15,1911.67,2292.7,2721.98,4585.4]' WHERE codigo='su_ad_5'",
+        "UPDATE planos SET nome='Adesão Superior Apto I', acomodacao='apt', rede_chave='SUPERIOR', precos='[911.33,1115.47,1396.68,1543.42,1643.94,1906.92,2279.57,2733.96,3245.84,5467.9]' WHERE codigo='su_ad_6'",
+        "UPDATE planos SET nome='Adesão Superior Plus Apto II', acomodacao='apt', rede_chave='SUPERIOR_PLUS', precos='[1020.48,1249.07,1564.0,1728.3,1840.83,2135.35,2552.61,3061.42,3634.61,6122.83]' WHERE codigo='su_ad_7'",
+        "UPDATE planos SET nome='Adesão Sênior Apto II', acomodacao='apt', rede_chave='SENIOR', precos='[2004.08,2453.01,3071.44,3394.13,3615.55,4193.54,5013.01,6012.24,7137.93,12024.47]' WHERE codigo='su_ad_8'",
+        "UPDATE planos SET nome='Novo Essencial Adesão DF III', acomodacao='enf', rede_chave='ESSENCIAL', precos='[311.61,381.4,477.57,527.74,562.09,652.03,779.43,934.8,1109.82,1869.59]' WHERE codigo='su_ad_9'",
+        "UPDATE planos SET nome='Novo Essencial Adesão DF IV', acomodacao='apt', rede_chave='ESSENCIAL', precos='[348.67,426.77,534.39,590.54,628.98,729.6,872.18,1046.02,1241.89,2092.02]' WHERE codigo='su_ad_10'",
+        "UPDATE planos SET nome='Adesão Compacto Enf CP II', acomodacao='enf', rede_chave='COMPACTO', precos='[489.55,599.21,750.28,829.11,883.08,1024.36,1224.55,1468.62,1743.6,2937.25]' WHERE codigo='su_ad_11'",
+        "UPDATE planos SET nome='Adesão Efetivo Apto CP II', acomodacao='apt', rede_chave='EFETIVO_ADESAO', precos='[549.41,672.48,842.02,930.49,991.08,1149.65,1374.28,1648.23,1956.83,3296.44]' WHERE codigo='su_ad_12'",
+        "UPDATE planos SET nome='Adesão Completo Apto CP II', acomodacao='apt', rede_chave='COMPLETO', precos='[653.17,799.46,1001.03,1106.21,1178.25,1366.73,1633.83,1959.48,2326.37,3918.97]' WHERE codigo='su_ad_13'",
+        "UPDATE planos SET nome='Adesão Superior Apto CP II', acomodacao='apt', rede_chave='SUPERIOR', precos='[785.51,961.46,1203.86,1330.34,1416.97,1643.65,1964.84,2356.5,2797.71,4712.98]' WHERE codigo='su_ad_14'",
+        "UPDATE planos SET nome='Adesão Superior Plus Apto CP II', acomodacao='apt', rede_chave='SUPERIOR_PLUS', precos='[879.59,1076.63,1348.07,1489.7,1586.7,1840.56,2200.2,2638.77,3132.83,5277.53]' WHERE codigo='su_ad_15'",
+        "UPDATE planos SET nome='Adesão Sênior Apto CP II', acomodacao='apt', rede_chave='SENIOR', precos='[1812.04,2217.96,2777.13,3068.87,3268.74,3791.71,4532.65,5436.13,6453.96,10872.24]' WHERE codigo='su_ad_16'",
     ]
     for sql in safe:
         try:
