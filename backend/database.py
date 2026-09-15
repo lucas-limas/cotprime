@@ -538,6 +538,17 @@ def _migrations_pg(conn):
         "UPDATE planos SET nome='Adesão Superior Apto CP II', acomodacao='apt', rede_chave='SUPERIOR', precos='[785.51,961.46,1203.86,1330.34,1416.97,1643.65,1964.84,2356.5,2797.71,4712.98]' WHERE codigo='su_ad_14'",
         "UPDATE planos SET nome='Adesão Superior Plus Apto CP II', acomodacao='apt', rede_chave='SUPERIOR_PLUS', precos='[879.59,1076.63,1348.07,1489.7,1586.7,1840.56,2200.2,2638.77,3132.83,5277.53]' WHERE codigo='su_ad_15'",
         "UPDATE planos SET nome='Adesão Sênior Apto CP II', acomodacao='apt', rede_chave='SENIOR', precos='[1812.04,2217.96,2777.13,3068.87,3268.74,3791.71,4532.65,5436.13,6453.96,10872.24]' WHERE codigo='su_ad_16'",
+        # HOTFIX (regressão do commit anterior): coparticipação vira campo do banco — antes era
+        # deduzida do nome (getCopart do cotador); os 16 planos renomeados da Seguros Unimed
+        # quebraram essa dedução. Backfill preserva o comportamento de getCopart p/ todo o resto.
+        "ALTER TABLE planos ADD COLUMN coparticipacao TEXT",
+        "UPDATE planos SET coparticipacao='sem' WHERE coparticipacao IS NULL AND LOWER(nome) LIKE '%sem copart%'",
+        # 'copart. completa' (com ponto) também é 'total' no getCopart do cotador — sem essa
+        # variante aqui, os 10 planos Amil "Copart. Completa — ..." cairiam errado em 'parcial'.
+        "UPDATE planos SET coparticipacao='total' WHERE coparticipacao IS NULL AND (LOWER(nome) LIKE '%copart total%' OR LOWER(nome) LIKE '%copart completa%' OR LOWER(nome) LIKE '%copart. completa%')",
+        "UPDATE planos SET coparticipacao='parcial' WHERE coparticipacao IS NULL",
+        "UPDATE planos SET coparticipacao='sem' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_3','su_ad_4','su_ad_5','su_ad_6','su_ad_7','su_ad_8')",
+        "UPDATE planos SET coparticipacao='parcial' WHERE codigo IN ('su_ad_9','su_ad_10','su_ad_11','su_ad_12','su_ad_13','su_ad_14','su_ad_15','su_ad_16')",
     ]
     for sql in safe:
         try:
@@ -1016,6 +1027,17 @@ def _migrations_sqlite(c):
         "UPDATE planos SET nome='Adesão Superior Apto CP II', acomodacao='apt', rede_chave='SUPERIOR', precos='[785.51,961.46,1203.86,1330.34,1416.97,1643.65,1964.84,2356.5,2797.71,4712.98]' WHERE codigo='su_ad_14'",
         "UPDATE planos SET nome='Adesão Superior Plus Apto CP II', acomodacao='apt', rede_chave='SUPERIOR_PLUS', precos='[879.59,1076.63,1348.07,1489.7,1586.7,1840.56,2200.2,2638.77,3132.83,5277.53]' WHERE codigo='su_ad_15'",
         "UPDATE planos SET nome='Adesão Sênior Apto CP II', acomodacao='apt', rede_chave='SENIOR', precos='[1812.04,2217.96,2777.13,3068.87,3268.74,3791.71,4532.65,5436.13,6453.96,10872.24]' WHERE codigo='su_ad_16'",
+        # HOTFIX (regressão do commit anterior): coparticipação vira campo do banco — antes era
+        # deduzida do nome (getCopart do cotador); os 16 planos renomeados da Seguros Unimed
+        # quebraram essa dedução. Backfill preserva o comportamento de getCopart p/ todo o resto.
+        "ALTER TABLE planos ADD COLUMN coparticipacao TEXT",
+        "UPDATE planos SET coparticipacao='sem' WHERE coparticipacao IS NULL AND LOWER(nome) LIKE '%sem copart%'",
+        # 'copart. completa' (com ponto) também é 'total' no getCopart do cotador — sem essa
+        # variante aqui, os 10 planos Amil "Copart. Completa — ..." cairiam errado em 'parcial'.
+        "UPDATE planos SET coparticipacao='total' WHERE coparticipacao IS NULL AND (LOWER(nome) LIKE '%copart total%' OR LOWER(nome) LIKE '%copart completa%' OR LOWER(nome) LIKE '%copart. completa%')",
+        "UPDATE planos SET coparticipacao='parcial' WHERE coparticipacao IS NULL",
+        "UPDATE planos SET coparticipacao='sem' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_3','su_ad_4','su_ad_5','su_ad_6','su_ad_7','su_ad_8')",
+        "UPDATE planos SET coparticipacao='parcial' WHERE codigo IN ('su_ad_9','su_ad_10','su_ad_11','su_ad_12','su_ad_13','su_ad_14','su_ad_15','su_ad_16')",
     ]
     for sql in safe:
         try:

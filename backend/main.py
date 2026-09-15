@@ -830,6 +830,7 @@ class PlanoRequest(BaseModel):
     mod: Optional[str] = None
     vig: Optional[int] = None
     rede_chave: Optional[str] = None
+    copart: Optional[str] = None
     precos: list
     ativo: Optional[int] = 1
     ordem: Optional[int] = 0
@@ -842,6 +843,7 @@ class UpdatePlanoRequest(BaseModel):
     mod: Optional[str] = None
     vig: Optional[int] = None
     rede_chave: Optional[str] = None
+    copart: Optional[str] = None
     precos: Optional[list] = None
     ativo: Optional[int] = None
     ordem: Optional[int] = None
@@ -2201,7 +2203,8 @@ def catalogo_publico(user=Depends(require_corretor)):
     ).fetchall()
     planos_rows = conn.execute(
         """SELECT p.id as plano_id, p.codigo, o.chave as op, p.nome, p.acomodacao as aco, p.tipo,
-                  p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.rede_chave, p.precos, p.personalizado
+                  p.faixa_vidas as fvidas, p.moderador as mod, p.mes_vigencia as vig, p.rede_chave,
+                  p.coparticipacao as copart, p.precos, p.personalizado
            FROM planos p JOIN operadoras o ON p.operadora_id = o.id
            WHERE p.ativo = 1 AND o.ativo = 1
            ORDER BY o.ordem, p.ordem, p.id"""
@@ -2275,6 +2278,7 @@ def catalogo_publico(user=Depends(require_corretor)):
         if r["mod"]:        p["mod"] = r["mod"]
         if r["vig"]:        p["vig"] = r["vig"]
         if r["rede_chave"]: p["rede_chave"] = r["rede_chave"]
+        if r["copart"]:     p["copart"] = r["copart"]
         planos.append(p)
     # `rede` (cotador): agrupa por operadora × tipo ('hospital'→Hospitais, 'lab'→Laboratórios);
     # só entra operadora/grupo com ≥1 item coberto (mesmo comportamento gracioso de antes).
@@ -2439,17 +2443,21 @@ def listar_planos(admin=Depends(require_superadmin)):
         result.append(d)
     return result
 
+_COPART_VALIDOS = {"sem", "parcial", "total"}
+
 @app.post("/api/superadmin/catalogo/planos")
 def criar_plano(body: PlanoRequest, admin=Depends(require_superadmin)):
     if len(body.precos) != 10:
         raise HTTPException(400, "precos deve ter exatamente 10 valores (um por faixa etária)")
+    if body.copart is not None and body.copart not in _COPART_VALIDOS:
+        raise HTTPException(400, "copart deve ser 'sem', 'parcial' ou 'total'")
     conn = get_connection()
     if conn.execute("SELECT id FROM planos WHERE codigo = ?", (body.codigo.strip(),)).fetchone():
         conn.close()
         raise HTTPException(409, "Código de plano já existe.")
     conn.execute(
-        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, rede_chave, precos, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (body.codigo.strip(), body.operadora_id, body.nome.strip(), body.aco, body.tipo, body.fvidas, body.mod, body.vig, (body.rede_chave or None), json.dumps(body.precos), body.ativo, body.ordem),
+        "INSERT INTO planos (codigo, operadora_id, nome, acomodacao, tipo, faixa_vidas, moderador, mes_vigencia, rede_chave, coparticipacao, precos, ativo, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (body.codigo.strip(), body.operadora_id, body.nome.strip(), body.aco, body.tipo, body.fvidas, body.mod, body.vig, (body.rede_chave or None), (body.copart or None), json.dumps(body.precos), body.ativo, body.ordem),
     )
     conn.commit()
     conn.close()
@@ -2465,9 +2473,12 @@ def atualizar_plano(plano_id: int, body: UpdatePlanoRequest, admin=Depends(requi
     if body.precos is not None and len(body.precos) != 10:
         conn.close()
         raise HTTPException(400, "precos deve ter exatamente 10 valores")
-    _COL = {"aco": "acomodacao", "fvidas": "faixa_vidas", "mod": "moderador", "vig": "mes_vigencia"}
+    if body.copart is not None and body.copart not in _COPART_VALIDOS:
+        conn.close()
+        raise HTTPException(400, "copart deve ser 'sem', 'parcial' ou 'total'")
+    _COL = {"aco": "acomodacao", "fvidas": "faixa_vidas", "mod": "moderador", "vig": "mes_vigencia", "copart": "coparticipacao"}
     updates, params = [], []
-    for field in ("nome", "aco", "tipo", "fvidas", "mod", "vig", "rede_chave", "ativo", "ordem"):
+    for field in ("nome", "aco", "tipo", "fvidas", "mod", "vig", "rede_chave", "copart", "ativo", "ordem"):
         val = getattr(body, field)
         if val is not None:
             db_col = _COL.get(field, field)

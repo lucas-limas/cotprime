@@ -2368,7 +2368,7 @@ function _renderPlanosFiltrados() {
   if (busca)   lista = lista.filter(p => p.codigo.toLowerCase().includes(busca) || p.nome.toLowerCase().includes(busca));
   if (opChave) lista = lista.filter(p => p.op_chave === opChave);
   if (tipo)    lista = lista.filter(p => (p.tipo || '').toLowerCase() === tipo);
-  if (copart)  lista = lista.filter(p => _getCopart(p.nome) === copart);
+  if (copart)  lista = lista.filter(p => (p.coparticipacao || _getCopart(p.nome)) === copart);
   if (aco)     lista = lista.filter(p => (p.aco || '').toLowerCase() === aco);
   if (fvidas)  lista = lista.filter(p => (p.fvidas || '') === fvidas);
   if (status !== '') lista = lista.filter(p => String(p.ativo) === status);

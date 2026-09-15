@@ -1019,6 +1019,12 @@ function getCopart(nome) {
   return 'parcial';
 }
 
+// Campo do banco vence (fonte confiável, não depende do nome); sem o campo (plano legado
+// ou banco ainda sem a migração), cai no fallback por nome — mesmo comportamento de sempre.
+function copartDe(p) {
+  return (p && p.copart) ? p.copart : getCopart(p.nome);
+}
+
 function getFVidasForOp(op) {
   const tv = qtds.reduce((a,b)=>a+b,0);
   if (op === 'plenum') return tv <= 29 ? '02-29' : '30-99';
@@ -1052,14 +1058,14 @@ function _planosOpBase(op) {
 
 function planosFiltered(op) {
   const cop = copartOp[op];   // null/undefined → não filtra por copart
-  return _planosOpBase(op).filter(p => !cop || getCopart(p.nome) === cop);
+  return _planosOpBase(op).filter(p => !cop || copartDe(p) === cop);
 }
 
 // Coparts existentes para a operadora no contexto atual (ordem: sem→parcial→total)
 function copartsDisponiveis(op) {
   const order = ['sem','parcial','total'];
   const s = new Set();
-  _planosOpBase(op).forEach(p => s.add(getCopart(p.nome)));
+  _planosOpBase(op).forEach(p => s.add(copartDe(p)));
   return order.filter(c => s.has(c));
 }
 
