@@ -483,15 +483,16 @@ def seed_catalogo():
         ("hap_np_cc_amb","hapvida","Copart Completa — Nosso Plano (Amb)","amb","pme","02-29",None,None,[120.72,135.21,151.44,174.16,200.28,238.33,297.91,372.39,633.06,709.03],8),
         ("hap_np_cc_enf","hapvida","Copart Completa — Nosso Plano (Enf)","enf","pme","02-29",None,None,[143.68,160.92,180.23,207.26,232.35,282.64,354.55,443.19,753.48,843.83],9),
         ("hap_np_cc_apt","hapvida","Copart Completa — Nosso Plano (Apt)","apt","pme","02-29",None,None,[215.54,241.40,270.37,310.93,357.57,425.51,531.89,664.86,1130.26,1265.89],10),
-        # MEDSENIOR (ms1–ms8) — preços só a partir de 59 anos (índices 0–6 = 0)
-        ("ms1","medsenior","Sem copart — DF3 Enfermaria","enf","pf",None,None,None,[0,0,0,0,0,0,0,803.50,964.20,1263.10],1),
-        ("ms2","medsenior","Sem copart — DF4 Apartamento","apt","pf",None,None,None,[0,0,0,0,0,0,0,964.19,1157.03,1515.71],2),
-        ("ms3","medsenior","Sem copart — Black Apartamento","apt","pf",None,None,None,[0,0,0,0,0,0,0,1205.92,1447.10,1895.70],3),
-        ("ms4","medsenior","Sem copart — Infinite Apartamento","apt","pf",None,None,None,[0,0,0,0,0,0,0,1818.30,2181.96,2858.37],4),
-        ("ms5","medsenior","PME — DF Enfermaria","enf","pme",None,None,None,[0,0,0,0,0,0,0,723.14,867.77,1136.78],5),
-        ("ms6","medsenior","PME — DF Apartamento","apt","pme",None,None,None,[0,0,0,0,0,0,0,867.78,1041.34,1364.16],6),
-        ("ms7","medsenior","PME — Black Apartamento","apt","pme",None,None,None,[0,0,0,0,0,0,0,1085.34,1302.41,1706.16],7),
-        ("ms8","medsenior","PME — Infinite Apartamento","apt","pme",None,None,None,[0,0,0,0,0,0,0,1487.70,1785.24,2338.66],8),
+        # MEDSENIOR (ms1–ms8) — preços a partir de 44 anos (índices 0–5 = 0);
+        # a faixa 44-48 repete o valor de 49-53 (tabela da operadora).
+        ("ms1","medsenior","Sem copart — DF3 Enfermaria","enf","pf",None,None,None,[0,0,0,0,0,0,803.50,803.50,964.20,1263.10],1),
+        ("ms2","medsenior","Sem copart — DF4 Apartamento","apt","pf",None,None,None,[0,0,0,0,0,0,964.19,964.19,1157.03,1515.71],2),
+        ("ms3","medsenior","Sem copart — Black Apartamento","apt","pf",None,None,None,[0,0,0,0,0,0,1205.92,1205.92,1447.10,1895.70],3),
+        ("ms4","medsenior","Sem copart — Infinite Apartamento","apt","pf",None,None,None,[0,0,0,0,0,0,1818.30,1818.30,2181.96,2858.37],4),
+        ("ms5","medsenior","PME — DF Enfermaria","enf","pme",None,None,None,[0,0,0,0,0,0,723.14,723.14,867.77,1136.78],5),
+        ("ms6","medsenior","PME — DF Apartamento","apt","pme",None,None,None,[0,0,0,0,0,0,867.78,867.78,1041.34,1364.16],6),
+        ("ms7","medsenior","PME — Black Apartamento","apt","pme",None,None,None,[0,0,0,0,0,0,1085.34,1085.34,1302.41,1706.16],7),
+        ("ms8","medsenior","PME — Infinite Apartamento","apt","pme",None,None,None,[0,0,0,0,0,0,1487.70,1487.70,1785.24,2338.66],8),
         # PORTO SAÚDE (ps_1–ps_8)
         ("ps_1","portosaude","Sem copart — Bronze Brasília Pro","enf","pme",None,None,None,[243.53,295.33,356.27,407.87,441.93,456.40,545.18,586.91,725.17,1218.96],1),
         ("ps_2","portosaude","Com copart — Bronze Brasília Pro","enf","pme",None,None,None,[187.52,227.41,274.33,314.06,340.29,351.43,419.79,451.92,558.38,938.60],2),

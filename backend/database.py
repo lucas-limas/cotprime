@@ -549,6 +549,17 @@ def _migrations_pg(conn):
         "UPDATE planos SET coparticipacao='parcial' WHERE coparticipacao IS NULL",
         "UPDATE planos SET coparticipacao='sem' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_3','su_ad_4','su_ad_5','su_ad_6','su_ad_7','su_ad_8')",
         "UPDATE planos SET coparticipacao='parcial' WHERE codigo IN ('su_ad_9','su_ad_10','su_ad_11','su_ad_12','su_ad_13','su_ad_14','su_ad_15','su_ad_16')",
+        # MedSênior: cobertura passa a valer a partir dos 44 anos (índice 6 = índice 7,
+        # confirmado pelo usuário com a tabela oficial). Idempotente; corrige banco novo tb,
+        # pois roda depois dos INSERTs de ms1-ms8 já existentes na lista.
+        "UPDATE planos SET precos='[0,0,0,0,0,0,803.50,803.50,964.20,1263.10]' WHERE codigo='ms1'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,964.19,964.19,1157.03,1515.71]' WHERE codigo='ms2'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1205.92,1205.92,1447.10,1895.70]' WHERE codigo='ms3'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1818.30,1818.30,2181.96,2858.37]' WHERE codigo='ms4'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,723.14,723.14,867.77,1136.78]' WHERE codigo='ms5'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,867.78,867.78,1041.34,1364.16]' WHERE codigo='ms6'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1085.34,1085.34,1302.41,1706.16]' WHERE codigo='ms7'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1487.70,1487.70,1785.24,2338.66]' WHERE codigo='ms8'",
     ]
     for sql in safe:
         try:
@@ -1038,6 +1049,17 @@ def _migrations_sqlite(c):
         "UPDATE planos SET coparticipacao='parcial' WHERE coparticipacao IS NULL",
         "UPDATE planos SET coparticipacao='sem' WHERE codigo IN ('su_ad_1','su_ad_2','su_ad_3','su_ad_4','su_ad_5','su_ad_6','su_ad_7','su_ad_8')",
         "UPDATE planos SET coparticipacao='parcial' WHERE codigo IN ('su_ad_9','su_ad_10','su_ad_11','su_ad_12','su_ad_13','su_ad_14','su_ad_15','su_ad_16')",
+        # MedSênior: cobertura passa a valer a partir dos 44 anos (índice 6 = índice 7,
+        # confirmado pelo usuário com a tabela oficial). Idempotente; corrige banco novo tb,
+        # pois roda depois dos INSERTs de ms1-ms8 já existentes na lista.
+        "UPDATE planos SET precos='[0,0,0,0,0,0,803.50,803.50,964.20,1263.10]' WHERE codigo='ms1'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,964.19,964.19,1157.03,1515.71]' WHERE codigo='ms2'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1205.92,1205.92,1447.10,1895.70]' WHERE codigo='ms3'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1818.30,1818.30,2181.96,2858.37]' WHERE codigo='ms4'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,723.14,723.14,867.77,1136.78]' WHERE codigo='ms5'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,867.78,867.78,1041.34,1364.16]' WHERE codigo='ms6'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1085.34,1085.34,1302.41,1706.16]' WHERE codigo='ms7'",
+        "UPDATE planos SET precos='[0,0,0,0,0,0,1487.70,1487.70,1785.24,2338.66]' WHERE codigo='ms8'",
     ]
     for sql in safe:
         try:
