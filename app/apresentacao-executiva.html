@@ -246,20 +246,22 @@ body{font-family:"DM Sans",sans-serif;background:var(--cream);color:var(--ink);f
 
 /* tabela comparativa (faixa etária + carências) */
 .comp-tbl-wrap{overflow-x:auto;border-radius:var(--r);box-shadow:var(--sh);margin-top:1rem}
-.comp-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.comp-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.comp-tbl th.th-first,.comp-tbl td.td-first{width:22%;min-width:140px}
+.comp-tbl th.th-center,.comp-tbl td.td-center{width:64px}
 .comp-tbl thead th{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#fff;padding:9px 12px;text-align:right;white-space:nowrap;line-height:1.25}
 .comp-tbl thead th.th-first{text-align:left;background:var(--navy)}
 .comp-tbl thead th.th-mid{text-align:right;background:var(--navy2);color:rgba(255,255,255,.72)}
 .comp-tbl thead th.th-center{text-align:center;background:var(--navy)}
-.comp-tbl tbody td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:right;font-size:12px;vertical-align:middle}
+.comp-tbl tbody td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;font-size:12px;vertical-align:middle;font-weight:500}
 .comp-tbl tbody td.td-first{text-align:left;color:var(--ink);font-weight:500}
 .comp-tbl tbody td.td-center{text-align:center;color:var(--ink2)}
 .comp-tbl tbody td.td-mid{color:var(--ink3)}
 .comp-tbl tbody tr:nth-child(even){background:#fafafa}
 .comp-tbl .col-win{background:rgba(201,162,39,.06)}
-.comp-tbl tbody tr.row-total td{background:var(--navy);color:#fff;font-weight:700;border-bottom:none;font-size:13px}
-.comp-tbl tbody tr.row-total td.td-first{color:#fff;text-transform:uppercase;letter-spacing:.05em;font-size:11px}
-.comp-tbl tbody tr.row-total td.col-win{background:#000}
+.comp-tbl tbody tr.row-total td{background:var(--navy);color:#fff;font-weight:800;border-bottom:none;font-size:21px;letter-spacing:-.01em;padding:14px 12px;white-space:nowrap}
+.comp-tbl tbody tr.row-total td.td-first{color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;font-size:10.5px;font-weight:700}
+.comp-tbl tbody tr.row-total td.col-win{background:#000;color:var(--ap-gold)}
 .comp-tbl tbody tr.row-media td{background:var(--navy2);color:rgba(255,255,255,.82);font-size:11px;border-bottom:none}
 .comp-tbl tbody tr.row-media td.td-first{text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.6)}
 /* cvc-g/y/r/na já existem. impacto: 3 colunas */
@@ -948,6 +950,16 @@ function getCopart(nome) {
 // Metadados completos do plano (tipo, copart, personalizado, precos, nome, aco) pelo
 // codigo — vem do /api/catalogo desta aba; {} se ainda não chegou ou plano desconhecido.
 const _planoMeta = pid => _planosPorId[pid] || {};
+
+// Coparticipação da coluna. O NOME explícito vence — é o que o cliente lê no documento;
+// nunca pode haver "Sem copart" sob o título "Com coparticipação". Sem indicação no nome
+// (ex.: planos renomeados da Seguros Unimed), usa o campo do banco.
+function _copartCol(meta, nome) {
+  const n = (nome || '').toLowerCase();
+  if (n.includes('sem copart')) return 'sem';
+  if (n.includes('copart total') || n.includes('copart completa') || n.includes('copart. completa')) return 'total';
+  return meta.copart || getCopart(nome);
+}
 
 const MODALIDADE_LABEL = {pme:'CNPJ', pf:'CPF', adesao:'Adesão'};
 // Junta as modalidades distintas dos planos cotados: 1 → "CNPJ"; 2 → "CNPJ e CPF";
@@ -1769,7 +1781,7 @@ async function gerar() {
         op: oi.op, pid: oi.pid, nome: colNome,
         aco: meta.aco || dbInfo.aco || aco,
         tipo: meta.tipo || dbInfo.tipo || tipo,
-        copart: meta.copart || getCopart(colNome),
+        copart: _copartCol(meta, colNome),
         precos: oi.precos || new Array(10).fill(0),
         personalizado: !!oi.personalizado,
         isWinner: isW,
@@ -1791,7 +1803,7 @@ async function gerar() {
       op: opKey, pid: planoId, nome: colNome,
       aco: meta.aco || planoInfo.aco || aco,
       tipo: meta.tipo || planoInfo.tipo || tipo,
-      copart: meta.copart || getCopart(colNome),
+      copart: _copartCol(meta, colNome),
       precos: precosSingle,
       personalizado: !!meta.personalizado,
       isWinner: true,
